@@ -9,6 +9,7 @@ using System.Text;
 using BronyTV.DbContext.Entity;
 using Microsoft.Extensions.FileProviders;
 using System.Globalization;
+using System.Linq;
 using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -94,11 +95,19 @@ using (var scope = app.Services.CreateScope())
         context.SaveChanges();
     }
 
+    const string defaultSeasonPoster = "default-season.jpg";
+
     string BuildPosterPath(int seasonNumber)
     {
-        var fileName = $"s{seasonNumber}e1.jpg";
-        var fileOnDisk = Path.Combine(app.Environment.WebRootPath, "content", "previews", fileName);
-        return File.Exists(fileOnDisk) ? $"/content/previews/{fileName}" : "placeholder";
+        var previewsDir = Path.Combine(app.Environment.WebRootPath, "content", "previews");
+        var seasonFileName = $"s{seasonNumber}e1.jpg";
+        var seasonFilePath = Path.Combine(previewsDir, seasonFileName);
+        if (File.Exists(seasonFilePath))
+        {
+            return $"/content/previews/{seasonFileName}";
+        }
+
+        return $"/content/previews/{defaultSeasonPoster}";
     }
 
     if (!context.Seasons.Any())
@@ -123,7 +132,9 @@ using (var scope = app.Services.CreateScope())
         var seasons = context.Seasons.ToList();
         foreach (var season in seasons)
         {
-            if (string.IsNullOrWhiteSpace(season.PosterPath) || season.PosterPath == "placeholder")
+            if (string.IsNullOrWhiteSpace(season.PosterPath)
+                || season.PosterPath == "placeholder"
+                || season.PosterPath.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
             {
                 season.PosterPath = BuildPosterPath(season.Number);
             }
@@ -135,7 +146,7 @@ using (var scope = app.Services.CreateScope())
         context.SaveChanges();
     }
 
-    // Файлы на диске: /root/сезон N/cN cM.mp4 (WinSCP: c1 c1.mp4, c1 c2.mp4, …)
+    // Видео: все .mp4 в /root/сезон N/; номер сезона и серии из групп цифр в имени файла (игнорируем буквы/кодировки).
     SyncVideosFromDisk(context, videosStorageRoot);
 }
 
@@ -146,7 +157,7 @@ static void SyncVideosFromDisk(DbBronyTV context, string videosRoot)
         return;
     }
 
-    var fileNameRegex = new Regex(@"^c(\d+)\s+c(\d+)\.mp4$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    var numberRuns = new Regex(@"\d+", RegexOptions.CultureInvariant);
     var seasons = context.Seasons.AsNoTracking().ToList();
 
     foreach (var season in seasons)
@@ -160,18 +171,40 @@ static void SyncVideosFromDisk(DbBronyTV context, string videosRoot)
         foreach (var fullPath in Directory.EnumerateFiles(seasonDir, "*.mp4", SearchOption.TopDirectoryOnly))
         {
             var name = Path.GetFileName(fullPath);
-            var match = fileNameRegex.Match(name);
-            if (!match.Success)
+            var numbers = numberRuns.Matches(name)
+                .Cast<Match>()
+                .Select(m => int.Parse(m.Value, CultureInfo.InvariantCulture))
+                .ToList();
+
+            if (numbers.Count == 0)
             {
+                Console.WriteLine($"Пропуск (нет цифр в имени): {name}");
                 continue;
             }
 
-            var fileSeason = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
-            var episodeNumber = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
-            if (fileSeason != season.Number)
+            int episodeNumber;
+            if (numbers.Count >= 2)
             {
+                var seasonFromName = numbers[0];
+                episodeNumber = numbers[1];
+                if (seasonFromName != season.Number)
+                {
+                    Console.WriteLine(
+                        $"Внимание: в имени первое число={seasonFromName} (ожид. сезон {season.Number}), берём серию из второго числа={episodeNumber}: {name}");
+                }
+            }
+            else
+            {
+                episodeNumber = numbers[0];
+            }
+
+            if (episodeNumber < 1 || episodeNumber > 999)
+            {
+                Console.WriteLine($"Пропуск (некорректный номер серии {episodeNumber}): {name}");
                 continue;
             }
+
+            Console.WriteLine($"Нашел файл: {name}, привязал к Сезону {season.Number}, Серии {episodeNumber}");
 
             var existing = context.Videos.FirstOrDefault(v => v.SeasonId == season.Id && v.EpisodeNumber == episodeNumber);
             if (existing != null)
