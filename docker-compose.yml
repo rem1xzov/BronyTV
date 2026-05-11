@@ -1,19 +1,23 @@
 services:
   backend:
     build:
-      context: ./BronyTV
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: BronyTV/Dockerfile
     container_name: brony-backend
     ports:
       - "5000:5000"
+    volumes:
+      - /root:/root:ro
+    environment:
+      DISABLE_HTTPS_REDIRECT: "true"
     restart: unless-stopped
 
   frontend:
     build:
-      context: ./Brony_Video-main
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Brony_Video-main/Dockerfile
       args:
-        REACT_APP_API_BASE_URL: http://backend:5000
+        REACT_APP_API_BASE_URL: ""
     container_name: brony-frontend
     depends_on:
       - backend

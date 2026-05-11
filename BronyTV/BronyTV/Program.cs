@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using BronyTV.DbContext.Entity;
+using Microsoft.Extensions.FileProviders;
 
 var builder = WebApplication.CreateBuilder(args);
 const string FrontendCorsPolicy = "FrontendCorsPolicy";
@@ -137,6 +138,19 @@ if (!string.Equals(
 {
     app.UseHttpsRedirection();
 }
+var videosRoot = builder.Configuration["VideoStorage:RootPath"]
+    ?? Environment.GetEnvironmentVariable("BRONYTV_VIDEOS_ROOT")
+    ?? "/root";
+
+if (Directory.Exists(videosRoot))
+{
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(videosRoot),
+        RequestPath = "/videos"
+    });
+}
+
 app.UseStaticFiles();
 app.UseCors(FrontendCorsPolicy);
 app.UseAuthentication();

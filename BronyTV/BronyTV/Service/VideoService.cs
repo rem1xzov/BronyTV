@@ -12,6 +12,39 @@ public class VideoService : IVideoService
     private readonly IVideoRepository _videoRepository;
     private readonly IWebHostEnvironment _env;
 
+    /// <summary>
+    /// Публичный URL для файлов на диске: физически {root}/сезон N/файл.mp4 → HTTP /videos/сезон N/файл.mp4
+    /// </summary>
+    private static string ToPublicVideoPath(string? filePath, int seasonNumber)
+    {
+        var folder = $"сезон {seasonNumber}";
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            return $"/videos/{folder}/";
+        }
+
+        var trimmed = filePath.Trim().Replace('\\', '/');
+
+        if (trimmed.StartsWith("/videos/", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed.StartsWith('/') ? trimmed : "/" + trimmed;
+        }
+
+        if (trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+            || trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+
+        if (trimmed.StartsWith("/content/", StringComparison.OrdinalIgnoreCase))
+        {
+            return trimmed;
+        }
+
+        var fileName = trimmed.Contains('/') ? trimmed.Split('/').Last() : trimmed;
+        return $"/videos/{folder}/{fileName}";
+    }
+
     public VideoService(IVideoRepository videoRepository, IWebHostEnvironment env)
     {
         _videoRepository = videoRepository;
@@ -79,7 +112,7 @@ public class VideoService : IVideoService
             Id = v.Id,
             Title = v.Title,
             EpisodeNumber = v.EpisodeNumber,
-            FilePath = v.FilePath,
+            FilePath = ToPublicVideoPath(v.FilePath, seasonNumber),
             PreviewImageUrl = v.PreviewImageUrl,
             Description = v.Description,
             SeasonId = v.SeasonId
@@ -90,7 +123,16 @@ public class VideoService : IVideoService
     {
         var v = await _videoRepository.GetVideoByIdAsync(id);
         if (v == null) return null;
-        return new Video { Id = v.Id, Title = v.Title, FilePath = v.FilePath };
+        return new Video
+        {
+            Id = v.Id,
+            Title = v.Title,
+            EpisodeNumber = v.EpisodeNumber,
+            FilePath = ToPublicVideoPath(v.FilePath, v.Season.Number),
+            PreviewImageUrl = v.PreviewImageUrl,
+            Description = v.Description,
+            SeasonId = v.SeasonId
+        };
     }
 
     public async Task DeleteVideoAsync(Guid id) 

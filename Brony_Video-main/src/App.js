@@ -125,7 +125,46 @@ const getPublicAssetUrl = (relativePath) => {
   return `${base}/${relativePath.replace(/^\/+/, "")}`;
 };
 
-const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:5069";
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL ?? "").replace(/\/$/, "");
+
+/** Кодирует каждый сегмент пути (кириллица, пробелы) для корректной подстановки в URL. */
+const encodeResourcePath = (path) => {
+  if (!path) {
+    return "";
+  }
+  const trimmed = path.trim();
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      const encodedPath =
+        "/" +
+        u.pathname
+          .split("/")
+          .filter(Boolean)
+          .map((segment) => encodeURIComponent(segment))
+          .join("/");
+      return `${u.origin}${encodedPath}${u.search}${u.hash}`;
+    } catch {
+      return trimmed;
+    }
+  }
+  const [pathPart, ...queryParts] = trimmed.split("?");
+  const query = queryParts.length > 0 ? `?${queryParts.join("?")}` : "";
+  const normalized = pathPart.startsWith("/") ? pathPart : `/${pathPart}`;
+  const segments = normalized.split("/").filter(Boolean);
+  if (segments.length === 0) {
+    return query || "/";
+  }
+  return `/${segments.map((segment) => encodeURIComponent(segment)).join("/")}${query}`;
+};
+
+const apiUrl = (path) => {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  if (!API_BASE_URL) {
+    return normalized;
+  }
+  return `${API_BASE_URL}${normalized}`;
+};
 
 const toAbsoluteApiUrl = (path) => {
   if (!path) {
@@ -134,7 +173,19 @@ const toAbsoluteApiUrl = (path) => {
   if (/^https?:\/\//i.test(path)) {
     return path;
   }
-  return `${API_BASE_URL}${path.startsWith("/") ? path : `/${path}`}`;
+  const encoded = encodeResourcePath(path.startsWith("/") ? path : `/${path}`);
+  return apiUrl(encoded);
+};
+
+const getMediaUrl = (path) => {
+  if (!path) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(path)) {
+    return encodeResourcePath(path);
+  }
+  const encoded = encodeResourcePath(path);
+  return apiUrl(encoded);
 };
 
 const readStorageObject = (key) => {
@@ -355,7 +406,7 @@ function SeasonPage({
           ) : null}
         </div>
       </div>
-      <div className="episode-list scrollable">
+      <div className="episode-list episode-grid scrollable">
         {episodes.map((episode) => (
           <div className="episode-card" key={episode.id}>
             <div className="episode-main">
@@ -521,7 +572,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
           className="video-player video-large"
           controls
           preload="metadata"
-          src={toAbsoluteApiUrl(selectedEpisode.filePath)}
+          src={getMediaUrl(selectedEpisode.filePath)}
           onLoadedMetadata={handleVideoLoadedMetadata}
           onTimeUpdate={handleVideoTimeUpdate}
           onPause={handleVideoPause}
@@ -593,7 +644,7 @@ export default function App() {
   useEffect(() => {
     const loadSeasons = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/season`);
+        const response = await fetch(apiUrl("/api/season"));
         if (!response.ok) {
           return;
         }
@@ -615,7 +666,7 @@ export default function App() {
       return;
     }
     try {
-      const response = await fetch(`${API_BASE_URL}/api/video/season/${seasonNumber}`);
+      const response = await fetch(apiUrl(`/api/video/season/${seasonNumber}`));
       if (!response.ok) {
         return;
       }

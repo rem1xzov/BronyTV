@@ -1,16 +1,12 @@
 # syntax=docker/dockerfile:1
 
-# Файл в каталоге BronyTV (рядом с BronyTV.sln). Контекст сборки в compose: ./BronyTV
+# Контекст сборки: корень монорепозитория (см. docker-compose: context: .)
 
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 WORKDIR /src
-
-COPY ["BronyTV.sln", "./"]
-COPY ["BronyTV/BronyTV.csproj", "BronyTV/"]
-RUN dotnet restore "BronyTV/BronyTV.csproj"
-
-COPY BronyTV/ BronyTV/
+COPY BronyTV/ ./
 WORKDIR /src/BronyTV
+RUN dotnet restore "BronyTV.csproj"
 RUN dotnet publish "BronyTV.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS final
