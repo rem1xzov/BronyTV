@@ -1,0 +1,628 @@
+:root {
+  /* Светлая тема: палитра розовый/пурпурный как на логотипе MLP, но фон остаётся светлым */
+  --bg-main: #fff1fb;
+  --bg-surface: #f7e7ff;
+  --bg-soft: #faecff;
+  --bg-card: rgba(255, 255, 255, 0.92);
+  --text-main: #3a0b3c;
+  --text-muted: #7b4b82;
+  --accent: #ec4899; /* hot pink */
+  --accent-strong: #db2777;
+  --accent-soft: rgba(236, 72, 153, 0.16);
+  --border-soft: rgba(168, 85, 247, 0.16);
+  --shadow-soft: 0 18px 44px rgba(58, 11, 60, 0.12);
+  --hero-overlay: linear-gradient(112deg, rgba(255, 255, 255, 0.84), rgba(252, 231, 243, 0.62));
+  --hero-glow: radial-gradient(circle at 78% 22%, rgba(236, 72, 153, 0.18), transparent 58%);
+  --sidebar-bg: rgba(255, 255, 255, 0.78);
+  --shell-bg: rgba(255, 255, 255, 0.66);
+  --thumb-gradient: linear-gradient(145deg, #fbcfe8, #e9d5ff);
+  --video-gradient: linear-gradient(140deg, #4c1d95, #db2777 56%, #fb7185);
+  --left-blur: linear-gradient(180deg, rgba(236, 72, 153, 0.18), rgba(168, 85, 247, 0.18), rgba(255, 241, 251, 0.06));
+  --right-blur: linear-gradient(180deg, rgba(168, 85, 247, 0.16), rgba(236, 72, 153, 0.16), rgba(255, 241, 251, 0.06));
+  --banner-gradient: linear-gradient(130deg, #fce7f3, #e9d5ff 48%, #fbcfe8);
+}
+
+[data-theme="dark"] {
+  --bg-main: #0b090d;
+  --bg-surface: #14090d;
+  --bg-soft: #1a1b28;
+  --bg-card: #151622;
+  --text-main: #f4f5ff;
+  --text-muted: #a7abc8;
+  --accent: #e50914;
+  --accent-strong: #b00610;
+  --accent-soft: rgba(229, 9, 20, 0.2);
+  --border-soft: rgba(255, 255, 255, 0.14);
+  --shadow-soft: 0 18px 44px rgba(0, 0, 0, 0.55);
+  --hero-overlay: linear-gradient(112deg, rgba(0, 0, 0, 0.85), rgba(16, 16, 20, 0.58));
+  --hero-glow: radial-gradient(circle at 78% 22%, rgba(229, 9, 20, 0.36), transparent 58%);
+  --sidebar-bg: rgba(15, 16, 24, 0.84);
+  --shell-bg: rgba(20, 10, 14, 0.28);
+  --thumb-gradient: linear-gradient(145deg, #2d2f44, #1c1d2d);
+  --video-gradient: linear-gradient(140deg, #08080d, #1f2234 58%, #3a3f5c);
+  --left-blur: radial-gradient(circle at 18% 22%, rgba(229, 9, 20, 0.34), transparent 56%),
+    linear-gradient(180deg, rgba(186, 16, 28, 0.34), rgba(54, 13, 20, 0.24), rgba(12, 12, 18, 0.06));
+  --right-blur: radial-gradient(circle at 78% 34%, rgba(153, 23, 40, 0.26), transparent 54%),
+    linear-gradient(180deg, rgba(84, 20, 34, 0.3), rgba(30, 19, 28, 0.24), rgba(12, 12, 18, 0.06));
+  --banner-gradient: linear-gradient(130deg, #171829, #11111a 56%, #1f2238);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, "Segoe UI", Roboto, sans-serif;
+  color: var(--text-main);
+  background: linear-gradient(180deg, var(--bg-main) 0%, var(--bg-surface) 100%);
+}
+
+/* Красная (тёмная) тема — как была */
+body[data-theme="dark"] {
+  color-scheme: dark;
+  background:
+    radial-gradient(circle at 18% 20%, rgba(229, 9, 20, 0.28), transparent 42%),
+    radial-gradient(circle at 82% 78%, rgba(158, 20, 35, 0.22), transparent 46%),
+    linear-gradient(135deg, #1a090d 0%, #0b0a10 52%, #19080e 100%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page-frame {
+  min-height: 100vh;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  padding: 18px 0;
+}
+
+.video-blur {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 20vw;
+  min-width: 120px;
+  z-index: 0;
+  pointer-events: none;
+  /* Без filter: blur — декоративные полосы без лишней нагрузки на композитинг */
+  opacity: 0.46;
+}
+
+.video-blur-left {
+  left: 0;
+  background: var(--left-blur);
+}
+
+.video-blur-right {
+  right: 0;
+  background: var(--right-blur);
+}
+
+.app-shell {
+  width: min(1200px, 92vw);
+  min-height: calc(100vh - 36px);
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  border-radius: 28px;
+  border: 1px solid var(--border-soft);
+  overflow: hidden;
+  position: relative;
+  z-index: 1;
+  background: var(--shell-bg);
+  box-shadow: var(--shadow-soft);
+}
+
+/* Тёмная тема: лёгкое размытие за оболочкой; в светлой убрано — фон уже размыт, меньше jank */
+body[data-theme="dark"] .app-shell {
+  backdrop-filter: blur(10px);
+  background: transparent;
+  border: 0;
+}
+
+.sidebar {
+  background: var(--sidebar-bg);
+  border-right: 1px solid var(--border-soft);
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nav-pill {
+  border-radius: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 4px;
+}
+
+.theme-switch {
+  cursor: pointer;
+  color: var(--text-main);
+}
+
+.nav-pill.active {
+  background: color-mix(in srgb, var(--accent) 16%, var(--bg-card));
+  border-color: var(--border-soft);
+  font-weight: 700;
+}
+
+.content {
+  padding: 18px;
+  display: flex;
+  justify-content: center;
+}
+
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 24px;
+  padding: 18px;
+  width: min(980px, 100%);
+  box-shadow: var(--shadow-soft);
+}
+
+body[data-theme="dark"] .panel {
+  border-top: 0;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 44px;
+  margin-top: 2px;
+  margin-bottom: 10px;
+}
+
+h2 {
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+h3 {
+  font-size: 18px;
+}
+
+.description {
+  max-width: 700px;
+  line-height: 1.45;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.button-row {
+  margin-top: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.primary-btn,
+.secondary-btn {
+  border-radius: 999px;
+  border: 1px solid transparent;
+  padding: 10px 14px;
+  font-weight: 600;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.primary-btn {
+  background: var(--accent);
+  color: #fff;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.primary-btn:hover {
+  background: var(--accent-strong);
+  transform: translateY(-1px);
+}
+
+.primary-btn.small {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.secondary-btn.small {
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.secondary-btn {
+  background: var(--accent-soft);
+  color: var(--text-main);
+  border-color: var(--border-soft);
+}
+
+.episode-list {
+  margin-top: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.episode-list.scrollable {
+  max-height: 64vh;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.episode-card {
+  border-radius: 24px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-soft);
+  padding: 12px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  align-items: flex-start;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  overflow: visible;
+  isolation: isolate;
+  z-index: 1;
+}
+
+.episode-card:focus-within {
+  z-index: 30;
+}
+
+.episode-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+.episode-thumb {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  flex: 0 0 auto;
+  background: var(--thumb-gradient);
+}
+
+.episode-main {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  flex: 1;
+}
+
+.meta-row {
+  font-size: 14px;
+}
+
+.season-banner {
+  border-radius: 24px;
+  padding: 26px;
+  background: var(--banner-gradient);
+  margin-bottom: 16px;
+  min-height: 170px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  position: relative;
+  overflow: visible;
+  isolation: isolate;
+  z-index: 25;
+}
+
+.season-banner.has-season-preview::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background-image: var(--season-preview-url);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.season-banner.has-season-preview::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+body[data-theme="light"] .season-banner.has-season-preview::after {
+  background:
+    linear-gradient(110deg, rgba(255, 241, 251, 0.86) 0%, rgba(255, 241, 251, 0.72) 48%, rgba(255, 241, 251, 0.52) 100%),
+    linear-gradient(180deg, rgba(124, 58, 237, 0.06), rgba(236, 72, 153, 0.12));
+}
+
+body[data-theme="dark"] .season-banner.has-season-preview::after {
+  background:
+    linear-gradient(110deg, rgba(13, 15, 24, 0.82) 0%, rgba(13, 15, 24, 0.66) 48%, rgba(13, 15, 24, 0.46) 100%),
+    linear-gradient(180deg, rgba(76, 29, 149, 0.18), rgba(219, 39, 119, 0.18));
+}
+
+.season-banner.has-season-preview > * {
+  position: relative;
+  z-index: 1;
+}
+
+.season-banner .muted {
+  color: color-mix(in srgb, var(--text-main) 80%, var(--text-muted));
+}
+
+.home-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.hero-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--hero-overlay);
+  pointer-events: none;
+}
+
+.hero-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--hero-glow);
+  pointer-events: none;
+}
+
+.hero-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-content {
+  border-radius: 22px;
+  padding: 14px 14px 12px;
+}
+
+/* Светлая тема: подложка под названием/описанием светлее */
+/* В обеих темах hero-текстовый блок выглядит одинаково, как в “тёмном” дизайне */
+body[data-theme="light"] .hero-content,
+body[data-theme="dark"] .hero-content {
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+
+.hero-thumb {
+  border-radius: 24px;
+  min-height: 160px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04));
+  border: 1px solid rgba(255, 255, 255, 0.24);
+}
+
+body[data-theme="dark"] .hero-thumb {
+  backdrop-filter: blur(5px);
+}
+
+.quick-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.quick-list-head.centered {
+  justify-content: center;
+}
+
+.quick-list h2 {
+  margin: 0;
+}
+
+.compact-episode {
+  border-top: 1px solid var(--border-soft);
+  padding: 10px 0;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.compact-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.compact-episode:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.rating-center {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.rating-pill {
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--accent-soft);
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.video-placeholder {
+  margin: 14px 0;
+  border-radius: 18px;
+  background: var(--video-gradient);
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  font-size: 24px;
+  font-weight: 700;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.video-player {
+  margin: 14px 0;
+  width: 100%;
+  height: min(78vh, 800px);
+  border-radius: 18px;
+  background: #000;
+  display: block;
+  object-fit: contain;
+}
+
+.player-panel {
+  width: 100%;
+  max-width: none;
+}
+
+.video-large {
+  min-height: min(78vh, 800px);
+  border-radius: 24px;
+}
+
+.next-videos {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.next-video-card {
+  border-radius: 18px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-soft);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.next-video-card:hover {
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+.episode-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 180px;
+}
+
+.rating-widget {
+  position: relative;
+  z-index: 20;
+}
+
+.rate-btn {
+  border-radius: 999px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-card);
+  color: var(--text-main);
+  padding: 8px 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  min-height: 38px;
+}
+
+.rate-btn:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-soft));
+}
+
+.rating-popup {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  width: 232px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  z-index: 1200;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
+}
+
+.rating-number {
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: var(--bg-soft);
+  color: var(--text-main);
+  font-weight: 700;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.rating-number.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    width: 100vw;
+    border-radius: 0;
+    min-height: 100vh;
+    grid-template-columns: 1fr;
+  }
+
+  .video-blur {
+    display: none;
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-soft);
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .nav-pill {
+    min-width: 70px;
+  }
+
+  .content {
+    padding: 14px;
+  }
+
+  .panel {
+    padding: 16px;
+  }
+
+  .hero-card {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,8 @@
+.env
+.idea/
+**/bin/
+**/obj/
+BronyTV/wwwroot/content/video/*
+BronyTV/wwwroot/content/previews/*
+!BronyTV/wwwroot/content/video/.gitkeep
+!BronyTV/wwwroot/content/previews/.gitkeep

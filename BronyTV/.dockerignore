@@ -1,0 +1,13 @@
+**/.git
+**/.vs
+**/.idea
+**/bin
+**/obj
+**/*.user
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/data
+BronyTV/wwwroot/content/video/*
+BronyTV/wwwroot/content/previews/*

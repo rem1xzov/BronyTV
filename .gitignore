@@ -1,0 +1,12 @@
+**/node_modules/
+**/build/
+**/dist/
+**/bin/
+**/obj/
+**/.vs/
+**/.idea/
+*.user
+*.suo
+*.DotSettings.user
+.DS_Store
+Thumbs.db
