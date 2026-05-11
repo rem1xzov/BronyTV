@@ -8,8 +8,13 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using BronyTV.DbContext.Entity;
 using Microsoft.Extensions.FileProviders;
+using System.Globalization;
+using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
+var videosStorageRoot = builder.Configuration["VideoStorage:RootPath"]
+    ?? Environment.GetEnvironmentVariable("BRONYTV_VIDEOS_ROOT")
+    ?? "/root";
 const string FrontendCorsPolicy = "FrontendCorsPolicy";
 
 builder.Services.AddDbContext<DbBronyTV>(options =>
@@ -129,6 +134,70 @@ using (var scope = app.Services.CreateScope())
     {
         context.SaveChanges();
     }
+
+    // Файлы на диске: /root/сезон N/cN cM.mp4 (WinSCP: c1 c1.mp4, c1 c2.mp4, …)
+    SyncVideosFromDisk(context, videosStorageRoot);
+}
+
+static void SyncVideosFromDisk(DbBronyTV context, string videosRoot)
+{
+    if (string.IsNullOrWhiteSpace(videosRoot) || !Directory.Exists(videosRoot))
+    {
+        return;
+    }
+
+    var fileNameRegex = new Regex(@"^c(\d+)\s+c(\d+)\.mp4$", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    var seasons = context.Seasons.AsNoTracking().ToList();
+
+    foreach (var season in seasons)
+    {
+        var seasonDir = Path.Combine(videosRoot, $"сезон {season.Number}");
+        if (!Directory.Exists(seasonDir))
+        {
+            continue;
+        }
+
+        foreach (var fullPath in Directory.EnumerateFiles(seasonDir, "*.mp4", SearchOption.TopDirectoryOnly))
+        {
+            var name = Path.GetFileName(fullPath);
+            var match = fileNameRegex.Match(name);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            var fileSeason = int.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+            var episodeNumber = int.Parse(match.Groups[2].Value, CultureInfo.InvariantCulture);
+            if (fileSeason != season.Number)
+            {
+                continue;
+            }
+
+            var existing = context.Videos.FirstOrDefault(v => v.SeasonId == season.Id && v.EpisodeNumber == episodeNumber);
+            if (existing != null)
+            {
+                if (!string.Equals(existing.FilePath, name, StringComparison.Ordinal))
+                {
+                    existing.FilePath = name;
+                }
+            }
+            else
+            {
+                context.Videos.Add(new VideoEntity
+                {
+                    Id = Guid.NewGuid(),
+                    SeasonId = season.Id,
+                    EpisodeNumber = episodeNumber,
+                    Title = $"Серия {episodeNumber}",
+                    Description = string.Empty,
+                    FilePath = name,
+                    PreviewImageUrl = null
+                });
+            }
+        }
+    }
+
+    context.SaveChanges();
 }
 
 if (!string.Equals(
@@ -138,15 +207,11 @@ if (!string.Equals(
 {
     app.UseHttpsRedirection();
 }
-var videosRoot = builder.Configuration["VideoStorage:RootPath"]
-    ?? Environment.GetEnvironmentVariable("BRONYTV_VIDEOS_ROOT")
-    ?? "/root";
-
-if (Directory.Exists(videosRoot))
+if (Directory.Exists(videosStorageRoot))
 {
     app.UseStaticFiles(new StaticFileOptions
     {
-        FileProvider = new PhysicalFileProvider(videosRoot),
+        FileProvider = new PhysicalFileProvider(videosStorageRoot),
         RequestPath = "/videos"
     });
 }
