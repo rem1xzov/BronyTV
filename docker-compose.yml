@@ -14,8 +14,12 @@ services:
       test: ["CMD-SHELL", "pg_isready -U postgres -d BronyTV"]
       interval: 5s
       timeout: 5s
-      retries: 10
+      retries: 5
     restart: unless-stopped
+    networks:
+      brony-net:
+        aliases:
+          - db
 
   backend:
     build:
@@ -34,6 +38,10 @@ services:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=123456"
     restart: unless-stopped
+    networks:
+      brony-net:
+        aliases:
+          - backend
 
   frontend:
     build:
@@ -43,10 +51,19 @@ services:
         REACT_APP_API_BASE_URL: ""
     container_name: brony-frontend
     depends_on:
-      - backend
+      backend:
+        condition: service_started
     ports:
       - "80:80"
-    restart: unless-stopped
+    restart: always
+    networks:
+      brony-net:
+        aliases:
+          - frontend
+
+networks:
+  brony-net:
+    driver: bridge
 
 volumes:
   postgres_data:
