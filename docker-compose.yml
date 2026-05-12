@@ -1,0 +1,52 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: brony-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: "123456"
+      POSTGRES_DB: BronyTV
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d BronyTV"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: BronyTV/Dockerfile
+    container_name: brony-backend
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+    volumes:
+      - /root:/root:ro
+    environment:
+      DISABLE_HTTPS_REDIRECT: "true"
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=123456"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Brony_Video-main/Dockerfile
+      args:
+        REACT_APP_API_BASE_URL: ""
+    container_name: brony-frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
