@@ -14,7 +14,7 @@ using Microsoft.IdentityModel.Tokens;
 var builder = WebApplication.CreateBuilder(args);
 var videosStorageRoot = builder.Configuration["VideoStorage:RootPath"]
     ?? Environment.GetEnvironmentVariable("BRONYTV_VIDEOS_ROOT")
-    ?? "/root";
+    ?? "/app/media";
 const string OpenCorsPolicy = "OpenCorsPolicy";
 
 builder.Services.AddDbContext<DbBronyTV>(options =>

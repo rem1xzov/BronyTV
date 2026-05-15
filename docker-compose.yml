@@ -4,7 +4,7 @@ services:
     container_name: brony-db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: "123456"
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
       POSTGRES_DB: BronyTV
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -32,11 +32,13 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - /root:/root:ro
+      - ./media:/app/media:ro
     environment:
       DISABLE_HTTPS_REDIRECT: "true"
       ASPNETCORE_ENVIRONMENT: Production
-      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=123456"
+      VideoStorage__RootPath: /app/media
+      BRONYTV_VIDEOS_ROOT: /app/media
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:-123456}"
     restart: unless-stopped
     networks:
       brony-net:
@@ -48,7 +50,7 @@ services:
       context: .
       dockerfile: Brony_Video-main/Dockerfile
       args:
-        REACT_APP_API_BASE_URL: ""
+        REACT_APP_API_BASE_URL: /api
     container_name: brony-frontend
     depends_on:
       backend:
@@ -67,3 +69,4 @@ networks:
 
 volumes:
   postgres_data:
+    driver: local

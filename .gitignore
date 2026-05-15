@@ -42,3 +42,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+## Docker host mount: uploaded videos (keep only placeholder)
+media/*
+!media/.gitkeep
