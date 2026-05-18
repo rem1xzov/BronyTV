@@ -267,7 +267,3 @@ static void SyncVideosFromDisk(DbBronyTV context, string videosRoot, ILogger log
         logger.LogInformation("Изменений на диске не обнаружено. Синхронизация не требуется.");
     }
 }
-    }
-
-    context.SaveChanges();
-}
