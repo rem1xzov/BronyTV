@@ -184,11 +184,18 @@ static void SyncVideosFromDisk(DbBronyTV context, string videosRoot, ILogger log
 {
     if (string.IsNullOrWhiteSpace(videosRoot) || !Directory.Exists(videosRoot))
     {
+        logger.LogWarning("Корневая директория видео не найдена или пуста: {Root}", videosRoot);
         return;
     }
 
     var numberRuns = new Regex(@"\d+", RegexOptions.CultureInvariant);
-    var seasons = context.Seasons.AsNoTracking().ToList();
+    var seasons = context.Seasons.ToList(); // Убираем AsNoTracking, так как будем обновлять связи
+
+    // ОПТИМИЗАЦИЯ: Загружаем ВСЕ существующие видео из базы в память ОДИН раз
+    var allExistingVideos = context.Videos.ToList();
+    logger.LogInformation("Загружено {Count} существующих видео из базы для синхронизации.", allExistingVideos.Count);
+
+    var hasChanges = false;
 
     foreach (var season in seasons)
     {
@@ -208,46 +215,30 @@ static void SyncVideosFromDisk(DbBronyTV context, string videosRoot, ILogger log
 
             if (numbers.Count == 0)
             {
-                logger.LogInformation("Пропуск (нет цифр в имени): {Name}", name);
                 continue;
             }
 
-            int episodeNumber;
-            if (numbers.Count >= 2)
-            {
-                var seasonFromName = numbers[0];
-                episodeNumber = numbers[1];
-                if (seasonFromName != season.Number)
-                {
-                    logger.LogInformation(
-                        "В имени первое число={SeasonFromName} (ожид. сезон {ExpectedSeason}), серия из второго числа={EpisodeNumber}: {Name}",
-                        seasonFromName, season.Number, episodeNumber, name);
-                }
-            }
-            else
-            {
-                episodeNumber = numbers[0];
-            }
+            int episodeNumber = numbers.Count >= 2 ? numbers[1] : numbers[0];
 
             if (episodeNumber is < 1 or > 999)
             {
-                logger.LogInformation("Пропуск (некорректный номер серии {EpisodeNumber}): {Name}", episodeNumber, name);
                 continue;
             }
 
-            logger.LogInformation("Найден файл: {Name}, сезон {SeasonNumber}, серия {EpisodeNumber}", name, season.Number, episodeNumber);
-
-            var existing = context.Videos.FirstOrDefault(v => v.SeasonId == season.Id && v.EpisodeNumber == episodeNumber);
+            // Ищем видео в памяти локально, вместо постоянных запросов к БД
+            var existing = allExistingVideos.FirstOrDefault(v => v.SeasonId == season.Id && v.EpisodeNumber == episodeNumber);
+            
             if (existing != null)
             {
                 if (!string.Equals(existing.FilePath, name, StringComparison.Ordinal))
                 {
                     existing.FilePath = name;
+                    hasChanges = true;
                 }
             }
             else
             {
-                context.Videos.Add(new VideoEntity
+                var newVideo = new VideoEntity
                 {
                     Id = Guid.NewGuid(),
                     SeasonId = season.Id,
@@ -256,9 +247,26 @@ static void SyncVideosFromDisk(DbBronyTV context, string videosRoot, ILogger log
                     Description = string.Empty,
                     FilePath = name,
                     PreviewImageUrl = null
-                });
+                };
+                
+                context.Videos.Add(newVideo);
+                allExistingVideos.Add(newVideo); // Добавляем в локальный список, чтобы не дублировать
+                hasChanges = true;
             }
         }
+    }
+
+    if (hasChanges)
+    {
+        logger.LogInformation("Сохранение изменений синхронизации в базу данных...");
+        context.SaveChanges();
+        logger.LogInformation("Синхронизация успешно завершена!");
+    }
+    else
+    {
+        logger.LogInformation("Изменений на диске не обнаружено. Синхронизация не требуется.");
+    }
+}
     }
 
     context.SaveChanges();
