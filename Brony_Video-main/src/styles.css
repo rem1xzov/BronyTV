@@ -74,6 +74,7 @@ a {
 
 .page-frame {
   min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
   display: flex;
   justify-content: center;
@@ -106,6 +107,7 @@ a {
   width: min(1180px, 92vw);
   max-width: 1180px;
   min-height: calc(100vh - 36px);
+  min-height: calc(100dvh - 36px);
   display: grid;
   grid-template-columns: 88px minmax(0, 1fr);
   border-radius: 28px;
@@ -534,10 +536,12 @@ body[data-theme="dark"] .hero-thumb {
   width: 100%;
   max-width: 100%;
   height: min(78vh, 800px);
+  height: min(78dvh, 800px);
   border-radius: 18px;
   background: #000;
   display: block;
   object-fit: contain;
+  -webkit-playsinline: true;
 }
 
 .player-panel {
@@ -545,11 +549,17 @@ body[data-theme="dark"] .hero-thumb {
   max-width: min(960px, 100%);
   margin-left: auto;
   margin-right: auto;
+  padding-bottom: max(18px, env(safe-area-inset-bottom, 0px));
 }
 
 .video-large {
   min-height: min(78vh, 800px);
+  min-height: min(78dvh, 800px);
   border-radius: 24px;
+}
+
+.video-error-msg {
+  margin-top: 8px;
 }
 
 .player-panel .video-player,
@@ -724,6 +734,29 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 @media (max-width: 768px) {
+  .episode-list.episode-grid .episode-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .episode-list.episode-grid .episode-actions {
+    width: 100%;
+    min-width: 0;
+    align-items: stretch;
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .episode-main {
+    overflow: visible;
+    word-break: break-word;
+  }
+
+  .player-panel .button-row {
+    padding-bottom: env(safe-area-inset-bottom, 12px);
+  }
+
   .video-player,
   .video-placeholder {
     width: 100%;

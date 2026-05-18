@@ -177,6 +177,7 @@ const toAbsoluteApiUrl = (path) => {
   return apiUrl(encoded);
 };
 
+/** Видео и статика — с корня сайта (/videos), не через префикс API. */
 const getMediaUrl = (path) => {
   if (!path) {
     return "";
@@ -184,8 +185,8 @@ const getMediaUrl = (path) => {
   if (/^https?:\/\//i.test(path)) {
     return encodeResourcePath(path);
   }
-  const encoded = encodeResourcePath(path);
-  return apiUrl(encoded);
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return encodeResourcePath(normalized);
 };
 
 const readStorageObject = (key) => {
@@ -408,7 +409,7 @@ function SeasonPage({
       </div>
       <div className="episode-list episode-grid scrollable">
         {episodes.map((episode) => (
-          <div className="episode-card" key={episode.id}>
+          <div className="episode-card" key={`s${safeSeason}-e${episode.id}`}>
             <div className="episode-main">
               <Link to={`/player/${safeSeason}/${episode.id}`} state={{ episode }}>
                 <h3>{episode.title}</h3>
@@ -472,11 +473,19 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const progressStorageKey = `s${safeSeason}e${selectedEpisode?.id || 1}`;
   const [resumeLabel, setResumeLabel] = useState("");
   const lastSavedSecondRef = useRef(-1);
+  const [videoError, setVideoError] = useState(false);
+
+  const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
 
   useEffect(() => {
     setCurrentSeason(safeSeason);
     onEnsureSeasonVideos(safeSeason);
   }, [onEnsureSeasonVideos, safeSeason, setCurrentSeason]);
+
+  useEffect(() => {
+    setVideoError(false);
+    lastSavedSecondRef.current = -1;
+  }, [videoSrc, safeSeason, episode]);
 
   const formatTime = (totalSeconds) => {
     const safe = Math.max(0, Math.floor(totalSeconds || 0));
@@ -566,22 +575,28 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         Плеер | Сезон {safeSeason}, серия {selectedEpisode?.id || 1}
       </h2>
       {resumeLabel ? <p className="muted">{resumeLabel}</p> : null}
-      {selectedEpisode?.filePath ? (
+      {videoSrc ? (
         <video
+          key={videoSrc}
           ref={playerRef}
           className="video-player video-large"
           controls
+          playsInline
           preload="metadata"
-          src={getMediaUrl(selectedEpisode.filePath)}
+          src={videoSrc}
           onLoadedMetadata={handleVideoLoadedMetadata}
           onTimeUpdate={handleVideoTimeUpdate}
           onPause={handleVideoPause}
+          onError={() => setVideoError(true)}
         />
       ) : (
         <div ref={playerRef} className="video-placeholder video-large">
-          Video Player Placeholder
+          {remoteVideos.length === 0 ? "Загрузка списка серий…" : "Видеофайл для этой серии не найден"}
         </div>
       )}
+      {videoError ? (
+        <p className="muted video-error-msg">Не удалось загрузить видео. Проверьте подключение или попробуйте позже.</p>
+      ) : null}
       <h3>{selectedEpisode?.title || "Серия недоступна"}</h3>
       <p className="muted">{selectedEpisode?.description || "Описание недоступно."}</p>
       <div className="button-row">

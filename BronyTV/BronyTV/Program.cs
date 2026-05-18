@@ -8,7 +8,6 @@ using BronyTV.Service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -161,14 +160,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
 // CORS оборачивает статику: ответы /videos и wwwroot получают заголовки для кросс-доменного плеера.
 app.UseCors(OpenCorsPolicy);
 
-if (Directory.Exists(videosStorageRoot))
-{
-    app.UseStaticFiles(new StaticFileOptions
-    {
-        FileProvider = new PhysicalFileProvider(videosStorageRoot),
-        RequestPath = "/videos"
-    });
-}
+// /videos/* отдаёт VideoStreamController (PhysicalFile + enableRangeProcessing) для Safari/iOS.
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
