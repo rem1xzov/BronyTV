@@ -1,10 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Check,
   ChevronRight,
+  Download,
   Home,
   Maximize,
   Minimize,
+  MoreVertical,
   Moon,
   Pause,
   Play,
@@ -146,6 +149,15 @@ const getSeasonIntroConfig = (seasonId) => {
 };
 
 const NEXT_EPISODE_REMAINING_SECONDS = 90;
+
+const PLAYBACK_SPEED_OPTIONS = [
+  { value: 0.5, label: "0.5x" },
+  { value: 1, label: "1x (Normal)" },
+  { value: 1.25, label: "1.25x" },
+  { value: 1.5, label: "1.5x" },
+  { value: 1.75, label: "1.75x" },
+  { value: 2, label: "2x" }
+];
 
 const STORAGE_KEYS = {
   SEASON_RATINGS: "bronytv-season-ratings",
@@ -714,6 +726,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const nextEpisode = episodes.find((item) => item.id === (selectedEpisode?.id || 0) + 1) || null;
   const playerRef = useRef(null);
   const playerShellRef = useRef(null);
+  const settingsAnchorRef = useRef(null);
+  const settingsDropdownRef = useRef(null);
   const progressStorageKey = `s${safeSeason}e${selectedEpisode?.id || 1}`;
   const [resumeLabel, setResumeLabel] = useState("");
   const lastSavedSecondRef = useRef(-1);
@@ -725,9 +739,20 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackUi, setPlaybackUi] = useState({ current: 0, duration: 0 });
   const [isShellFullscreen, setIsShellFullscreen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [speedSubmenuOpen, setSpeedSubmenuOpen] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const seasonIntroConfig = useMemo(() => getSeasonIntroConfig(safeSeason), [safeSeason]);
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
+  const downloadFileName = useMemo(() => {
+    const rawPath = selectedEpisode?.filePath || videoSrc;
+    if (!rawPath) {
+      return `bronytv-s${safeSeason}e${selectedEpisode?.id || 1}.mp4`;
+    }
+    const segment = rawPath.split("/").pop()?.split("?")[0] || rawPath;
+    return segment.includes(".") ? segment : `${segment}.mp4`;
+  }, [selectedEpisode?.filePath, selectedEpisode?.id, safeSeason, videoSrc]);
   const showNextEpisodeOverlay = Boolean(nextEpisode && videoSrc && (videoEnded || nearEpisodeEnd));
 
   useEffect(() => {
@@ -744,8 +769,33 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     setIsPlaying(false);
     setPlaybackUi({ current: 0, duration: 0 });
     setIsShellFullscreen(false);
+    setSettingsOpen(false);
+    setSpeedSubmenuOpen(false);
+    setPlaybackSpeed(1);
     lastSavedSecondRef.current = -1;
   }, [videoSrc, safeSeason, episode]);
+
+  useEffect(() => {
+    if (!settingsOpen) {
+      return undefined;
+    }
+    const handlePointerDown = (event) => {
+      if (settingsAnchorRef.current?.contains(event.target)) {
+        return;
+      }
+      if (settingsDropdownRef.current?.contains(event.target)) {
+        return;
+      }
+      setSettingsOpen(false);
+      setSpeedSubmenuOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [settingsOpen]);
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -821,6 +871,21 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     }
   }, []);
 
+  const applyPlaybackSpeed = useCallback((speed) => {
+    const player = playerRef.current;
+    if (player) {
+      player.playbackRate = speed;
+    }
+    setPlaybackSpeed(speed);
+  }, []);
+
+  const handlePlaybackSpeedSelect = useCallback(
+    (speed) => {
+      applyPlaybackSpeed(speed);
+    },
+    [applyPlaybackSpeed]
+  );
+
   const handleSeek = useCallback((event) => {
     const player = playerRef.current;
     const nextTime = Number(event.target.value);
@@ -834,6 +899,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const handleVideoLoadedMetadata = useCallback(
     (event) => {
       const player = event.currentTarget;
+      player.playbackRate = playbackSpeed;
       setPlaybackUi({
         current: player.currentTime || 0,
         duration: player.duration || 0
@@ -851,7 +917,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       }
       setResumeLabel(`Продолжить с ${formatTime(targetTime)}`);
     },
-    [progressStorageKey]
+    [playbackSpeed, progressStorageKey]
   );
 
   const handleVideoTimeUpdate = useCallback(
@@ -992,14 +1058,75 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               <span className="player-time">
                 {formatTime(playbackUi.current)} / {formatTime(playbackUi.duration)}
               </span>
-              <button
-                type="button"
-                className="player-chrome-btn"
-                onClick={toggleShellFullscreen}
-                aria-label={isShellFullscreen ? "Выйти из полноэкранного режима" : "Полноэкранный режим"}
-              >
-                {isShellFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-              </button>
+              <div className="player-chrome-bar-right">
+                <div className="player-settings-wrap" ref={settingsAnchorRef}>
+                  <button
+                    type="button"
+                    className="player-chrome-btn"
+                    onClick={() => {
+                      setSettingsOpen((prev) => !prev);
+                      setSpeedSubmenuOpen(false);
+                    }}
+                    aria-label="Настройки плеера"
+                    aria-expanded={settingsOpen}
+                  >
+                    <MoreVertical size={20} />
+                  </button>
+                  {settingsOpen ? (
+                    <div className="player-settings-dropdown" ref={settingsDropdownRef} role="menu">
+                      <button
+                        type="button"
+                        className="player-settings-row"
+                        onClick={() => setSpeedSubmenuOpen((prev) => !prev)}
+                        aria-expanded={speedSubmenuOpen}
+                      >
+                        <span>Скорость воспроизведения</span>
+                        <ChevronRight
+                          size={16}
+                          className={`player-settings-chevron${speedSubmenuOpen ? " is-open" : ""}`}
+                        />
+                      </button>
+                      {speedSubmenuOpen ? (
+                        <div className="player-settings-submenu" role="group" aria-label="Скорость воспроизведения">
+                          {PLAYBACK_SPEED_OPTIONS.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              className={`player-settings-option${
+                                playbackSpeed === option.value ? " is-active" : ""
+                              }`}
+                              onClick={() => handlePlaybackSpeedSelect(option.value)}
+                            >
+                              <span>{option.label}</span>
+                              {playbackSpeed === option.value ? <Check size={16} /> : null}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      <a
+                        className="player-settings-row player-settings-download"
+                        href={videoSrc}
+                        download={downloadFileName}
+                        onClick={() => {
+                          setSettingsOpen(false);
+                          setSpeedSubmenuOpen(false);
+                        }}
+                      >
+                        <Download size={16} />
+                        <span>Скачать видео</span>
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+                <button
+                  type="button"
+                  className="player-chrome-btn"
+                  onClick={toggleShellFullscreen}
+                  aria-label={isShellFullscreen ? "Выйти из полноэкранного режима" : "Полноэкранный режим"}
+                >
+                  {isShellFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
