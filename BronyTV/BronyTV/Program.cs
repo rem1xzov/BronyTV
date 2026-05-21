@@ -75,7 +75,19 @@ await using (var scope = app.Services.CreateAsyncScope())
     await context.Database.MigrateAsync();
 
     Directory.CreateDirectory(Path.Combine(app.Environment.WebRootPath, "content", "video"));
-    Directory.CreateDirectory(Path.Combine(app.Environment.WebRootPath, "content", "previews"));
+    var previewsDir = Path.Combine(app.Environment.WebRootPath, "content", "previews");
+    Directory.CreateDirectory(previewsDir);
+
+    const string defaultSeasonPoster = "default-season.jpg";
+    var defaultPosterPath = Path.Combine(previewsDir, defaultSeasonPoster);
+    if (!File.Exists(defaultPosterPath))
+    {
+        // Minimal valid JPEG placeholder when season posters are not deployed yet.
+        var placeholderJpeg = Convert.FromBase64String(
+            "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAn/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA8A/9k=");
+        await File.WriteAllBytesAsync(defaultPosterPath, placeholderJpeg);
+        startupLogger.LogInformation("Создан placeholder превью сезона: {Path}", defaultPosterPath);
+    }
 
     if (!await context.Admins.AnyAsync())
     {
@@ -88,11 +100,8 @@ await using (var scope = app.Services.CreateAsyncScope())
         await context.SaveChangesAsync();
     }
 
-    const string defaultSeasonPoster = "default-season.jpg";
-
     string BuildPosterPath(int seasonNumber)
     {
-        var previewsDir = Path.Combine(app.Environment.WebRootPath, "content", "previews");
         var seasonFileName = $"s{seasonNumber}e1.jpg";
         var seasonFilePath = Path.Combine(previewsDir, seasonFileName);
         if (File.Exists(seasonFilePath))
@@ -127,7 +136,9 @@ await using (var scope = app.Services.CreateAsyncScope())
         {
             if (string.IsNullOrWhiteSpace(season.PosterPath)
                 || season.PosterPath == "placeholder"
-                || season.PosterPath.Contains("placeholder", StringComparison.OrdinalIgnoreCase))
+                || season.PosterPath.Contains("placeholder", StringComparison.OrdinalIgnoreCase)
+                || season.PosterPath.Contains("default_season", StringComparison.OrdinalIgnoreCase)
+                || season.PosterPath.StartsWith("/api/content/", StringComparison.OrdinalIgnoreCase))
             {
                 season.PosterPath = BuildPosterPath(season.Number);
             }

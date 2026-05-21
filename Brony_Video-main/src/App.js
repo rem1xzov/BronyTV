@@ -108,18 +108,6 @@ const STORAGE_KEYS = {
   VIDEO_PROGRESS: "bronytv-video-progress"
 };
 
-const SEASON_PREVIEW_MAP = {
-  1: "s1e1.jpg",
-  2: "s2e1.jpg",
-  3: "s3e1.jpg",
-  4: "s4e1.jpg",
-  5: "s5e1.jpg",
-  6: "s6e1.jpg",
-  7: "s7e1.jpg",
-  8: "s8e1.jpg",
-  9: "s9e1.jpg"
-};
-
 const getPublicAssetUrl = (relativePath) => {
   const base = process.env.PUBLIC_URL || "";
   return `${base}/${relativePath.replace(/^\/+/, "")}`;
@@ -189,6 +177,106 @@ const getMediaUrl = (path) => {
   return encodeResourcePath(normalized);
 };
 
+const SEASON_PREVIEW_FALLBACK = getPublicAssetUrl("season-preview-fallback.svg");
+
+const normalizeContentPath = (path) => {
+  if (!path || typeof path !== "string") {
+    return "";
+  }
+  let normalized = path.trim();
+  if (!normalized || normalized === "placeholder") {
+    return "";
+  }
+  normalized = normalized.replace(/default_season/gi, "default-season");
+  if (normalized.startsWith("api/")) {
+    normalized = `/${normalized.slice(4)}`;
+  }
+  if (normalized.startsWith("content/") || normalized.startsWith("videos/")) {
+    normalized = `/${normalized}`;
+  }
+  if (!normalized.startsWith("/") && !/^https?:\/\//i.test(normalized)) {
+    normalized = `/${normalized}`;
+  }
+  return normalized;
+};
+
+const resolveContentUrl = (path) => {
+  const normalized = normalizeContentPath(path);
+  if (!normalized) {
+    return "";
+  }
+  if (/^https?:\/\//i.test(normalized)) {
+    return encodeResourcePath(normalized);
+  }
+  if (normalized.startsWith("/content/") || normalized.startsWith("/videos/")) {
+    return getMediaUrl(normalized);
+  }
+  return toAbsoluteApiUrl(normalized);
+};
+
+const resolveSeasonPreviewCandidates = (seasonNumber, posterPath) => {
+  const candidates = [];
+  const fromApi = normalizeContentPath(posterPath);
+  if (fromApi) {
+    candidates.push(fromApi);
+  }
+  candidates.push(`/content/previews/s${seasonNumber}e1.jpg`);
+  candidates.push("/content/previews/default-season.jpg");
+  candidates.push(SEASON_PREVIEW_FALLBACK);
+  return [...new Set(candidates.map(resolveContentUrl).filter(Boolean))];
+};
+
+const resolveEpisodePreviewCandidates = (seasonNumber, previewImageUrl) => {
+  const candidates = [];
+  const fromApi = normalizeContentPath(previewImageUrl);
+  if (fromApi) {
+    candidates.push(fromApi);
+  }
+  candidates.push(`/content/previews/s${seasonNumber}e1.jpg`);
+  candidates.push("/content/previews/default-season.jpg");
+  return [...new Set(candidates.map(resolveContentUrl).filter(Boolean))];
+};
+
+function useResolvedImageUrl(candidates) {
+  const [url, setUrl] = useState("");
+  const key = candidates.join("|");
+
+  useEffect(() => {
+    let cancelled = false;
+    const list = candidates.filter(Boolean);
+    if (!list.length) {
+      setUrl("");
+      return undefined;
+    }
+
+    const tryNext = (index) => {
+      if (cancelled) {
+        return;
+      }
+      if (index >= list.length) {
+        setUrl("");
+        return;
+      }
+      const img = new Image();
+      img.onload = () => {
+        if (!cancelled) {
+          setUrl(list[index]);
+        }
+      };
+      img.onerror = () => tryNext(index + 1);
+      img.src = list[index];
+    };
+
+    setUrl("");
+    tryNext(0);
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+
+  return url;
+}
+
 const readStorageObject = (key) => {
   try {
     const raw = localStorage.getItem(key);
@@ -212,17 +300,50 @@ const getPageFromPath = (path) => {
   return "home";
 };
 
-function RatingButton({ value, onRate, label = "Оценить" }) {
-  const [open, setOpen] = useState(false);
+function RatingButton({ value, onRate, label = "Оценить", popoverId, openPopoverId, onOpenPopoverId }) {
+  const widgetRef = useRef(null);
+  const [localOpen, setLocalOpen] = useState(false);
+  const managed = Boolean(popoverId && onOpenPopoverId);
+  const isOpen = managed ? openPopoverId === popoverId : localOpen;
+
+  const setOpen = (next) => {
+    if (managed) {
+      onOpenPopoverId(next ? popoverId : null);
+      return;
+    }
+    setLocalOpen(next);
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+    const handlePointerDown = (event) => {
+      if (!widgetRef.current?.contains(event.target)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [isOpen, managed, onOpenPopoverId, popoverId]);
 
   return (
-    <div className="rating-widget">
-      <button type="button" className="rate-btn" onClick={() => setOpen((prev) => !prev)}>
+    <div className={`rating-widget${isOpen ? " is-open" : ""}`} ref={widgetRef}>
+      <button
+        type="button"
+        className="rate-btn"
+        aria-expanded={isOpen}
+        onClick={() => setOpen(!isOpen)}
+      >
         <Star size={14} />
         <span>{value ? `${value}/10` : label}</span>
       </button>
-      {open ? (
-        <div className="rating-popup">
+      {isOpen ? (
+        <div className="rating-popup" role="menu">
           {RATING_VALUES.map((score) => (
             <button
               key={score}
@@ -239,6 +360,18 @@ function RatingButton({ value, onRate, label = "Оценить" }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+function EpisodeThumb({ candidates, title }) {
+  const previewUrl = useResolvedImageUrl(candidates);
+  return (
+    <div
+      className={`episode-thumb${previewUrl ? " has-preview" : ""}`}
+      style={previewUrl ? { backgroundImage: `url("${previewUrl}")` } : undefined}
+      role="img"
+      aria-label={title}
+    />
   );
 }
 
@@ -268,6 +401,8 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
 }
 
 function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
+  const [openRatingId, setOpenRatingId] = useState(null);
+
   return (
     <div className="home-layout">
       <section className="panel hero-card">
@@ -311,6 +446,9 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
                 <RatingButton
                   value={userRate}
                   label="Оценить"
+                  popoverId={`top-${item.id}`}
+                  openPopoverId={openRatingId}
+                  onOpenPopoverId={setOpenRatingId}
                   onRate={(score) => onRateVideo(item.id, score)}
                 />
                 {userRate ? (
@@ -343,6 +481,13 @@ function SeasonPage({
   const navigate = useNavigate();
   const season = Number(seasonId || 1);
   const safeSeason = season >= 1 && season <= CONSTANTS.TOTAL_SEASONS ? season : 1;
+  const [openRatingId, setOpenRatingId] = useState(null);
+  const remoteSeasonData = apiSeasons[safeSeason];
+  const seasonPreviewCandidates = useMemo(
+    () => resolveSeasonPreviewCandidates(safeSeason, remoteSeasonData?.posterPath),
+    [remoteSeasonData?.posterPath, safeSeason]
+  );
+  const seasonPreviewUrl = useResolvedImageUrl(seasonPreviewCandidates);
 
   useEffect(() => {
     setCurrentSeason(safeSeason);
@@ -356,7 +501,6 @@ function SeasonPage({
   }, [onEnsureSeasonVideos, safeSeason]);
 
   const localSeasonData = CONSTANTS.SEASONS[safeSeason];
-  const remoteSeasonData = apiSeasons[safeSeason];
   const seasonData = {
     ...localSeasonData,
     ...(remoteSeasonData
@@ -379,25 +523,22 @@ function SeasonPage({
         }
       : episode;
   });
-  const seasonPreviewFile = SEASON_PREVIEW_MAP[safeSeason] || null;
-  const seasonPreviewUrl = remoteSeasonData?.posterPath
-    ? toAbsoluteApiUrl(remoteSeasonData.posterPath)
-    : seasonPreviewFile
-      ? getPublicAssetUrl(`assets/episodes/${seasonPreviewFile}`)
-      : null;
 
   return (
-    <section className="panel">
+    <section className="panel season-page">
       <div
         className={`season-banner ${seasonPreviewUrl ? "has-season-preview" : ""}`}
         style={seasonPreviewUrl ? { "--season-preview-url": `url("${seasonPreviewUrl}")` } : undefined}
       >
         <h2>{seasonData?.title || `Сезон ${safeSeason}`}</h2>
         <p className="muted">{seasonData?.description}</p>
-        <div className="button-row">
+        <div className="button-row season-banner-actions">
           <RatingButton
             value={seasonRatings[String(safeSeason)]}
             label="Оценить сезон"
+            popoverId={`season-${safeSeason}`}
+            openPopoverId={openRatingId}
+            onOpenPopoverId={setOpenRatingId}
             onRate={(score) => onRateSeason(safeSeason, score)}
           />
           {seasonRatings[String(safeSeason)] ? (
@@ -410,6 +551,10 @@ function SeasonPage({
       <div className="episode-list episode-grid scrollable">
         {episodes.map((episode) => (
           <div className="episode-card" key={`s${safeSeason}-e${episode.id}`}>
+            <EpisodeThumb
+              title={episode.title}
+              candidates={resolveEpisodePreviewCandidates(safeSeason, episode.previewImageUrl)}
+            />
             <div className="episode-main">
               <Link to={`/player/${safeSeason}/${episode.id}`} state={{ episode }}>
                 <h3>{episode.title}</h3>
@@ -427,6 +572,9 @@ function SeasonPage({
               <RatingButton
                 value={videoRatings[episode.imdbId]}
                 label="Оценить"
+                popoverId={`s${safeSeason}-e${episode.id}`}
+                openPopoverId={openRatingId}
+                onOpenPopoverId={setOpenRatingId}
                 onRate={(score) => onRateVideo(episode.imdbId, score)}
               />
               {videoRatings[episode.imdbId] ? (
