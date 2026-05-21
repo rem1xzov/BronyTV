@@ -658,7 +658,10 @@ body[data-theme="dark"] .hero-thumb {
 .player-custom-controls .player-settings-dropdown,
 .player-custom-controls .player-settings-row,
 .player-custom-controls .player-settings-option,
-.player-custom-controls .player-settings-download {
+.player-custom-controls .player-settings-download,
+.player-custom-controls .player-volume-control,
+.player-custom-controls .player-volume-slider,
+.player-custom-controls .player-volume-btn {
   pointer-events: auto;
 }
 
@@ -705,7 +708,13 @@ body[data-theme="dark"] .hero-thumb {
 .player-shell:-webkit-full-screen .player-custom-controls .player-settings-dropdown,
 .player-shell:-webkit-full-screen .player-custom-controls .player-settings-row,
 .player-shell:-webkit-full-screen .player-custom-controls .player-settings-option,
-.player-shell:-webkit-full-screen .player-custom-controls .player-settings-download {
+.player-shell:-webkit-full-screen .player-custom-controls .player-settings-download,
+.player-shell:fullscreen .player-custom-controls .player-volume-control,
+.player-shell:fullscreen .player-custom-controls .player-volume-slider,
+.player-shell:fullscreen .player-custom-controls .player-volume-btn,
+.player-shell:-webkit-full-screen .player-custom-controls .player-volume-control,
+.player-shell:-webkit-full-screen .player-custom-controls .player-volume-slider,
+.player-shell:-webkit-full-screen .player-custom-controls .player-volume-btn {
   z-index: 2147483647 !important;
   pointer-events: auto;
 }
@@ -772,6 +781,42 @@ body[data-theme="dark"] .hero-thumb {
 
 .player-chrome-btn:hover {
   background: rgba(255, 255, 255, 0.28);
+}
+
+.player-volume-control {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2147483647;
+  padding: 0 2px;
+}
+
+.player-volume-slider {
+  width: 0;
+  min-width: 0;
+  opacity: 0;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+  transition: width 0.2s ease, opacity 0.2s ease, margin 0.2s ease;
+}
+
+.player-volume-control:hover .player-volume-slider,
+.player-volume-control:focus-within .player-volume-slider {
+  width: 88px;
+  opacity: 1;
+  margin-left: 2px;
+}
+
+@media (min-width: 900px) {
+  .player-volume-slider {
+    width: 88px;
+    opacity: 1;
+    margin-left: 2px;
+  }
 }
 
 .player-timeline {

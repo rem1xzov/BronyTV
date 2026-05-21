@@ -15,7 +15,10 @@ import {
   SkipForward,
   Star,
   Sun,
-  Tv
+  Tv,
+  Volume1,
+  Volume2,
+  VolumeX
 } from "lucide-react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -163,7 +166,32 @@ const STORAGE_KEYS = {
   SEASON_RATINGS: "bronytv-season-ratings",
   VIDEO_RATINGS: "bronytv-video-ratings",
   THEME: "bronytv-theme",
-  VIDEO_PROGRESS: "bronytv-video-progress"
+  VIDEO_PROGRESS: "bronytv-video-progress",
+  PLAYER_VOLUME: "bronytv-player-volume"
+};
+
+const readStoredVolume = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEYS.PLAYER_VOLUME);
+    if (!raw) {
+      return 1;
+    }
+    const parsed = parseFloat(raw);
+    if (!Number.isFinite(parsed)) {
+      return 1;
+    }
+    return Math.min(1, Math.max(0, parsed));
+  } catch (error) {
+    return 1;
+  }
+};
+
+const persistVolume = (value) => {
+  try {
+    localStorage.setItem(STORAGE_KEYS.PLAYER_VOLUME, String(value));
+  } catch (error) {
+    // Ignore storage failures.
+  }
 };
 
 const getPublicAssetUrl = (relativePath) => {
@@ -728,6 +756,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const playerShellRef = useRef(null);
   const settingsAnchorRef = useRef(null);
   const settingsDropdownRef = useRef(null);
+  const volumeBeforeMuteRef = useRef(readStoredVolume());
   const progressStorageKey = `s${safeSeason}e${selectedEpisode?.id || 1}`;
   const [resumeLabel, setResumeLabel] = useState("");
   const lastSavedSecondRef = useRef(-1);
@@ -742,6 +771,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [speedSubmenuOpen, setSpeedSubmenuOpen] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
+  const [volume, setVolume] = useState(() => readStoredVolume());
+  const [isMuted, setIsMuted] = useState(false);
   const seasonIntroConfig = useMemo(() => getSeasonIntroConfig(safeSeason), [safeSeason]);
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
@@ -812,6 +843,53 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
     };
   }, []);
+
+  const applyVolumeToPlayer = useCallback((nextVolume, muted) => {
+    const player = playerRef.current;
+    if (!player) {
+      return;
+    }
+    player.volume = nextVolume;
+    player.muted = muted;
+  }, []);
+
+  useEffect(() => {
+    applyVolumeToPlayer(volume, isMuted);
+  }, [applyVolumeToPlayer, isMuted, videoSrc, volume]);
+
+  const handleVolumeChange = useCallback((event) => {
+    const nextVolume = Number(event.target.value);
+    if (Number.isNaN(nextVolume)) {
+      return;
+    }
+    const clamped = Math.min(1, Math.max(0, nextVolume));
+    setVolume(clamped);
+    setIsMuted(clamped === 0);
+    if (clamped > 0) {
+      volumeBeforeMuteRef.current = clamped;
+    }
+    persistVolume(clamped);
+    applyVolumeToPlayer(clamped, clamped === 0);
+  }, [applyVolumeToPlayer]);
+
+  const toggleMute = useCallback(() => {
+    if (isMuted) {
+      const restored = volumeBeforeMuteRef.current > 0 ? volumeBeforeMuteRef.current : readStoredVolume() || 1;
+      const clamped = Math.min(1, Math.max(0.05, restored));
+      setVolume(clamped);
+      setIsMuted(false);
+      persistVolume(clamped);
+      applyVolumeToPlayer(clamped, false);
+      return;
+    }
+    volumeBeforeMuteRef.current = volume > 0 ? volume : volumeBeforeMuteRef.current || 1;
+    setIsMuted(true);
+    applyVolumeToPlayer(volume, true);
+  }, [applyVolumeToPlayer, isMuted, volume]);
+
+  const volumeSliderValue = isMuted ? 0 : volume;
+
+  const VolumeIcon = isMuted || volumeSliderValue === 0 ? VolumeX : volumeSliderValue < 0.5 ? Volume1 : Volume2;
 
   const goToNextEpisode = useCallback(() => {
     if (!nextEpisode) {
@@ -900,6 +978,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     (event) => {
       const player = event.currentTarget;
       player.playbackRate = playbackSpeed;
+      player.volume = isMuted ? volume : volumeSliderValue;
+      player.muted = isMuted;
       setPlaybackUi({
         current: player.currentTime || 0,
         duration: player.duration || 0
@@ -917,7 +997,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       }
       setResumeLabel(`Продолжить с ${formatTime(targetTime)}`);
     },
-    [playbackSpeed, progressStorageKey]
+    [isMuted, playbackSpeed, progressStorageKey, volume, volumeSliderValue]
   );
 
   const handleVideoTimeUpdate = useCallback(
@@ -1045,6 +1125,26 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               >
                 {isPlaying ? <Pause size={20} /> : <Play size={20} />}
               </button>
+              <div className="player-volume-control">
+                <button
+                  type="button"
+                  className="player-chrome-btn player-volume-btn"
+                  onClick={toggleMute}
+                  aria-label={isMuted ? "Включить звук" : "Выключить звук"}
+                >
+                  <VolumeIcon size={20} />
+                </button>
+                <input
+                  type="range"
+                  className="player-volume-slider"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={volumeSliderValue}
+                  onChange={handleVolumeChange}
+                  aria-label="Громкость"
+                />
+              </div>
               <input
                 type="range"
                 className="player-timeline"
