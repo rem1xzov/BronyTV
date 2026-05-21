@@ -773,6 +773,9 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [volume, setVolume] = useState(() => readStoredVolume());
   const [isMuted, setIsMuted] = useState(false);
+  const [skipFeedback, setSkipFeedback] = useState(null);
+  const mobileTapPendingRef = useRef(null);
+  const skipFeedbackTimerRef = useRef(null);
   const seasonIntroConfig = useMemo(() => getSeasonIntroConfig(safeSeason), [safeSeason]);
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
@@ -949,6 +952,105 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     }
   }, []);
 
+  const seekBySeconds = useCallback((deltaSeconds) => {
+    const player = playerRef.current;
+    if (!player || typeof player.currentTime !== "number") {
+      return;
+    }
+    const duration = player.duration;
+    const maxTime =
+      duration && !Number.isNaN(duration) ? Math.max(0, duration - 0.25) : Number.POSITIVE_INFINITY;
+    const nextTime = Math.min(maxTime, Math.max(0, player.currentTime + deltaSeconds));
+    player.currentTime = nextTime;
+    setPlaybackUi((prev) => ({ ...prev, current: nextTime }));
+  }, []);
+
+  const showSkipFeedback = useCallback((side) => {
+    setSkipFeedback(side);
+    if (skipFeedbackTimerRef.current) {
+      clearTimeout(skipFeedbackTimerRef.current);
+    }
+    skipFeedbackTimerRef.current = setTimeout(() => {
+      setSkipFeedback(null);
+      skipFeedbackTimerRef.current = null;
+    }, 700);
+  }, []);
+
+  const clearMobileTapPending = useCallback(() => {
+    const pending = mobileTapPendingRef.current;
+    if (pending?.timer) {
+      clearTimeout(pending.timer);
+    }
+    mobileTapPendingRef.current = null;
+  }, []);
+
+  const handleMobileSkipZonePointerUp = useCallback(
+    (side, deltaSeconds) => (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const now = Date.now();
+      const pending = mobileTapPendingRef.current;
+      if (pending?.side === side && now - pending.time < 300) {
+        clearMobileTapPending();
+        seekBySeconds(deltaSeconds);
+        showSkipFeedback(side);
+        return;
+      }
+      clearMobileTapPending();
+      togglePlayPause();
+      mobileTapPendingRef.current = { side, time: now };
+      setTimeout(() => {
+        if (mobileTapPendingRef.current?.side === side && mobileTapPendingRef.current?.time === now) {
+          mobileTapPendingRef.current = null;
+        }
+      }, 320);
+    },
+    [clearMobileTapPending, seekBySeconds, showSkipFeedback, togglePlayPause]
+  );
+
+  useEffect(() => {
+    return () => {
+      clearMobileTapPending();
+      if (skipFeedbackTimerRef.current) {
+        clearTimeout(skipFeedbackTimerRef.current);
+      }
+    };
+  }, [clearMobileTapPending]);
+
+  useEffect(() => {
+    if (!videoSrc) {
+      return undefined;
+    }
+    const isTypingTarget = (target) => {
+      if (!target || typeof target !== "object") {
+        return false;
+      }
+      const tag = target.tagName;
+      return (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        target.isContentEditable
+      );
+    };
+    const handleKeyDown = (event) => {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") {
+        return;
+      }
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+      const player = playerRef.current;
+      if (!player) {
+        return;
+      }
+      event.preventDefault();
+      seekBySeconds(event.key === "ArrowRight" ? 10 : -10);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [seekBySeconds, videoSrc]);
+
   const applyPlaybackSpeed = useCallback((speed) => {
     const player = playerRef.current;
     if (player) {
@@ -1082,28 +1184,82 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       {resumeLabel ? <p className="muted">{resumeLabel}</p> : null}
       {videoSrc ? (
         <div className="player-shell" ref={playerShellRef}>
-          <video
-            key={videoSrc}
-            ref={playerRef}
-            className="video-player video-large"
-            playsInline
-            preload="metadata"
-            src={videoSrc}
-            onClick={togglePlayPause}
-            onLoadedMetadata={handleVideoLoadedMetadata}
-            onTimeUpdate={handleVideoTimeUpdate}
-            onPause={(event) => {
-              setIsPlaying(false);
-              handleVideoPause(event);
-            }}
-            onPlay={() => {
-              setIsPlaying(true);
-              setVideoEnded(false);
-            }}
-            onEnded={handleVideoEnded}
-            onError={() => setVideoError(true)}
-          />
+          <div className="player-media-stage">
+            <video
+              key={videoSrc}
+              ref={playerRef}
+              className="video-player video-large"
+              playsInline
+              preload="metadata"
+              controls={false}
+              src={videoSrc}
+              onClick={() => {
+                if (window.matchMedia("(max-width: 768px)").matches) {
+                  return;
+                }
+                togglePlayPause();
+              }}
+              onLoadedMetadata={handleVideoLoadedMetadata}
+              onTimeUpdate={handleVideoTimeUpdate}
+              onPause={(event) => {
+                setIsPlaying(false);
+                handleVideoPause(event);
+              }}
+              onPlay={() => {
+                setIsPlaying(true);
+                setVideoEnded(false);
+              }}
+              onEnded={handleVideoEnded}
+              onError={() => setVideoError(true)}
+            />
+          </div>
           <div className="player-custom-controls" aria-label="Управление плеером">
+            <div className="player-touch-layer" aria-hidden="true">
+              <button
+                type="button"
+                className="player-skip-zone player-skip-zone--left"
+                tabIndex={-1}
+                aria-label="Перемотать на 10 секунд назад"
+                onPointerUp={handleMobileSkipZonePointerUp("left", -10)}
+              />
+              <button
+                type="button"
+                className="player-skip-zone player-skip-zone--center"
+                tabIndex={-1}
+                aria-label="Воспроизведение или пауза"
+                onPointerUp={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  clearMobileTapPending();
+                  togglePlayPause();
+                }}
+              />
+              <button
+                type="button"
+                className="player-skip-zone player-skip-zone--right"
+                tabIndex={-1}
+                aria-label="Перемотать на 10 секунд вперёд"
+                onPointerUp={handleMobileSkipZonePointerUp("right", 10)}
+              />
+            </div>
+            {skipFeedback ? (
+              <div
+                className={`player-skip-feedback player-skip-feedback--${skipFeedback}`}
+                aria-live="polite"
+              >
+                {skipFeedback === "left" ? (
+                  <>
+                    <span className="player-skip-feedback-icon">⟨⟨</span>
+                    <span>10 сек</span>
+                  </>
+                ) : (
+                  <>
+                    <span>10 сек</span>
+                    <span className="player-skip-feedback-icon">⟩⟩</span>
+                  </>
+                )}
+              </div>
+            ) : null}
             {showSkipIntro ? (
               <button type="button" className="player-overlay-btn skip-intro-btn" onClick={skipIntro}>
                 <SkipForward size={18} />
