@@ -103,11 +103,33 @@ const CONSTANTS = {
 
 const RATING_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-/** Hardcoded MLP intro skip: cold open ends ~1:20, theme ends ~2:05; skip +35s on click. */
-const SKIP_INTRO_WINDOW = {
-  startSeconds: 80,
-  endSeconds: 125,
-  skipSeconds: 35
+const INTRO_SONG_DURATION_SECONDS = 35;
+
+/** When the MLP theme song starts (seconds) per season; song length is always 35s. */
+const SEASON_INTRO_CONFIGS = {
+  1: { startTime: 90 },
+  2: { startTime: 50 },
+  3: { startTime: 45 },
+  4: { startTime: 75 },
+  5: { startTime: 100 },
+  6: { startTime: 80 },
+  7: { startTime: 70 },
+  8: { startTime: 130 },
+  9: { startTime: 150 }
+};
+
+const DEFAULT_INTRO_CONFIG = { startTime: 60 };
+
+const getSeasonIntroConfig = (seasonId) => {
+  const seasonNumber = Number(seasonId);
+  const startTime =
+    SEASON_INTRO_CONFIGS[seasonNumber]?.startTime ?? DEFAULT_INTRO_CONFIG.startTime;
+  const endTime = startTime + INTRO_SONG_DURATION_SECONDS;
+  return {
+    startTime,
+    endTime,
+    skipToTime: endTime
+  };
 };
 
 const NEXT_EPISODE_REMAINING_SECONDS = 90;
@@ -687,6 +709,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const [nearEpisodeEnd, setNearEpisodeEnd] = useState(false);
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [introSkipUsed, setIntroSkipUsed] = useState(false);
+  const seasonIntroConfig = useMemo(() => getSeasonIntroConfig(safeSeason), [safeSeason]);
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
   const showNextEpisodeOverlay = Boolean(nextEpisode && videoSrc && (videoEnded || nearEpisodeEnd));
@@ -717,15 +740,15 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     if (!player || typeof player.currentTime !== "number") {
       return;
     }
-    const nextTime = player.currentTime + SKIP_INTRO_WINDOW.skipSeconds;
+    const targetTime = seasonIntroConfig.skipToTime;
     if (player.duration && !Number.isNaN(player.duration)) {
-      player.currentTime = Math.min(nextTime, player.duration - 0.25);
+      player.currentTime = Math.min(targetTime, player.duration - 0.25);
     } else {
-      player.currentTime = nextTime;
+      player.currentTime = targetTime;
     }
     setIntroSkipUsed(true);
     setShowSkipIntro(false);
-  }, []);
+  }, [seasonIntroConfig.skipToTime]);
 
   const formatTime = (totalSeconds) => {
     const safe = Math.max(0, Math.floor(totalSeconds || 0));
@@ -775,8 +798,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       const currentTime = event.currentTarget.currentTime || 0;
       const inIntroWindow =
         !introSkipUsed &&
-        currentTime >= SKIP_INTRO_WINDOW.startSeconds &&
-        currentTime < SKIP_INTRO_WINDOW.endSeconds;
+        currentTime >= seasonIntroConfig.startTime &&
+        currentTime < seasonIntroConfig.endTime;
       setShowSkipIntro(inIntroWindow);
 
       const duration = event.currentTarget.duration;
@@ -794,7 +817,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       lastSavedSecondRef.current = currentSecond;
       saveVideoProgress(currentTime, event.currentTarget.duration || 0);
     },
-    [introSkipUsed, saveVideoProgress]
+    [introSkipUsed, saveVideoProgress, seasonIntroConfig]
   );
 
   const handleVideoEnded = useCallback(() => {
