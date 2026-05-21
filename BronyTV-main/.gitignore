@@ -1,0 +1,48 @@
+## .NET / Visual Studio
+**/bin/
+**/obj/
+**/.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+*.DotSettings.user
+
+## NuGet
+*.nupkg
+*.snupkg
+**/packages/
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+## Node / front
+**/node_modules/
+**/build/
+**/dist/
+
+## IDE / OS
+**/.idea/
+.DS_Store
+Thumbs.db
+
+## Local secrets (do not commit)
+.env
+.env.*
+!.env.example
+
+## Docker host mount: uploaded videos (keep only placeholder)
+media/*
+!media/.gitkeep

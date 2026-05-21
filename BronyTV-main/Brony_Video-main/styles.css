@@ -1,0 +1,116 @@
+:root {
+  --bg-main: #e8f4fc;
+  --bg-soft: #dceef9;
+  --bg-card: #ffffff;
+  --text-main: #143656;
+  --text-muted: #5a7a94;
+  --accent: #0284c7;
+  --accent-soft: #bae6fd;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  position: relative;
+  font-family: Inter, "Segoe UI", Roboto, sans-serif;
+  color: var(--text-main);
+  background: transparent;
+}
+,
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: url("./assets/light-theme-bg.png") center center / cover no-repeat;
+  filter: blur(14px);
+  transform: translateZ(0);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: radial-gradient(circle at 20% 15%, rgba(224, 242, 254, 0.92), transparent 55%),
+    radial-gradient(circle at 85% 80%, rgba(207, 235, 252, 0.88), transparent 50%),
+    linear-gradient(165deg, rgba(232, 248, 255, 0.88) 0%, rgba(214, 237, 251, 0.92) 100%);
+  pointer-events: none;
+}
+
+.app-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+
+.sidebar {
+  background: rgba(230, 245, 252, 0.72);
+  border-right: 1px solid rgba(2, 132, 199, 0.14);
+  padding: 18px 12px;
+}
+
+.pill {
+  border-radius: 18px;
+}
+
+.surface {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(2, 132, 199, 0.12);
+  border-radius: 24px;
+}
+
+.soft-surface {
+  background: rgba(220, 238, 249, 0.85);
+  border-radius: 30px;
+}
+
+.thumbnail {
+  background: linear-gradient(145deg, #c7e8fb, #a5daf7);
+  border-radius: 20px;
+}
+
+.star {
+  color: #0e7490;
+}
+
+.muted {
+  color: var(--text-muted);
+}
+
+.action-btn {
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.7rem 1.2rem;
+  font-weight: 600;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(2, 132, 199, 0.28);
+}
+
+.glass {
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.42), rgba(8, 51, 82, 0.42));
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid rgba(2, 132, 199, 0.12);
+    display: flex;
+    overflow-x: auto;
+    gap: 0.6rem;
+    padding: 0.7rem;
+  }
+}

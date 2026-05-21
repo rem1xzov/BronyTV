@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Brony Video - Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="flex flex-col gap-2 min-w-[64px]">
+          <a href="./index.html" class="pill px-3 py-2 bg-white/70 text-xs text-center">Home</a>
+          <a href="./season.html" class="pill px-3 py-2 bg-white/70 text-xs text-center">Seasons</a>
+          <a href="./player.html" class="pill px-3 py-2 bg-sky-200/70 text-xs text-center font-semibold">Player</a>
+        </div>
+      </aside>
+
+      <main class="p-5 md:p-8">
+        <div class="max-w-6xl mx-auto space-y-4">
+          <section class="surface p-3 md:p-5">
+            <div class="rounded-2xl overflow-hidden bg-black/80">
+              <div class="relative w-full" style="padding-top: 56.25%">
+                <div class="absolute inset-0 thumbnail grid place-items-center text-white text-6xl">▶</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="surface p-4 md:p-5 flex justify-between gap-3 items-start">
+            <div>
+              <h1 class="text-2xl font-bold">S03E07 - Sleepless in Ponyville</h1>
+              <p class="muted mt-1">Description about this episode and why it matters in the story arc.</p>
+            </div>
+            <div class="flex gap-2 shrink-0">
+              <button class="pill px-3 py-2 bg-sky-100">🔖</button>
+              <button class="pill px-3 py-2 bg-sky-100">⋮</button>
+            </div>
+          </section>
+
+          <section class="soft-surface p-4 md:p-5">
+            <h2 class="font-bold text-xl mb-3">Next Episodes</h2>
+            <div class="space-y-3">
+              <article class="surface p-3 flex items-center gap-3">
+                <div class="flex-1 min-w-0">
+                  <h3 class="font-medium truncate">S03E08 - Just for Sidekicks</h3>
+                  <p class="muted text-sm">Spike learns a lesson in responsibility.</p>
+                </div>
+                <span class="pill px-3 py-1 text-xs bg-sky-100 text-sky-900">23 min</span>
+              </article>
+
+              <article class="surface p-3 flex items-center gap-3">
+                <div class="flex-1 min-w-0">
+                  <h3 class="font-medium truncate">S03E09 - Games Ponies Play</h3>
+                  <p class="muted text-sm">A royal inspector arrives in Ponyville.</p>
+                </div>
+                <span class="pill px-3 py-1 text-xs bg-sky-100 text-sky-900">23 min</span>
+              </article>
+
+              <article class="surface p-3 flex items-center gap-3">
+                <div class="flex-1 min-w-0">
+                  <h3 class="font-medium truncate">S03E10 - Keep Calm and Flutter On</h3>
+                  <p class="muted text-sm">Fluttershy attempts to reform Discord.</p>
+                </div>
+                <span class="pill px-3 py-1 text-xs bg-sky-100 text-sky-900">23 min</span>
+              </article>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+  </body>
+</html>
