@@ -543,17 +543,49 @@ body[data-theme="dark"] .hero-thumb {
 
 .compact-episode {
   border-top: 1px solid var(--border-soft);
-  padding: 10px 0;
+  padding: 8px 0;
   display: flex;
   gap: 10px;
   align-items: center;
   justify-content: space-between;
+  min-height: 0;
 }
 
 .compact-actions {
   display: flex;
   align-items: center;
+  align-self: center;
   gap: 8px;
+  flex-shrink: 0;
+}
+
+.compact-actions .rating-widget--episode {
+  width: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  align-self: center;
+}
+
+.compact-actions .rate-btn {
+  width: auto;
+  min-height: 0;
+  padding: 5px 10px;
+  font-size: 13px;
+  line-height: 1.2;
+  gap: 5px;
+}
+
+.compact-actions .rate-btn svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+.compact-actions .secondary-btn.small {
+  padding: 5px 10px;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
 .compact-episode:first-of-type {
@@ -568,13 +600,16 @@ body[data-theme="dark"] .hero-thumb {
 
 .rating-pill {
   border-radius: 999px;
-  padding: 6px 10px;
+  padding: 5px 10px;
   background: var(--accent-soft);
   display: inline-flex;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
   font-weight: 700;
+  font-size: 13px;
+  line-height: 1.2;
   color: var(--text-main);
+  flex-shrink: 0;
 }
 
 .video-placeholder {
