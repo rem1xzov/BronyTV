@@ -811,12 +811,9 @@ body[data-theme="dark"] .hero-thumb {
   pointer-events: auto;
 }
 
-.season-rating-anchor .rating-widget--header .rating-popup--header,
-.rating-widget--header .rating-popup--header {
-  position: absolute;
-  left: 0;
+.rating-popup--header.rating-popup--portal {
+  position: fixed;
   right: auto;
-  top: calc(100% + 8px);
   transform: none;
   width: 260px;
   max-width: min(260px, calc(100vw - 40px));
@@ -827,8 +824,8 @@ body[data-theme="dark"] .hero-thumb {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
-  z-index: 300;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+  z-index: 99999;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
   pointer-events: auto;
 }
 
@@ -929,10 +926,7 @@ body[data-theme="dark"] .hero-thumb {
     left: 0;
   }
 
-  .rating-widget--header .rating-popup--header {
-    left: 0;
-    right: auto;
-    transform: none;
+  .rating-popup--header.rating-popup--portal {
     width: min(240px, calc(100vw - 32px));
   }
 

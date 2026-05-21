@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ChevronRight, Home, Maximize, Moon, PlayCircle, SkipForward, Star, Sun, Tv } from "lucide-react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 
@@ -102,32 +103,14 @@ const CONSTANTS = {
 
 const RATING_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
-/** MLP: cold open, then ~35s theme song (often starts between 1:00 and 3:00). */
-const MLP_INTRO_DEFAULTS = {
-  durationSeconds: 35,
-  earliestStartSeconds: 60,
-  latestStartSeconds: 180
-};
-
-/** Per-episode overrides: key "s{season}e{episode}" → partial interval. */
-const INTRO_INTERVAL_OVERRIDES = {
-  // Example: "s1e1": { earliestStartSeconds: 90, latestStartSeconds: 150 }
+/** Hardcoded MLP intro skip: cold open ends ~1:20, theme ends ~2:05; skip +35s on click. */
+const SKIP_INTRO_WINDOW = {
+  startSeconds: 80,
+  endSeconds: 125,
+  skipSeconds: 35
 };
 
 const NEXT_EPISODE_REMAINING_SECONDS = 90;
-
-const getIntroInterval = (seasonId, episodeId) => {
-  const key = `s${seasonId}e${episodeId}`;
-  const override = INTRO_INTERVAL_OVERRIDES[key] || {};
-  const durationSeconds = override.durationSeconds ?? MLP_INTRO_DEFAULTS.durationSeconds;
-  const earliestStartSeconds = override.earliestStartSeconds ?? MLP_INTRO_DEFAULTS.earliestStartSeconds;
-  const latestStartSeconds = override.latestStartSeconds ?? MLP_INTRO_DEFAULTS.latestStartSeconds;
-  return {
-    durationSeconds,
-    windowStartSeconds: earliestStartSeconds,
-    windowEndSeconds: latestStartSeconds + durationSeconds
-  };
-};
 
 const STORAGE_KEYS = {
   SEASON_RATINGS: "bronytv-season-ratings",
@@ -326,9 +309,12 @@ function RatingButton({
   variant = "episode"
 }) {
   const widgetRef = useRef(null);
+  const popupRef = useRef(null);
   const [localOpen, setLocalOpen] = useState(false);
+  const [portalCoords, setPortalCoords] = useState(null);
   const managed = Boolean(popoverId && onOpenPopoverId);
   const isOpen = managed ? openPopoverId === popoverId : localOpen;
+  const usePortal = variant === "header";
 
   const setOpen = (next) => {
     if (managed) {
@@ -338,14 +324,43 @@ function RatingButton({
     setLocalOpen(next);
   };
 
+  const updatePortalCoords = useCallback(() => {
+    if (!widgetRef.current) {
+      return;
+    }
+    const rect = widgetRef.current.getBoundingClientRect();
+    setPortalCoords({
+      top: rect.bottom + 8,
+      left: rect.left
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen || !usePortal) {
+      setPortalCoords(null);
+      return undefined;
+    }
+    updatePortalCoords();
+    window.addEventListener("resize", updatePortalCoords);
+    window.addEventListener("scroll", updatePortalCoords, true);
+    return () => {
+      window.removeEventListener("resize", updatePortalCoords);
+      window.removeEventListener("scroll", updatePortalCoords, true);
+    };
+  }, [isOpen, updatePortalCoords, usePortal]);
+
   useEffect(() => {
     if (!isOpen) {
       return undefined;
     }
     const handlePointerDown = (event) => {
-      if (!widgetRef.current?.contains(event.target)) {
-        setOpen(false);
+      if (widgetRef.current?.contains(event.target)) {
+        return;
       }
+      if (popupRef.current?.contains(event.target)) {
+        return;
+      }
+      setOpen(false);
     };
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("touchstart", handlePointerDown);
@@ -354,6 +369,33 @@ function RatingButton({
       document.removeEventListener("touchstart", handlePointerDown);
     };
   }, [isOpen, managed, onOpenPopoverId, popoverId]);
+
+  const popupNode = (
+    <div
+      ref={popupRef}
+      className={`rating-popup rating-popup--${variant}${usePortal ? " rating-popup--portal" : ""}`}
+      role="menu"
+      style={
+        usePortal && portalCoords
+          ? { top: `${portalCoords.top}px`, left: `${portalCoords.left}px` }
+          : undefined
+      }
+    >
+      {RATING_VALUES.map((score) => (
+        <button
+          key={score}
+          type="button"
+          className={`rating-number ${value === score ? "active" : ""}`}
+          onClick={() => {
+            onRate(score);
+            setOpen(false);
+          }}
+        >
+          {score}
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <div
@@ -369,23 +411,11 @@ function RatingButton({
         <Star size={14} />
         <span>{value ? `${value}/10` : label}</span>
       </button>
-      {isOpen ? (
-        <div className={`rating-popup rating-popup--${variant}`} role="menu">
-          {RATING_VALUES.map((score) => (
-            <button
-              key={score}
-              type="button"
-              className={`rating-number ${value === score ? "active" : ""}`}
-              onClick={() => {
-                onRate(score);
-                setOpen(false);
-              }}
-            >
-              {score}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      {isOpen && usePortal && portalCoords
+        ? createPortal(popupNode, document.body)
+        : isOpen
+          ? popupNode
+          : null}
     </div>
   );
 }
@@ -657,10 +687,6 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const [nearEpisodeEnd, setNearEpisodeEnd] = useState(false);
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [introSkipUsed, setIntroSkipUsed] = useState(false);
-  const introInterval = useMemo(
-    () => getIntroInterval(safeSeason, selectedEpisode?.id || 1),
-    [safeSeason, selectedEpisode?.id]
-  );
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
   const showNextEpisodeOverlay = Boolean(nextEpisode && videoSrc && (videoEnded || nearEpisodeEnd));
@@ -691,7 +717,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     if (!player || typeof player.currentTime !== "number") {
       return;
     }
-    const nextTime = player.currentTime + introInterval.durationSeconds;
+    const nextTime = player.currentTime + SKIP_INTRO_WINDOW.skipSeconds;
     if (player.duration && !Number.isNaN(player.duration)) {
       player.currentTime = Math.min(nextTime, player.duration - 0.25);
     } else {
@@ -699,7 +725,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     }
     setIntroSkipUsed(true);
     setShowSkipIntro(false);
-  }, [introInterval.durationSeconds]);
+  }, []);
 
   const formatTime = (totalSeconds) => {
     const safe = Math.max(0, Math.floor(totalSeconds || 0));
@@ -749,8 +775,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       const currentTime = event.currentTarget.currentTime || 0;
       const inIntroWindow =
         !introSkipUsed &&
-        currentTime >= introInterval.windowStartSeconds &&
-        currentTime < introInterval.windowEndSeconds;
+        currentTime >= SKIP_INTRO_WINDOW.startSeconds &&
+        currentTime < SKIP_INTRO_WINDOW.endSeconds;
       setShowSkipIntro(inIntroWindow);
 
       const duration = event.currentTarget.duration;
@@ -768,7 +794,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       lastSavedSecondRef.current = currentSecond;
       saveVideoProgress(currentTime, event.currentTarget.duration || 0);
     },
-    [introInterval, introSkipUsed, saveVideoProgress]
+    [introSkipUsed, saveVideoProgress]
   );
 
   const handleVideoEnded = useCallback(() => {
