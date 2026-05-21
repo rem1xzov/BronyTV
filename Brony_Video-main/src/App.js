@@ -114,6 +114,8 @@ const INTRO_INTERVAL_OVERRIDES = {
   // Example: "s1e1": { earliestStartSeconds: 90, latestStartSeconds: 150 }
 };
 
+const NEXT_EPISODE_REMAINING_SECONDS = 90;
+
 const getIntroInterval = (seasonId, episodeId) => {
   const key = `s${seasonId}e${episodeId}`;
   const override = INTRO_INTERVAL_OVERRIDES[key] || {};
@@ -368,7 +370,7 @@ function RatingButton({
         <span>{value ? `${value}/10` : label}</span>
       </button>
       {isOpen ? (
-        <div className="rating-popup" role="menu">
+        <div className={`rating-popup rating-popup--${variant}`} role="menu">
           {RATING_VALUES.map((score) => (
             <button
               key={score}
@@ -558,15 +560,17 @@ function SeasonPage({
           <h2>{seasonData?.title || `Сезон ${safeSeason}`}</h2>
           <p className="muted">{seasonData?.description}</p>
           <div className="button-row season-banner-actions">
-            <RatingButton
-              variant="header"
-              value={seasonRatings[String(safeSeason)]}
-              label="Оценить сезон"
-              popoverId={`season-${safeSeason}`}
-              openPopoverId={openRatingId}
-              onOpenPopoverId={setOpenRatingId}
-              onRate={(score) => onRateSeason(safeSeason, score)}
-            />
+            <div className="season-rating-anchor">
+              <RatingButton
+                variant="header"
+                value={seasonRatings[String(safeSeason)]}
+                label="Оценить сезон"
+                popoverId={`season-${safeSeason}`}
+                openPopoverId={openRatingId}
+                onOpenPopoverId={setOpenRatingId}
+                onRate={(score) => onRateSeason(safeSeason, score)}
+              />
+            </div>
             {seasonRatings[String(safeSeason)] ? (
               <button type="button" className="secondary-btn" onClick={() => onClearSeasonRating(safeSeason)}>
                 Удалить оценку сезона
@@ -644,12 +648,13 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const nextEpisodes = episodes.filter((item) => item.id > (selectedEpisode?.id || 0)).slice(0, 5);
   const nextEpisode = episodes.find((item) => item.id === (selectedEpisode?.id || 0) + 1) || null;
   const playerRef = useRef(null);
+  const playerShellRef = useRef(null);
   const progressStorageKey = `s${safeSeason}e${selectedEpisode?.id || 1}`;
   const [resumeLabel, setResumeLabel] = useState("");
   const lastSavedSecondRef = useRef(-1);
   const [videoError, setVideoError] = useState(false);
-  const [playerChromeVisible, setPlayerChromeVisible] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
+  const [nearEpisodeEnd, setNearEpisodeEnd] = useState(false);
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [introSkipUsed, setIntroSkipUsed] = useState(false);
   const introInterval = useMemo(
@@ -658,7 +663,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   );
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
-  const showNextEpisodeOverlay = Boolean(nextEpisode && videoSrc && (playerChromeVisible || videoEnded));
+  const showNextEpisodeOverlay = Boolean(nextEpisode && videoSrc && (videoEnded || nearEpisodeEnd));
 
   useEffect(() => {
     setCurrentSeason(safeSeason);
@@ -670,7 +675,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     setVideoEnded(false);
     setShowSkipIntro(false);
     setIntroSkipUsed(false);
-    setPlayerChromeVisible(false);
+    setNearEpisodeEnd(false);
     lastSavedSecondRef.current = -1;
   }, [videoSrc, safeSeason, episode]);
 
@@ -748,6 +753,14 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         currentTime < introInterval.windowEndSeconds;
       setShowSkipIntro(inIntroWindow);
 
+      const duration = event.currentTarget.duration;
+      if (duration && !Number.isNaN(duration) && duration > 0) {
+        const remaining = duration - currentTime;
+        setNearEpisodeEnd(remaining > 0 && remaining <= NEXT_EPISODE_REMAINING_SECONDS);
+      } else {
+        setNearEpisodeEnd(false);
+      }
+
       const currentSecond = Math.floor(currentTime);
       if (currentSecond === lastSavedSecondRef.current || currentSecond % 2 !== 0) {
         return;
@@ -760,6 +773,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
   const handleVideoEnded = useCallback(() => {
     setVideoEnded(true);
+    setNearEpisodeEnd(true);
     setShowSkipIntro(false);
   }, []);
 
@@ -771,18 +785,18 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   );
 
   const openFullscreen = async () => {
-    const playerNode = playerRef.current;
-    if (!playerNode) {
+    const shellNode = playerShellRef.current;
+    if (!shellNode) {
       return;
     }
 
     try {
-      if (playerNode.requestFullscreen) {
-        await playerNode.requestFullscreen();
-      } else if (playerNode.webkitRequestFullscreen) {
-        playerNode.webkitRequestFullscreen();
-      } else if (playerNode.msRequestFullscreen) {
-        playerNode.msRequestFullscreen();
+      if (shellNode.requestFullscreen) {
+        await shellNode.requestFullscreen();
+      } else if (shellNode.webkitRequestFullscreen) {
+        shellNode.webkitRequestFullscreen();
+      } else if (shellNode.msRequestFullscreen) {
+        shellNode.msRequestFullscreen();
       }
     } catch (error) {
       // Fail silently if fullscreen is blocked by browser policy.
@@ -796,12 +810,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       </h2>
       {resumeLabel ? <p className="muted">{resumeLabel}</p> : null}
       {videoSrc ? (
-        <div
-          className="player-shell"
-          onMouseEnter={() => setPlayerChromeVisible(true)}
-          onMouseLeave={() => setPlayerChromeVisible(false)}
-          onFocusCapture={() => setPlayerChromeVisible(true)}
-        >
+        <div className="player-shell" ref={playerShellRef}>
           <video
             key={videoSrc}
             ref={playerRef}
@@ -814,17 +823,27 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
             onTimeUpdate={handleVideoTimeUpdate}
             onPause={handleVideoPause}
             onEnded={handleVideoEnded}
-            onPlay={() => setVideoEnded(false)}
+            onPlay={() => {
+              setVideoEnded(false);
+            }}
             onError={() => setVideoError(true)}
           />
           {showSkipIntro ? (
-            <button type="button" className="player-overlay-btn skip-intro-btn" onClick={skipIntro}>
+            <button
+              type="button"
+              className="player-overlay-btn player-custom-controls skip-intro-btn"
+              onClick={skipIntro}
+            >
               <SkipForward size={18} />
               <span>Пропустить заставку</span>
             </button>
           ) : null}
           {showNextEpisodeOverlay ? (
-            <button type="button" className="player-overlay-btn next-episode-btn" onClick={goToNextEpisode}>
+            <button
+              type="button"
+              className="player-overlay-btn player-custom-controls next-episode-btn"
+              onClick={goToNextEpisode}
+            >
               <span>Следующая серия</span>
               <ChevronRight size={18} />
             </button>
