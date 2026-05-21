@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Home, Maximize, Moon, PlayCircle, Star, Sun, Tv } from "lucide-react";
+import { ChevronRight, Home, Maximize, Moon, PlayCircle, SkipForward, Star, Sun, Tv } from "lucide-react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 
 const SEASON_INFO = [
@@ -101,6 +101,7 @@ const CONSTANTS = {
 };
 
 const RATING_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+const INTRO_SKIP = { startSeconds: 0, endSeconds: 90 };
 const STORAGE_KEYS = {
   SEASON_RATINGS: "bronytv-season-ratings",
   VIDEO_RATINGS: "bronytv-video-ratings",
@@ -220,20 +221,8 @@ const resolveSeasonPreviewCandidates = (seasonNumber, posterPath) => {
   if (fromApi) {
     candidates.push(fromApi);
   }
-  candidates.push(`/content/previews/s${seasonNumber}e1.jpg`);
   candidates.push("/content/previews/default-season.jpg");
   candidates.push(SEASON_PREVIEW_FALLBACK);
-  return [...new Set(candidates.map(resolveContentUrl).filter(Boolean))];
-};
-
-const resolveEpisodePreviewCandidates = (seasonNumber, previewImageUrl) => {
-  const candidates = [];
-  const fromApi = normalizeContentPath(previewImageUrl);
-  if (fromApi) {
-    candidates.push(fromApi);
-  }
-  candidates.push(`/content/previews/s${seasonNumber}e1.jpg`);
-  candidates.push("/content/previews/default-season.jpg");
   return [...new Set(candidates.map(resolveContentUrl).filter(Boolean))];
 };
 
@@ -300,7 +289,15 @@ const getPageFromPath = (path) => {
   return "home";
 };
 
-function RatingButton({ value, onRate, label = "Оценить", popoverId, openPopoverId, onOpenPopoverId }) {
+function RatingButton({
+  value,
+  onRate,
+  label = "Оценить",
+  popoverId,
+  openPopoverId,
+  onOpenPopoverId,
+  variant = "episode"
+}) {
   const widgetRef = useRef(null);
   const [localOpen, setLocalOpen] = useState(false);
   const managed = Boolean(popoverId && onOpenPopoverId);
@@ -332,7 +329,10 @@ function RatingButton({ value, onRate, label = "Оценить", popoverId, open
   }, [isOpen, managed, onOpenPopoverId, popoverId]);
 
   return (
-    <div className={`rating-widget${isOpen ? " is-open" : ""}`} ref={widgetRef}>
+    <div
+      className={`rating-widget rating-widget--${variant}${isOpen ? " is-open" : ""}`}
+      ref={widgetRef}
+    >
       <button
         type="button"
         className="rate-btn"
@@ -363,15 +363,12 @@ function RatingButton({ value, onRate, label = "Оценить", popoverId, open
   );
 }
 
-function EpisodeThumb({ candidates, title }) {
-  const previewUrl = useResolvedImageUrl(candidates);
+function EpisodePlaceholderIcon({ episodeNumber }) {
   return (
-    <div
-      className={`episode-thumb${previewUrl ? " has-preview" : ""}`}
-      style={previewUrl ? { backgroundImage: `url("${previewUrl}")` } : undefined}
-      role="img"
-      aria-label={title}
-    />
+    <div className="episode-thumb episode-thumb--placeholder" aria-hidden="true">
+      <PlayCircle size={28} strokeWidth={1.75} />
+      <span className="episode-thumb-label">E{episodeNumber}</span>
+    </div>
   );
 }
 
@@ -526,35 +523,37 @@ function SeasonPage({
 
   return (
     <section className="panel season-page">
-      <div
-        className={`season-banner ${seasonPreviewUrl ? "has-season-preview" : ""}`}
-        style={seasonPreviewUrl ? { "--season-preview-url": `url("${seasonPreviewUrl}")` } : undefined}
-      >
-        <h2>{seasonData?.title || `Сезон ${safeSeason}`}</h2>
-        <p className="muted">{seasonData?.description}</p>
-        <div className="button-row season-banner-actions">
-          <RatingButton
-            value={seasonRatings[String(safeSeason)]}
-            label="Оценить сезон"
-            popoverId={`season-${safeSeason}`}
-            openPopoverId={openRatingId}
-            onOpenPopoverId={setOpenRatingId}
-            onRate={(score) => onRateSeason(safeSeason, score)}
-          />
-          {seasonRatings[String(safeSeason)] ? (
-            <button type="button" className="secondary-btn" onClick={() => onClearSeasonRating(safeSeason)}>
-              Удалить оценку сезона
-            </button>
-          ) : null}
+      <div className={`season-banner ${seasonPreviewUrl ? "has-season-preview" : ""}`}>
+        <div
+          className="season-banner-bg"
+          style={seasonPreviewUrl ? { "--season-preview-url": `url("${seasonPreviewUrl}")` } : undefined}
+          aria-hidden="true"
+        />
+        <div className="season-banner-content">
+          <h2>{seasonData?.title || `Сезон ${safeSeason}`}</h2>
+          <p className="muted">{seasonData?.description}</p>
+          <div className="button-row season-banner-actions">
+            <RatingButton
+              variant="header"
+              value={seasonRatings[String(safeSeason)]}
+              label="Оценить сезон"
+              popoverId={`season-${safeSeason}`}
+              openPopoverId={openRatingId}
+              onOpenPopoverId={setOpenRatingId}
+              onRate={(score) => onRateSeason(safeSeason, score)}
+            />
+            {seasonRatings[String(safeSeason)] ? (
+              <button type="button" className="secondary-btn" onClick={() => onClearSeasonRating(safeSeason)}>
+                Удалить оценку сезона
+              </button>
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="episode-list episode-grid scrollable">
         {episodes.map((episode) => (
           <div className="episode-card" key={`s${safeSeason}-e${episode.id}`}>
-            <EpisodeThumb
-              title={episode.title}
-              candidates={resolveEpisodePreviewCandidates(safeSeason, episode.previewImageUrl)}
-            />
+            <EpisodePlaceholderIcon episodeNumber={episode.id} />
             <div className="episode-main">
               <Link to={`/player/${safeSeason}/${episode.id}`} state={{ episode }}>
                 <h3>{episode.title}</h3>
@@ -597,6 +596,7 @@ function SeasonPage({
 function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos }) {
   const { seasonId, episodeId } = useParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const season = Number(seasonId || 1);
   const episode = Number(episodeId || 1);
   const safeSeason = season >= 1 && season <= CONSTANTS.TOTAL_SEASONS ? season : 1;
@@ -617,13 +617,18 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const routeEpisode = location.state?.episode;
   const selectedEpisode = episodes.find((item) => item.id === episode) || routeEpisode || episodes[0];
   const nextEpisodes = episodes.filter((item) => item.id > (selectedEpisode?.id || 0)).slice(0, 5);
+  const nextEpisode = episodes.find((item) => item.id === (selectedEpisode?.id || 0) + 1) || null;
   const playerRef = useRef(null);
   const progressStorageKey = `s${safeSeason}e${selectedEpisode?.id || 1}`;
   const [resumeLabel, setResumeLabel] = useState("");
   const lastSavedSecondRef = useRef(-1);
   const [videoError, setVideoError] = useState(false);
+  const [playerChromeVisible, setPlayerChromeVisible] = useState(false);
+  const [videoEnded, setVideoEnded] = useState(false);
+  const [showSkipIntro, setShowSkipIntro] = useState(false);
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
+  const showNextEpisodeOverlay = Boolean(nextEpisode && videoSrc && (playerChromeVisible || videoEnded));
 
   useEffect(() => {
     setCurrentSeason(safeSeason);
@@ -632,8 +637,27 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
   useEffect(() => {
     setVideoError(false);
+    setVideoEnded(false);
+    setShowSkipIntro(false);
+    setPlayerChromeVisible(false);
     lastSavedSecondRef.current = -1;
   }, [videoSrc, safeSeason, episode]);
+
+  const goToNextEpisode = useCallback(() => {
+    if (!nextEpisode) {
+      return;
+    }
+    navigate(`/player/${safeSeason}/${nextEpisode.id}`, { state: { episode: nextEpisode } });
+  }, [navigate, nextEpisode, safeSeason]);
+
+  const skipIntro = useCallback(() => {
+    const player = playerRef.current;
+    if (!player || typeof player.currentTime !== "number") {
+      return;
+    }
+    player.currentTime = INTRO_SKIP.endSeconds;
+    setShowSkipIntro(false);
+  }, []);
 
   const formatTime = (totalSeconds) => {
     const safe = Math.max(0, Math.floor(totalSeconds || 0));
@@ -681,6 +705,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const handleVideoTimeUpdate = useCallback(
     (event) => {
       const currentTime = event.currentTarget.currentTime || 0;
+      const inIntroWindow =
+        currentTime >= INTRO_SKIP.startSeconds && currentTime < INTRO_SKIP.endSeconds;
+      setShowSkipIntro(inIntroWindow);
+
       const currentSecond = Math.floor(currentTime);
       if (currentSecond === lastSavedSecondRef.current || currentSecond % 2 !== 0) {
         return;
@@ -690,6 +718,11 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     },
     [saveVideoProgress]
   );
+
+  const handleVideoEnded = useCallback(() => {
+    setVideoEnded(true);
+    setShowSkipIntro(false);
+  }, []);
 
   const handleVideoPause = useCallback(
     (event) => {
@@ -724,19 +757,40 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       </h2>
       {resumeLabel ? <p className="muted">{resumeLabel}</p> : null}
       {videoSrc ? (
-        <video
-          key={videoSrc}
-          ref={playerRef}
-          className="video-player video-large"
-          controls
-          playsInline
-          preload="metadata"
-          src={videoSrc}
-          onLoadedMetadata={handleVideoLoadedMetadata}
-          onTimeUpdate={handleVideoTimeUpdate}
-          onPause={handleVideoPause}
-          onError={() => setVideoError(true)}
-        />
+        <div
+          className="player-shell"
+          onMouseEnter={() => setPlayerChromeVisible(true)}
+          onMouseLeave={() => setPlayerChromeVisible(false)}
+          onFocusCapture={() => setPlayerChromeVisible(true)}
+        >
+          <video
+            key={videoSrc}
+            ref={playerRef}
+            className="video-player video-large"
+            controls
+            playsInline
+            preload="metadata"
+            src={videoSrc}
+            onLoadedMetadata={handleVideoLoadedMetadata}
+            onTimeUpdate={handleVideoTimeUpdate}
+            onPause={handleVideoPause}
+            onEnded={handleVideoEnded}
+            onPlay={() => setVideoEnded(false)}
+            onError={() => setVideoError(true)}
+          />
+          {showSkipIntro ? (
+            <button type="button" className="player-overlay-btn skip-intro-btn" onClick={skipIntro}>
+              <SkipForward size={18} />
+              <span>Пропустить заставку</span>
+            </button>
+          ) : null}
+          {showNextEpisodeOverlay ? (
+            <button type="button" className="player-overlay-btn next-episode-btn" onClick={goToNextEpisode}>
+              <span>Следующая серия</span>
+              <ChevronRight size={18} />
+            </button>
+          ) : null}
+        </div>
       ) : (
         <div ref={playerRef} className="video-placeholder video-large">
           {remoteVideos.length === 0 ? "Загрузка списка серий…" : "Видеофайл для этой серии не найден"}
