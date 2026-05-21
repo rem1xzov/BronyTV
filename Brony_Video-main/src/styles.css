@@ -644,6 +644,20 @@ body[data-theme="dark"] .hero-thumb {
   z-index: 1;
 }
 
+.player-custom-controls {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.player-custom-controls .player-overlay-btn,
+.player-custom-controls .player-chrome-bar,
+.player-custom-controls .player-chrome-btn,
+.player-custom-controls .player-timeline {
+  pointer-events: auto;
+}
+
 .player-shell:fullscreen,
 .player-shell:-webkit-full-screen {
   width: 100vw;
@@ -666,14 +680,27 @@ body[data-theme="dark"] .hero-thumb {
 
 .player-shell:fullscreen .player-custom-controls,
 .player-shell:-webkit-full-screen .player-custom-controls {
-  z-index: 9999;
+  position: absolute;
+  inset: 0;
+  z-index: 2147483647 !important;
+  pointer-events: none;
+}
+
+.player-shell:fullscreen .player-custom-controls .player-overlay-btn,
+.player-shell:fullscreen .player-custom-controls .player-chrome-bar,
+.player-shell:fullscreen .player-custom-controls .player-chrome-btn,
+.player-shell:fullscreen .player-custom-controls .player-timeline,
+.player-shell:-webkit-full-screen .player-custom-controls .player-overlay-btn,
+.player-shell:-webkit-full-screen .player-custom-controls .player-chrome-bar,
+.player-shell:-webkit-full-screen .player-custom-controls .player-chrome-btn,
+.player-shell:-webkit-full-screen .player-custom-controls .player-timeline {
+  z-index: 2147483647 !important;
   pointer-events: auto;
 }
 
-.player-overlay-btn,
-.player-custom-controls {
+.player-overlay-btn {
   position: absolute;
-  z-index: 12;
+  z-index: 22;
   border: 0;
   border-radius: 999px;
   padding: 10px 16px;
@@ -696,12 +723,59 @@ body[data-theme="dark"] .hero-thumb {
 
 .skip-intro-btn {
   right: 16px;
-  bottom: 72px;
+  bottom: 88px;
 }
 
 .next-episode-btn {
   right: 16px;
-  bottom: 16px;
+  bottom: 88px;
+}
+
+.player-chrome-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 24;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.82));
+}
+
+.player-chrome-btn {
+  border: 0;
+  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.14);
+  flex-shrink: 0;
+}
+
+.player-chrome-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.player-timeline {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.player-time {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  min-width: 96px;
+  text-align: right;
 }
 
 .next-videos {
@@ -932,14 +1006,14 @@ body[data-theme="dark"] .hero-thumb {
 
   .skip-intro-btn {
     right: 10px;
-    bottom: 64px;
+    bottom: 72px;
     padding: 8px 12px;
     font-size: 13px;
   }
 
   .next-episode-btn {
     right: 10px;
-    bottom: 10px;
+    bottom: 72px;
     padding: 8px 12px;
     font-size: 13px;
   }

@@ -1,6 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, Home, Maximize, Moon, PlayCircle, SkipForward, Star, Sun, Tv } from "lucide-react";
+import {
+  ChevronRight,
+  Home,
+  Maximize,
+  Minimize,
+  Moon,
+  Pause,
+  Play,
+  PlayCircle,
+  SkipForward,
+  Star,
+  Sun,
+  Tv
+} from "lucide-react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 
 const SEASON_INFO = [
@@ -709,6 +722,9 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const [nearEpisodeEnd, setNearEpisodeEnd] = useState(false);
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [introSkipUsed, setIntroSkipUsed] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [playbackUi, setPlaybackUi] = useState({ current: 0, duration: 0 });
+  const [isShellFullscreen, setIsShellFullscreen] = useState(false);
   const seasonIntroConfig = useMemo(() => getSeasonIntroConfig(safeSeason), [safeSeason]);
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
@@ -725,8 +741,27 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     setShowSkipIntro(false);
     setIntroSkipUsed(false);
     setNearEpisodeEnd(false);
+    setIsPlaying(false);
+    setPlaybackUi({ current: 0, duration: 0 });
+    setIsShellFullscreen(false);
     lastSavedSecondRef.current = -1;
   }, [videoSrc, safeSeason, episode]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const shell = playerShellRef.current;
+      const active =
+        document.fullscreenElement === shell ||
+        document.webkitFullscreenElement === shell;
+      setIsShellFullscreen(active);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
+  }, []);
 
   const goToNextEpisode = useCallback(() => {
     if (!nextEpisode) {
@@ -774,9 +809,35 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [progressStorageKey]
   );
 
+  const togglePlayPause = useCallback(() => {
+    const player = playerRef.current;
+    if (!player) {
+      return;
+    }
+    if (player.paused) {
+      player.play().catch(() => {});
+    } else {
+      player.pause();
+    }
+  }, []);
+
+  const handleSeek = useCallback((event) => {
+    const player = playerRef.current;
+    const nextTime = Number(event.target.value);
+    if (!player || Number.isNaN(nextTime)) {
+      return;
+    }
+    player.currentTime = nextTime;
+    setPlaybackUi((prev) => ({ ...prev, current: nextTime }));
+  }, []);
+
   const handleVideoLoadedMetadata = useCallback(
     (event) => {
       const player = event.currentTarget;
+      setPlaybackUi({
+        current: player.currentTime || 0,
+        duration: player.duration || 0
+      });
       const progressMap = readStorageObject(STORAGE_KEYS.VIDEO_PROGRESS);
       const saved = progressMap[progressStorageKey];
       if (!saved || typeof saved.time !== "number") {
@@ -801,6 +862,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         currentTime >= seasonIntroConfig.startTime &&
         currentTime < seasonIntroConfig.endTime;
       setShowSkipIntro(inIntroWindow);
+      setPlaybackUi({
+        current: currentTime,
+        duration: event.currentTarget.duration || 0
+      });
 
       const duration = event.currentTarget.duration;
       if (duration && !Number.isNaN(duration) && duration > 0) {
@@ -833,13 +898,24 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [saveVideoProgress]
   );
 
-  const openFullscreen = async () => {
+  const toggleShellFullscreen = useCallback(async () => {
     const shellNode = playerShellRef.current;
     if (!shellNode) {
       return;
     }
 
+    const activeElement = document.fullscreenElement || document.webkitFullscreenElement;
+    const isActive = activeElement === shellNode;
+
     try {
+      if (isActive) {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
+        return;
+      }
       if (shellNode.requestFullscreen) {
         await shellNode.requestFullscreen();
       } else if (shellNode.webkitRequestFullscreen) {
@@ -850,7 +926,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     } catch (error) {
       // Fail silently if fullscreen is blocked by browser policy.
     }
-  };
+  }, []);
 
   return (
     <section className="panel player-panel">
@@ -864,39 +940,68 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
             key={videoSrc}
             ref={playerRef}
             className="video-player video-large"
-            controls
             playsInline
             preload="metadata"
             src={videoSrc}
+            onClick={togglePlayPause}
             onLoadedMetadata={handleVideoLoadedMetadata}
             onTimeUpdate={handleVideoTimeUpdate}
-            onPause={handleVideoPause}
-            onEnded={handleVideoEnded}
+            onPause={(event) => {
+              setIsPlaying(false);
+              handleVideoPause(event);
+            }}
             onPlay={() => {
+              setIsPlaying(true);
               setVideoEnded(false);
             }}
+            onEnded={handleVideoEnded}
             onError={() => setVideoError(true)}
           />
-          {showSkipIntro ? (
-            <button
-              type="button"
-              className="player-overlay-btn player-custom-controls skip-intro-btn"
-              onClick={skipIntro}
-            >
-              <SkipForward size={18} />
-              <span>Пропустить заставку</span>
-            </button>
-          ) : null}
-          {showNextEpisodeOverlay ? (
-            <button
-              type="button"
-              className="player-overlay-btn player-custom-controls next-episode-btn"
-              onClick={goToNextEpisode}
-            >
-              <span>Следующая серия</span>
-              <ChevronRight size={18} />
-            </button>
-          ) : null}
+          <div className="player-custom-controls" aria-label="Управление плеером">
+            {showSkipIntro ? (
+              <button type="button" className="player-overlay-btn skip-intro-btn" onClick={skipIntro}>
+                <SkipForward size={18} />
+                <span>Пропустить заставку</span>
+              </button>
+            ) : null}
+            {showNextEpisodeOverlay ? (
+              <button type="button" className="player-overlay-btn next-episode-btn" onClick={goToNextEpisode}>
+                <span>Следующая серия</span>
+                <ChevronRight size={18} />
+              </button>
+            ) : null}
+            <div className="player-chrome-bar">
+              <button
+                type="button"
+                className="player-chrome-btn"
+                onClick={togglePlayPause}
+                aria-label={isPlaying ? "Пауза" : "Воспроизведение"}
+              >
+                {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+              </button>
+              <input
+                type="range"
+                className="player-timeline"
+                min={0}
+                max={playbackUi.duration || 0}
+                step={0.1}
+                value={Math.min(playbackUi.current, playbackUi.duration || 0)}
+                onChange={handleSeek}
+                aria-label="Позиция воспроизведения"
+              />
+              <span className="player-time">
+                {formatTime(playbackUi.current)} / {formatTime(playbackUi.duration)}
+              </span>
+              <button
+                type="button"
+                className="player-chrome-btn"
+                onClick={toggleShellFullscreen}
+                aria-label={isShellFullscreen ? "Выйти из полноэкранного режима" : "Полноэкранный режим"}
+              >
+                {isShellFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+              </button>
+            </div>
+          </div>
         </div>
       ) : (
         <div ref={playerRef} className="video-placeholder video-large">
@@ -909,7 +1014,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       <h3>{selectedEpisode?.title || "Серия недоступна"}</h3>
       <p className="muted">{selectedEpisode?.description || "Описание недоступно."}</p>
       <div className="button-row">
-        <button type="button" className="primary-btn" onClick={openFullscreen}>
+        <button type="button" className="primary-btn" onClick={toggleShellFullscreen}>
           <Maximize size={16} />
           <span>На весь экран</span>
         </button>
