@@ -1249,13 +1249,13 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               >
                 {skipFeedback === "left" ? (
                   <>
-                    <span className="player-skip-feedback-icon">⟨⟨</span>
-                    <span>10 сек</span>
+                    <span className="player-skip-feedback-icon">{"<<"}</span>
+                    <span>10s</span>
                   </>
                 ) : (
                   <>
-                    <span>10 сек</span>
-                    <span className="player-skip-feedback-icon">⟩⟩</span>
+                    <span>10s</span>
+                    <span className="player-skip-feedback-icon">{">>"}</span>
                   </>
                 )}
               </div>
