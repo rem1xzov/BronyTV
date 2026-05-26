@@ -616,7 +616,9 @@ body[data-theme="dark"] .hero-thumb {
   margin: 14px 0;
   border-radius: 18px;
   background: var(--video-gradient);
-  min-height: 260px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
   display: grid;
   place-items: center;
   color: #fff;
@@ -631,12 +633,13 @@ body[data-theme="dark"] .hero-thumb {
   margin: 14px 0;
   width: 100%;
   max-width: 100%;
-  height: min(78vh, 800px);
-  height: min(78dvh, 800px);
+  aspect-ratio: 16 / 9;
+  height: auto;
   border-radius: 18px;
   background: #000;
   display: block;
   object-fit: contain;
+  object-position: center center;
   -webkit-playsinline: true;
 }
 
@@ -659,8 +662,6 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 .video-large {
-  min-height: min(78vh, 800px);
-  min-height: min(78dvh, 800px);
   border-radius: 24px;
 }
 
@@ -679,13 +680,16 @@ body[data-theme="dark"] .hero-thumb {
   border-radius: 24px;
   overflow: hidden;
   background: #000;
+  display: grid;
   width: 100%;
+  aspect-ratio: 16 / 9;
 }
 
 .player-media-stage {
   position: relative;
   width: 100%;
-  display: block;
+  height: 100%;
+  display: grid;
 }
 
 .player-shell .video-player {
@@ -696,6 +700,14 @@ body[data-theme="dark"] .hero-thumb {
   z-index: 1;
 }
 
+.player-shell video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain; /* Maintain aspect ratio while scaling to max available space */
+  display: block;
+  object-position: center center;
+}
+
 .player-custom-controls {
   position: absolute;
   inset: 0;
@@ -704,7 +716,6 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 .player-custom-controls .player-overlay-btn,
-.player-custom-controls .player-chrome-bar,
 .player-custom-controls .player-chrome-btn,
 .player-custom-controls .player-timeline,
 .player-custom-controls .player-settings-dropdown,
@@ -859,7 +870,6 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 .player-shell:fullscreen .player-custom-controls .player-overlay-btn,
-.player-shell:fullscreen .player-custom-controls .player-chrome-bar,
 .player-shell:fullscreen .player-custom-controls .player-chrome-btn,
 .player-shell:fullscreen .player-custom-controls .player-timeline,
 .player-shell:fullscreen .player-custom-controls .player-settings-dropdown,
@@ -867,7 +877,6 @@ body[data-theme="dark"] .hero-thumb {
 .player-shell:fullscreen .player-custom-controls .player-settings-option,
 .player-shell:fullscreen .player-custom-controls .player-settings-download,
 .player-shell:-webkit-full-screen .player-custom-controls .player-overlay-btn,
-.player-shell:-webkit-full-screen .player-custom-controls .player-chrome-bar,
 .player-shell:-webkit-full-screen .player-custom-controls .player-chrome-btn,
 .player-shell:-webkit-full-screen .player-custom-controls .player-timeline,
 .player-shell:-webkit-full-screen .player-custom-controls .player-settings-dropdown,
@@ -920,25 +929,21 @@ body[data-theme="dark"] .hero-thumb {
 
 .player-chrome-bar {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
+  inset: 0;
   z-index: 24;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
   padding: 12px 14px;
   box-sizing: border-box;
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.82));
+  pointer-events: none;
 }
 
 .player-shell:fullscreen .player-chrome-bar,
 .player-shell:-webkit-full-screen .player-chrome-bar {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
+  inset: 0;
   z-index: 30;
   flex-shrink: 0;
 }
