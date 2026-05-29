@@ -774,9 +774,24 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const [volume, setVolume] = useState(() => readStoredVolume());
   const [isMuted, setIsMuted] = useState(false);
   const [skipFeedback, setSkipFeedback] = useState(null);
+  const [controlsVisible, setControlsVisible] = useState(true);
+  const [volumeFocused, setVolumeFocused] = useState(false);
   const mobileTapPendingRef = useRef(null);
   const skipFeedbackTimerRef = useRef(null);
+  const controlsHideTimerRef = useRef(null);
   const seasonIntroConfig = useMemo(() => getSeasonIntroConfig(safeSeason), [safeSeason]);
+
+  const CONTROLS_HIDE_DELAY_MS = 2000;
+  const PLAYER_CHROME_INTERACTIVE_SELECTOR =
+    ".player-chrome-bar, .player-timeline, .player-volume-control, .player-volume-slider, .player-chrome-btn, .player-settings-dropdown, .player-settings-wrap, .player-overlay-btn, .player-time";
+
+  const isPlayerChromeTarget = useCallback(
+    (target) => Boolean(target?.closest?.(PLAYER_CHROME_INTERACTIVE_SELECTOR)),
+    []
+  );
+
+  const controlsLocked = !isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused;
+  const controlsHidden = isPlaying && !controlsVisible && !controlsLocked;
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
   const downloadFileName = useMemo(() => {
@@ -806,6 +821,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     setSettingsOpen(false);
     setSpeedSubmenuOpen(false);
     setPlaybackSpeed(1);
+    setControlsVisible(true);
+    setVolumeFocused(false);
     lastSavedSecondRef.current = -1;
   }, [videoSrc, safeSeason, episode]);
 
@@ -1007,17 +1024,13 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       if (!isMobilePlayerViewport()) {
         return;
       }
-      if (
-        event.target?.closest?.(
-          ".player-chrome-bar, .player-overlay-btn, .player-settings-dropdown, .player-timeline, .player-volume-control"
-        )
-      ) {
+      if (isPlayerChromeTarget(event.target)) {
         return;
       }
       event.preventDefault();
       event.stopPropagation();
     },
-    [isMobilePlayerViewport]
+    [isMobilePlayerViewport, isPlayerChromeTarget]
   );
 
   const handlePlayerTouchEnd = useCallback(
@@ -1025,11 +1038,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       if (!isMobilePlayerViewport()) {
         return;
       }
-      if (
-        event.target?.closest?.(
-          ".player-chrome-bar, .player-overlay-btn, .player-settings-dropdown, .player-timeline, .player-volume-control"
-        )
-      ) {
+      if (isPlayerChromeTarget(event.target)) {
+        revealControls();
         return;
       }
       event.preventDefault();
@@ -1037,7 +1047,11 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
       if (zone === "center") {
         clearMobileTapPending();
-        togglePlayPause();
+        if (!isPlaying) {
+          togglePlayPause();
+          return;
+        }
+        toggleControlsVisibility();
         return;
       }
 
@@ -1085,6 +1099,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         }
         mobileTapPendingRef.current = null;
         togglePlayPause();
+        revealControls();
       }, MOBILE_DOUBLE_TAP_MS);
 
       mobileTapPendingRef.current = { zone, time: now, tapId, timerId };
@@ -1092,7 +1107,11 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [
       clearMobileTapPending,
       isMobilePlayerViewport,
+      isPlayerChromeTarget,
+      isPlaying,
+      revealControls,
       showSkipFeedback,
+      toggleControlsVisibility,
       togglePlayPause
     ]
   );
@@ -1100,11 +1119,12 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   useEffect(() => {
     return () => {
       clearMobileTapPending();
+      clearControlsHideTimer();
       if (skipFeedbackTimerRef.current) {
         clearTimeout(skipFeedbackTimerRef.current);
       }
     };
-  }, [clearMobileTapPending]);
+  }, [clearControlsHideTimer, clearMobileTapPending]);
 
   useEffect(() => {
     if (!videoSrc) {
@@ -1155,15 +1175,92 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [applyPlaybackSpeed]
   );
 
-  const handleSeek = useCallback((event) => {
-    const player = playerRef.current;
-    const nextTime = Number(event.target.value);
-    if (!player || Number.isNaN(nextTime)) {
+  const clearControlsHideTimer = useCallback(() => {
+    if (controlsHideTimerRef.current) {
+      clearTimeout(controlsHideTimerRef.current);
+      controlsHideTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleControlsHide = useCallback(() => {
+    clearControlsHideTimer();
+    if (!isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused) {
       return;
     }
-    player.currentTime = nextTime;
-    setPlaybackUi((prev) => ({ ...prev, current: nextTime }));
-  }, []);
+    controlsHideTimerRef.current = window.setTimeout(() => {
+      setControlsVisible(false);
+      controlsHideTimerRef.current = null;
+    }, CONTROLS_HIDE_DELAY_MS);
+  }, [
+    clearControlsHideTimer,
+    isPlaying,
+    settingsOpen,
+    speedSubmenuOpen,
+    volumeFocused
+  ]);
+
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    scheduleControlsHide();
+  }, [scheduleControlsHide]);
+
+  const toggleControlsVisibility = useCallback(() => {
+    if (controlsLocked) {
+      setControlsVisible(true);
+      clearControlsHideTimer();
+      return;
+    }
+    setControlsVisible((previous) => {
+      const nextVisible = !previous;
+      if (nextVisible) {
+        scheduleControlsHide();
+      } else {
+        clearControlsHideTimer();
+      }
+      return nextVisible;
+    });
+  }, [clearControlsHideTimer, controlsLocked, scheduleControlsHide]);
+
+  useEffect(() => {
+    if (controlsLocked) {
+      setControlsVisible(true);
+      clearControlsHideTimer();
+      return undefined;
+    }
+    if (isPlaying) {
+      scheduleControlsHide();
+    }
+    return clearControlsHideTimer;
+  }, [clearControlsHideTimer, controlsLocked, isPlaying, scheduleControlsHide, videoSrc]);
+
+  useEffect(() => {
+    const shell = playerShellRef.current;
+    if (!shell || !videoSrc) {
+      return undefined;
+    }
+    const handleMouseMove = () => {
+      if (window.matchMedia("(max-width: 768px)").matches) {
+        return;
+      }
+      revealControls();
+    };
+    shell.addEventListener("mousemove", handleMouseMove);
+    return () => shell.removeEventListener("mousemove", handleMouseMove);
+  }, [revealControls, videoSrc]);
+
+  const handleSeek = useCallback(
+    (event) => {
+      const player = playerRef.current;
+      const nextTime = Number(event.target.value);
+      if (!player || Number.isNaN(nextTime)) {
+        return;
+      }
+      player.currentTime = nextTime;
+      setPlaybackUi((prev) => ({ ...prev, current: nextTime }));
+      revealControls();
+    },
+    [revealControls]
+  );
 
   const handleVideoLoadedMetadata = useCallback(
     (event) => {
@@ -1302,7 +1399,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               onError={() => setVideoError(true)}
             />
           </div>
-          <div className="player-custom-controls" aria-label="Управление плеером">
+          <div
+            className={`player-custom-controls${controlsHidden ? " v-control-hidden" : ""}`}
+            aria-label="Управление плеером"
+          >
             <div className="player-touch-layer" aria-hidden="true">
               <button
                 type="button"
@@ -1362,11 +1462,18 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 <ChevronRight size={18} />
               </button>
             ) : null}
-            <div className="player-chrome-bar">
+            <div
+              className="player-chrome-bar"
+              onMouseEnter={revealControls}
+              onTouchStart={revealControls}
+            >
               <button
                 type="button"
                 className="player-chrome-btn"
-                onClick={togglePlayPause}
+                onClick={() => {
+                  togglePlayPause();
+                  revealControls();
+                }}
                 aria-label={isPlaying ? "Пауза" : "Воспроизведение"}
               >
                 {isPlaying ? <Pause size={20} /> : <Play size={20} />}
@@ -1388,6 +1495,11 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                   step={0.05}
                   value={volumeSliderValue}
                   onChange={handleVolumeChange}
+                  onFocus={() => {
+                    setVolumeFocused(true);
+                    revealControls();
+                  }}
+                  onBlur={() => setVolumeFocused(false)}
                   aria-label="Громкость"
                 />
               </div>
@@ -1399,6 +1511,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 step={0.1}
                 value={Math.min(playbackUi.current, playbackUi.duration || 0)}
                 onChange={handleSeek}
+                onInput={handleSeek}
+                onTouchStart={(event) => event.stopPropagation()}
+                onTouchEnd={(event) => event.stopPropagation()}
+                onMouseDown={(event) => event.stopPropagation()}
                 aria-label="Позиция воспроизведения"
               />
               <span className="player-time">
@@ -1412,6 +1528,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                     onClick={() => {
                       setSettingsOpen((prev) => !prev);
                       setSpeedSubmenuOpen(false);
+                      revealControls();
                     }}
                     aria-label="Настройки плеера"
                     aria-expanded={settingsOpen}

@@ -751,6 +751,16 @@ body[data-theme="dark"] .hero-thumb {
   pointer-events: none;
 }
 
+.player-custom-controls.v-control-hidden .player-chrome-bar,
+.player-custom-controls.v-control-hidden .player-overlay-btn,
+.player-custom-controls.v-control-hidden .skip-intro-btn,
+.player-custom-controls.v-control-hidden .next-episode-btn,
+.player-custom-controls.v-control-hidden .player-settings-dropdown {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
 .player-custom-controls .player-overlay-btn,
 .player-custom-controls .player-chrome-btn,
 .player-custom-controls .player-timeline,
@@ -1056,6 +1066,10 @@ body[data-theme="dark"] .hero-thumb {
   accent-color: var(--accent);
   cursor: pointer;
   box-sizing: content-box;
+  position: relative;
+  z-index: 32;
+  touch-action: manipulation;
+  pointer-events: auto;
 }
 
 .player-time {
@@ -1498,10 +1512,28 @@ body[data-theme="dark"] .hero-thumb {
 
   .player-touch-layer {
     display: flex;
-    inset: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 72px;
     width: 100%;
-    height: 100%;
+    height: auto;
     pointer-events: none;
+  }
+
+  .player-chrome-bar {
+    pointer-events: none;
+    z-index: 34;
+  }
+
+  .player-chrome-bar .player-timeline,
+  .player-chrome-bar .player-chrome-btn,
+  .player-chrome-bar .player-volume-control,
+  .player-chrome-bar .player-volume-slider,
+  .player-chrome-bar .player-time,
+  .player-chrome-bar .player-settings-wrap,
+  .player-chrome-bar .player-chrome-bar-right {
+    pointer-events: auto;
   }
 
   .player-skip-zone--left {
@@ -1556,6 +1588,11 @@ body[data-theme="dark"] .hero-thumb {
     margin: -14px 0;
     min-height: 44px;
     background: transparent;
+    touch-action: pan-x;
+    -webkit-appearance: none;
+    appearance: none;
+    z-index: 40;
+    pointer-events: auto !important;
   }
 
   .skip-intro-btn {
@@ -1599,8 +1636,11 @@ body[data-theme="dark"] .hero-thumb {
 
   .player-shell:fullscreen .player-touch-layer,
   .player-shell:-webkit-full-screen .player-touch-layer {
-    inset: 0;
-    height: 100%;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 72px;
+    height: auto;
   }
 
   .player-shell:fullscreen .player-media-stage,
