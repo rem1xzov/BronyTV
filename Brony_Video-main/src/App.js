@@ -1019,6 +1019,93 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [isMobilePlayerViewport]
   );
 
+  const clearControlsHideTimer = useCallback(() => {
+    if (controlsHideTimerRef.current) {
+      clearTimeout(controlsHideTimerRef.current);
+      controlsHideTimerRef.current = null;
+    }
+  }, []);
+
+  const scheduleControlsHide = useCallback(() => {
+    clearControlsHideTimer();
+    if (!isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused) {
+      return;
+    }
+    controlsHideTimerRef.current = window.setTimeout(() => {
+      setControlsVisible(false);
+      controlsHideTimerRef.current = null;
+    }, CONTROLS_HIDE_DELAY_MS);
+  }, [
+    clearControlsHideTimer,
+    isPlaying,
+    settingsOpen,
+    speedSubmenuOpen,
+    volumeFocused
+  ]);
+
+  const revealControls = useCallback(() => {
+    setControlsVisible(true);
+    scheduleControlsHide();
+  }, [scheduleControlsHide]);
+
+  const toggleControlsVisibility = useCallback(() => {
+    if (controlsLocked) {
+      setControlsVisible(true);
+      clearControlsHideTimer();
+      return;
+    }
+    setControlsVisible((previous) => {
+      const nextVisible = !previous;
+      if (nextVisible) {
+        scheduleControlsHide();
+      } else {
+        clearControlsHideTimer();
+      }
+      return nextVisible;
+    });
+  }, [clearControlsHideTimer, controlsLocked, scheduleControlsHide]);
+
+  useEffect(() => {
+    if (controlsLocked) {
+      setControlsVisible(true);
+      clearControlsHideTimer();
+      return undefined;
+    }
+    if (isPlaying) {
+      scheduleControlsHide();
+    }
+    return clearControlsHideTimer;
+  }, [clearControlsHideTimer, controlsLocked, isPlaying, scheduleControlsHide, videoSrc]);
+
+  useEffect(() => {
+    const shell = playerShellRef.current;
+    if (!shell || !videoSrc) {
+      return undefined;
+    }
+    const handleMouseMove = () => {
+      if (window.matchMedia("(max-width: 768px)").matches) {
+        return;
+      }
+      revealControls();
+    };
+    shell.addEventListener("mousemove", handleMouseMove);
+    return () => shell.removeEventListener("mousemove", handleMouseMove);
+  }, [revealControls, videoSrc]);
+
+  const handleSeek = useCallback(
+    (event) => {
+      const player = playerRef.current;
+      const nextTime = Number(event.target.value);
+      if (!player || Number.isNaN(nextTime)) {
+        return;
+      }
+      player.currentTime = nextTime;
+      setPlaybackUi((prev) => ({ ...prev, current: nextTime }));
+      revealControls();
+    },
+    [revealControls]
+  );
+
   const handlePlayerTouchStart = useCallback(
     (zone) => (event) => {
       if (!isMobilePlayerViewport()) {
@@ -1173,93 +1260,6 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       applyPlaybackSpeed(speed);
     },
     [applyPlaybackSpeed]
-  );
-
-  const clearControlsHideTimer = useCallback(() => {
-    if (controlsHideTimerRef.current) {
-      clearTimeout(controlsHideTimerRef.current);
-      controlsHideTimerRef.current = null;
-    }
-  }, []);
-
-  const scheduleControlsHide = useCallback(() => {
-    clearControlsHideTimer();
-    if (!isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused) {
-      return;
-    }
-    controlsHideTimerRef.current = window.setTimeout(() => {
-      setControlsVisible(false);
-      controlsHideTimerRef.current = null;
-    }, CONTROLS_HIDE_DELAY_MS);
-  }, [
-    clearControlsHideTimer,
-    isPlaying,
-    settingsOpen,
-    speedSubmenuOpen,
-    volumeFocused
-  ]);
-
-  const revealControls = useCallback(() => {
-    setControlsVisible(true);
-    scheduleControlsHide();
-  }, [scheduleControlsHide]);
-
-  const toggleControlsVisibility = useCallback(() => {
-    if (controlsLocked) {
-      setControlsVisible(true);
-      clearControlsHideTimer();
-      return;
-    }
-    setControlsVisible((previous) => {
-      const nextVisible = !previous;
-      if (nextVisible) {
-        scheduleControlsHide();
-      } else {
-        clearControlsHideTimer();
-      }
-      return nextVisible;
-    });
-  }, [clearControlsHideTimer, controlsLocked, scheduleControlsHide]);
-
-  useEffect(() => {
-    if (controlsLocked) {
-      setControlsVisible(true);
-      clearControlsHideTimer();
-      return undefined;
-    }
-    if (isPlaying) {
-      scheduleControlsHide();
-    }
-    return clearControlsHideTimer;
-  }, [clearControlsHideTimer, controlsLocked, isPlaying, scheduleControlsHide, videoSrc]);
-
-  useEffect(() => {
-    const shell = playerShellRef.current;
-    if (!shell || !videoSrc) {
-      return undefined;
-    }
-    const handleMouseMove = () => {
-      if (window.matchMedia("(max-width: 768px)").matches) {
-        return;
-      }
-      revealControls();
-    };
-    shell.addEventListener("mousemove", handleMouseMove);
-    return () => shell.removeEventListener("mousemove", handleMouseMove);
-  }, [revealControls, videoSrc]);
-
-  const handleSeek = useCallback(
-    (event) => {
-      const player = playerRef.current;
-      const nextTime = Number(event.target.value);
-      if (!player || Number.isNaN(nextTime)) {
-        return;
-      }
-      player.currentTime = nextTime;
-      setPlaybackUi((prev) => ({ ...prev, current: nextTime }));
-      revealControls();
-    },
-    [revealControls]
   );
 
   const handleVideoLoadedMetadata = useCallback(
