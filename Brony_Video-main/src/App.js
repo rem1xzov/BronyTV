@@ -776,6 +776,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const [skipFeedback, setSkipFeedback] = useState(null);
   const [controlsVisible, setControlsVisible] = useState(true);
   const [volumeFocused, setVolumeFocused] = useState(false);
+  const [timelineActive, setTimelineActive] = useState(false);
   const mobileTapPendingRef = useRef(null);
   const skipFeedbackTimerRef = useRef(null);
   const controlsHideTimerRef = useRef(null);
@@ -783,14 +784,15 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
   const CONTROLS_HIDE_DELAY_MS = 2000;
   const PLAYER_CHROME_INTERACTIVE_SELECTOR =
-    ".player-chrome-bar, .player-timeline, .player-volume-control, .player-volume-slider, .player-chrome-btn, .player-settings-dropdown, .player-settings-wrap, .player-overlay-btn, .player-time";
+    ".player-chrome-bar, .player-timeline, input.player-timeline, .player-volume-control, .player-volume-slider, .player-chrome-btn, .player-settings-dropdown, .player-settings-wrap, .player-time";
 
   const isPlayerChromeTarget = useCallback(
     (target) => Boolean(target?.closest?.(PLAYER_CHROME_INTERACTIVE_SELECTOR)),
     []
   );
 
-  const controlsLocked = !isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused;
+  const controlsLocked =
+    !isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused || timelineActive;
   const controlsHidden = isPlaying && !controlsVisible && !controlsLocked;
 
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
@@ -823,6 +825,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     setPlaybackSpeed(1);
     setControlsVisible(true);
     setVolumeFocused(false);
+    setTimelineActive(false);
     lastSavedSecondRef.current = -1;
   }, [videoSrc, safeSeason, episode]);
 
@@ -1028,7 +1031,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
   const scheduleControlsHide = useCallback(() => {
     clearControlsHideTimer();
-    if (!isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused) {
+    if (!isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused || timelineActive) {
       return;
     }
     controlsHideTimerRef.current = window.setTimeout(() => {
@@ -1040,7 +1043,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     isPlaying,
     settingsOpen,
     speedSubmenuOpen,
-    volumeFocused
+    volumeFocused,
+    timelineActive
   ]);
 
   const revealControls = useCallback(() => {
@@ -1099,12 +1103,30 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       if (!player || Number.isNaN(nextTime)) {
         return;
       }
-      player.currentTime = nextTime;
-      setPlaybackUi((prev) => ({ ...prev, current: nextTime }));
+      const duration = player.duration;
+      const maxTime =
+        duration && !Number.isNaN(duration) ? Math.max(0, duration - 0.25) : Number.POSITIVE_INFINITY;
+      const clampedTime = Math.min(maxTime, Math.max(0, nextTime));
+      player.currentTime = clampedTime;
+      setPlaybackUi((prev) => ({ ...prev, current: clampedTime }));
       revealControls();
     },
     [revealControls]
   );
+
+  const handleTimelineSeekStart = useCallback(
+    (event) => {
+      event.stopPropagation();
+      setTimelineActive(true);
+      revealControls();
+    },
+    [revealControls]
+  );
+
+  const handleTimelineSeekEnd = useCallback((event) => {
+    event.stopPropagation();
+    setTimelineActive(false);
+  }, []);
 
   const handlePlayerTouchStart = useCallback(
     (zone) => (event) => {
@@ -1399,10 +1421,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               onError={() => setVideoError(true)}
             />
           </div>
-          <div
-            className={`player-custom-controls${controlsHidden ? " v-control-hidden" : ""}`}
-            aria-label="Управление плеером"
-          >
+          <div className="player-custom-controls" aria-label="Управление плеером">
             <div className="player-touch-layer" aria-hidden="true">
               <button
                 type="button"
@@ -1450,22 +1469,29 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 )}
               </div>
             ) : null}
-            {showSkipIntro ? (
-              <button type="button" className="player-overlay-btn skip-intro-btn" onClick={skipIntro}>
-                <SkipForward size={18} />
-                <span>Пропустить заставку</span>
-              </button>
-            ) : null}
-            {showNextEpisodeOverlay ? (
-              <button type="button" className="player-overlay-btn next-episode-btn" onClick={goToNextEpisode}>
-                <span>Следующая серия</span>
-                <ChevronRight size={18} />
-              </button>
-            ) : null}
+            <div className="player-action-overlays" aria-hidden={!showSkipIntro && !showNextEpisodeOverlay}>
+              {showSkipIntro ? (
+                <button type="button" className="player-overlay-btn skip-intro-btn" onClick={skipIntro}>
+                  <SkipForward size={18} />
+                  <span>Пропустить заставку</span>
+                </button>
+              ) : null}
+              {showNextEpisodeOverlay ? (
+                <button type="button" className="player-overlay-btn next-episode-btn" onClick={goToNextEpisode}>
+                  <span>Следующая серия</span>
+                  <ChevronRight size={18} />
+                </button>
+              ) : null}
+            </div>
             <div
-              className="player-chrome-bar"
+              className={`player-chrome-bar${controlsHidden ? " v-control-hidden" : ""}`}
               onMouseEnter={revealControls}
-              onTouchStart={revealControls}
+              onTouchStart={(event) => {
+                if (event.target?.closest?.("input.player-timeline")) {
+                  return;
+                }
+                revealControls();
+              }}
             >
               <button
                 type="button"
@@ -1512,9 +1538,14 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 value={Math.min(playbackUi.current, playbackUi.duration || 0)}
                 onChange={handleSeek}
                 onInput={handleSeek}
-                onTouchStart={(event) => event.stopPropagation()}
-                onTouchEnd={(event) => event.stopPropagation()}
-                onMouseDown={(event) => event.stopPropagation()}
+                onPointerDown={handleTimelineSeekStart}
+                onPointerUp={handleTimelineSeekEnd}
+                onPointerCancel={handleTimelineSeekEnd}
+                onTouchStart={handleTimelineSeekStart}
+                onTouchEnd={handleTimelineSeekEnd}
+                onTouchCancel={handleTimelineSeekEnd}
+                onMouseDown={handleTimelineSeekStart}
+                onMouseUp={handleTimelineSeekEnd}
                 aria-label="Позиция воспроизведения"
               />
               <span className="player-time">

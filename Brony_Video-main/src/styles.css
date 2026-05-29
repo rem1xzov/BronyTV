@@ -751,14 +751,27 @@ body[data-theme="dark"] .hero-thumb {
   pointer-events: none;
 }
 
-.player-custom-controls.v-control-hidden .player-chrome-bar,
-.player-custom-controls.v-control-hidden .player-overlay-btn,
-.player-custom-controls.v-control-hidden .skip-intro-btn,
-.player-custom-controls.v-control-hidden .next-episode-btn,
-.player-custom-controls.v-control-hidden .player-settings-dropdown {
+.player-chrome-bar.v-control-hidden {
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.3s ease;
+}
+
+.player-chrome-bar.v-control-hidden .player-settings-dropdown {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.player-action-overlays {
+  position: absolute;
+  inset: 0;
+  z-index: 2147483646;
+  pointer-events: none;
+}
+
+.player-action-overlays .skip-intro-btn,
+.player-action-overlays .next-episode-btn {
+  pointer-events: auto;
 }
 
 .player-custom-controls .player-overlay-btn,
@@ -971,11 +984,17 @@ body[data-theme="dark"] .hero-thumb {
 .skip-intro-btn {
   right: 16px;
   bottom: 88px;
+  z-index: 2147483647;
+  pointer-events: auto;
+  opacity: 1;
 }
 
 .next-episode-btn {
   right: 16px;
   bottom: 88px;
+  z-index: 2147483647;
+  pointer-events: auto;
+  opacity: 1;
 }
 
 .player-chrome-bar {
@@ -1067,9 +1086,11 @@ body[data-theme="dark"] .hero-thumb {
   cursor: pointer;
   box-sizing: content-box;
   position: relative;
-  z-index: 32;
-  touch-action: manipulation;
-  pointer-events: auto;
+  z-index: 2147483647;
+  touch-action: pan-x;
+  pointer-events: auto !important;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .player-time {
@@ -1510,30 +1531,38 @@ body[data-theme="dark"] .hero-thumb {
     pointer-events: none;
   }
 
+  .player-shell {
+    --player-chrome-height: 80px;
+  }
+
   .player-touch-layer {
     display: flex;
     top: 0;
     left: 0;
     right: 0;
-    bottom: 72px;
+    bottom: var(--player-chrome-height);
     width: 100%;
     height: auto;
     pointer-events: none;
   }
 
   .player-chrome-bar {
-    pointer-events: none;
-    z-index: 34;
+    pointer-events: auto;
+    z-index: 2147483645;
   }
 
-  .player-chrome-bar .player-timeline,
-  .player-chrome-bar .player-chrome-btn,
-  .player-chrome-bar .player-volume-control,
-  .player-chrome-bar .player-volume-slider,
-  .player-chrome-bar .player-time,
-  .player-chrome-bar .player-settings-wrap,
-  .player-chrome-bar .player-chrome-bar-right {
-    pointer-events: auto;
+  .player-chrome-bar.v-control-hidden {
+    pointer-events: none;
+  }
+
+  .player-chrome-bar:not(.v-control-hidden) .player-timeline,
+  .player-chrome-bar:not(.v-control-hidden) .player-chrome-btn,
+  .player-chrome-bar:not(.v-control-hidden) .player-volume-control,
+  .player-chrome-bar:not(.v-control-hidden) .player-volume-slider,
+  .player-chrome-bar:not(.v-control-hidden) .player-time,
+  .player-chrome-bar:not(.v-control-hidden) .player-settings-wrap,
+  .player-chrome-bar:not(.v-control-hidden) .player-chrome-bar-right {
+    pointer-events: auto !important;
   }
 
   .player-skip-zone--left {
@@ -1587,18 +1616,21 @@ body[data-theme="dark"] .hero-thumb {
     padding: 14px 0;
     margin: -14px 0;
     min-height: 44px;
+    width: 100%;
+    flex: 1 1 auto;
     background: transparent;
     touch-action: pan-x;
-    -webkit-appearance: none;
-    appearance: none;
-    z-index: 40;
+    -webkit-appearance: slider-horizontal;
+    appearance: auto;
+    z-index: 2147483647;
     pointer-events: auto !important;
   }
 
   .skip-intro-btn {
     left: 10px;
     right: auto;
-    bottom: 58px;
+    bottom: calc(var(--player-chrome-height) + 8px);
+    z-index: 2147483647;
     padding: 7px 11px;
     font-size: 12px;
     max-width: calc(50% - 16px);
@@ -1613,7 +1645,8 @@ body[data-theme="dark"] .hero-thumb {
   .next-episode-btn {
     right: 10px;
     left: auto;
-    bottom: 58px;
+    bottom: calc(var(--player-chrome-height) + 8px);
+    z-index: 2147483647;
     padding: 7px 11px;
     font-size: 12px;
     max-width: calc(50% - 16px);
@@ -1639,7 +1672,7 @@ body[data-theme="dark"] .hero-thumb {
     top: 0;
     left: 0;
     right: 0;
-    bottom: 72px;
+    bottom: var(--player-chrome-height);
     height: auto;
   }
 
