@@ -616,7 +616,9 @@ body[data-theme="dark"] .hero-thumb {
   margin: 14px 0;
   border-radius: 18px;
   background: var(--video-gradient);
-  min-height: 260px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
   display: grid;
   place-items: center;
   color: #fff;
@@ -631,12 +633,13 @@ body[data-theme="dark"] .hero-thumb {
   margin: 14px 0;
   width: 100%;
   max-width: 100%;
-  height: min(78vh, 800px);
-  height: min(78dvh, 800px);
+  aspect-ratio: 16 / 9;
+  height: auto;
   border-radius: 18px;
   background: #000;
   display: block;
   object-fit: contain;
+  object-position: center center;
   -webkit-playsinline: true;
 }
 
@@ -659,8 +662,6 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 .video-large {
-  min-height: min(78vh, 800px);
-  min-height: min(78dvh, 800px);
   border-radius: 24px;
 }
 
@@ -674,26 +675,50 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 .player-shell {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: #000 !important;
   position: relative;
+  overflow: hidden;
+  width: 100%;
   margin: 14px 0;
   border-radius: 24px;
-  overflow: hidden;
-  background: #000;
-  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
 }
 
 .player-media-stage {
-  position: relative;
-  width: 100%;
-  display: block;
+  position: absolute;
+  inset: 0;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background-color: #000;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .player-shell .video-player {
   margin: 0;
+  border-radius: 0;
+  aspect-ratio: unset;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  pointer-events: auto;
+}
+
+.player-shell video {
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
   display: block;
-  width: 100%;
-  position: relative;
-  z-index: 1;
+  margin: auto;
+  object-position: center center;
 }
 
 .player-custom-controls {
@@ -704,7 +729,6 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 .player-custom-controls .player-overlay-btn,
-.player-custom-controls .player-chrome-bar,
 .player-custom-controls .player-chrome-btn,
 .player-custom-controls .player-timeline,
 .player-custom-controls .player-settings-dropdown,
@@ -720,6 +744,11 @@ body[data-theme="dark"] .hero-thumb {
 
 .player-touch-layer {
   display: none;
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .player-skip-zone {
@@ -788,9 +817,9 @@ body[data-theme="dark"] .hero-thumb {
 
 .player-shell:fullscreen,
 .player-shell:-webkit-full-screen {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
   position: relative;
   top: 0;
   left: 0;
@@ -802,37 +831,37 @@ body[data-theme="dark"] .hero-thumb {
   padding: 0;
   border-radius: 0;
   overflow: hidden;
-  background: #000;
+  background-color: #000 !important;
+  aspect-ratio: unset;
   box-sizing: border-box;
 }
 
 .player-shell:fullscreen .player-media-stage,
 .player-shell:-webkit-full-screen .player-media-stage {
-  flex: 1 1 0;
-  min-height: 0;
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
-  position: relative;
   overflow: hidden;
 }
 
 .player-shell:fullscreen .player-media-stage .video-player,
 .player-shell:-webkit-full-screen .player-media-stage .video-player,
 .player-shell:fullscreen .player-media-stage .video-player.video-large,
-.player-shell:-webkit-full-screen .player-media-stage .video-player.video-large {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100vw !important;
-  height: 100vh !important;
-  max-width: none !important;
-  max-height: none !important;
+.player-shell:-webkit-full-screen .player-media-stage .video-player.video-large,
+.player-shell:fullscreen video,
+.player-shell:-webkit-full-screen video {
+  position: relative;
+  width: auto !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
   min-height: 0 !important;
-  margin: 0 !important;
+  margin: auto !important;
   padding: 0 !important;
   border-radius: 0 !important;
   aspect-ratio: unset !important;
-  object-fit: cover !important;
+  object-fit: contain !important;
   object-position: center center;
   display: block !important;
   z-index: 1;
@@ -859,7 +888,6 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 .player-shell:fullscreen .player-custom-controls .player-overlay-btn,
-.player-shell:fullscreen .player-custom-controls .player-chrome-bar,
 .player-shell:fullscreen .player-custom-controls .player-chrome-btn,
 .player-shell:fullscreen .player-custom-controls .player-timeline,
 .player-shell:fullscreen .player-custom-controls .player-settings-dropdown,
@@ -867,7 +895,6 @@ body[data-theme="dark"] .hero-thumb {
 .player-shell:fullscreen .player-custom-controls .player-settings-option,
 .player-shell:fullscreen .player-custom-controls .player-settings-download,
 .player-shell:-webkit-full-screen .player-custom-controls .player-overlay-btn,
-.player-shell:-webkit-full-screen .player-custom-controls .player-chrome-bar,
 .player-shell:-webkit-full-screen .player-custom-controls .player-chrome-btn,
 .player-shell:-webkit-full-screen .player-custom-controls .player-timeline,
 .player-shell:-webkit-full-screen .player-custom-controls .player-settings-dropdown,
@@ -920,25 +947,21 @@ body[data-theme="dark"] .hero-thumb {
 
 .player-chrome-bar {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  width: 100%;
+  inset: 0;
   z-index: 24;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
   padding: 12px 14px;
   box-sizing: border-box;
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.82));
+  pointer-events: none;
 }
 
 .player-shell:fullscreen .player-chrome-bar,
 .player-shell:-webkit-full-screen .player-chrome-bar {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
+  inset: 0;
   z-index: 30;
   flex-shrink: 0;
 }
@@ -1437,42 +1460,40 @@ body[data-theme="dark"] .hero-thumb {
   .player-shell {
     margin: 10px 0;
     border-radius: 14px;
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    max-height: min(56.25vw, calc(100dvh - 220px));
   }
 
-  .player-shell .video-player {
-    height: auto;
+  .player-shell .video-player,
+  .player-shell video {
+    border-radius: 0;
+    aspect-ratio: unset;
     min-height: 0;
-    aspect-ratio: 16 / 9;
-    border-radius: 14px;
   }
 
   .player-touch-layer {
     display: flex;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 52px;
+    inset: 0;
     width: 100%;
-    height: auto;
-    z-index: 12;
+    height: 100%;
     pointer-events: none;
   }
 
   .player-skip-zone--left {
-    width: 30%;
-    height: 100%;
-    flex-shrink: 0;
-  }
-
-  .player-skip-zone--center {
     width: 40%;
     height: 100%;
     flex-shrink: 0;
   }
 
+  .player-skip-zone--center {
+    width: 20%;
+    height: 100%;
+    flex-shrink: 0;
+  }
+
   .player-skip-zone--right {
-    width: 30%;
+    width: 40%;
     height: 100%;
     flex-shrink: 0;
   }
@@ -1554,25 +1575,31 @@ body[data-theme="dark"] .hero-thumb {
 
   .player-shell:fullscreen .player-touch-layer,
   .player-shell:-webkit-full-screen .player-touch-layer {
-    bottom: 56px;
+    inset: 0;
+    height: 100%;
   }
 
   .player-shell:fullscreen .player-media-stage,
   .player-shell:-webkit-full-screen .player-media-stage {
-    flex: 1 1 0;
-    height: 0;
+    position: absolute;
+    inset: 0;
+    height: 100%;
     min-height: 0;
   }
 
   .player-shell:fullscreen .player-media-stage .video-player,
   .player-shell:-webkit-full-screen .player-media-stage .video-player,
   .player-shell:fullscreen .player-media-stage .video-player.video-large,
-  .player-shell:-webkit-full-screen .player-media-stage .video-player.video-large {
-    width: 100vw !important;
-    height: 100vh !important;
+  .player-shell:-webkit-full-screen .player-media-stage .video-player.video-large,
+  .player-shell:fullscreen video,
+  .player-shell:-webkit-full-screen video {
+    width: auto !important;
+    height: auto !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
     min-height: 0 !important;
     aspect-ratio: unset !important;
-    object-fit: cover !important;
+    object-fit: contain !important;
     display: block !important;
   }
 }

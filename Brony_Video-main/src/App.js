@@ -984,28 +984,65 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     mobileTapPendingRef.current = null;
   }, []);
 
-  const handleMobileSkipZonePointerUp = useCallback(
-    (side, deltaSeconds) => (event) => {
+  const MOBILE_DOUBLE_TAP_MS = 300;
+
+  const isMobilePlayerViewport = useCallback(
+    () => window.matchMedia("(max-width: 768px)").matches,
+    []
+  );
+
+  const handlePlayerTouchEnd = useCallback(
+    (zone, deltaSeconds) => (event) => {
+      if (!isMobilePlayerViewport()) {
+        return;
+      }
+      if (
+        event.target?.closest?.(
+          ".player-chrome-bar, .player-overlay-btn, .player-settings-dropdown, .player-timeline, .player-volume-control"
+        )
+      ) {
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
+
+      if (zone === "center") {
+        clearMobileTapPending();
+        togglePlayPause();
+        return;
+      }
+
+      const side = zone;
       const now = Date.now();
       const pending = mobileTapPendingRef.current;
-      if (pending?.side === side && now - pending.time < 300) {
+
+      if (pending?.side === side && now - pending.time < MOBILE_DOUBLE_TAP_MS) {
         clearMobileTapPending();
         seekBySeconds(deltaSeconds);
         showSkipFeedback(side);
         return;
       }
+
       clearMobileTapPending();
-      togglePlayPause();
-      mobileTapPendingRef.current = { side, time: now };
-      setTimeout(() => {
-        if (mobileTapPendingRef.current?.side === side && mobileTapPendingRef.current?.time === now) {
+      const tapTime = now;
+      const timer = setTimeout(() => {
+        if (
+          mobileTapPendingRef.current?.side === side &&
+          mobileTapPendingRef.current?.time === tapTime
+        ) {
+          togglePlayPause();
           mobileTapPendingRef.current = null;
         }
-      }, 320);
+      }, MOBILE_DOUBLE_TAP_MS);
+      mobileTapPendingRef.current = { side, time: tapTime, timer };
     },
-    [clearMobileTapPending, seekBySeconds, showSkipFeedback, togglePlayPause]
+    [
+      clearMobileTapPending,
+      isMobilePlayerViewport,
+      seekBySeconds,
+      showSkipFeedback,
+      togglePlayPause
+    ]
   );
 
   useEffect(() => {
@@ -1219,27 +1256,22 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 type="button"
                 className="player-skip-zone player-skip-zone--left"
                 tabIndex={-1}
-                aria-label="Перемотать на 10 секунд назад"
-                onPointerUp={handleMobileSkipZonePointerUp("left", -10)}
+                aria-label="Двойное касание: −10 секунд"
+                onTouchEnd={handlePlayerTouchEnd("left", -10)}
               />
               <button
                 type="button"
                 className="player-skip-zone player-skip-zone--center"
                 tabIndex={-1}
                 aria-label="Воспроизведение или пауза"
-                onPointerUp={(event) => {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  clearMobileTapPending();
-                  togglePlayPause();
-                }}
+                onTouchEnd={handlePlayerTouchEnd("center", 0)}
               />
               <button
                 type="button"
                 className="player-skip-zone player-skip-zone--right"
                 tabIndex={-1}
-                aria-label="Перемотать на 10 секунд вперёд"
-                onPointerUp={handleMobileSkipZonePointerUp("right", 10)}
+                aria-label="Двойное касание: +10 секунд"
+                onTouchEnd={handlePlayerTouchEnd("right", 10)}
               />
             </div>
             {skipFeedback ? (
