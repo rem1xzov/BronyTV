@@ -978,8 +978,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
   const clearMobileTapPending = useCallback(() => {
     const pending = mobileTapPendingRef.current;
-    if (pending?.timer) {
-      clearTimeout(pending.timer);
+    if (pending?.timerId) {
+      clearTimeout(pending.timerId);
     }
     mobileTapPendingRef.current = null;
   }, []);
@@ -989,6 +989,35 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const isMobilePlayerViewport = useCallback(
     () => window.matchMedia("(max-width: 768px)").matches,
     []
+  );
+
+  const suppressMobileSyntheticClick = useCallback(
+    (event) => {
+      if (!isMobilePlayerViewport()) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [isMobilePlayerViewport]
+  );
+
+  const handlePlayerTouchStart = useCallback(
+    (zone) => (event) => {
+      if (!isMobilePlayerViewport()) {
+        return;
+      }
+      if (
+        event.target?.closest?.(
+          ".player-chrome-bar, .player-overlay-btn, .player-settings-dropdown, .player-timeline, .player-volume-control"
+        )
+      ) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
+    },
+    [isMobilePlayerViewport]
   );
 
   const handlePlayerTouchEnd = useCallback(
@@ -1012,34 +1041,57 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         return;
       }
 
-      const side = zone;
       const now = Date.now();
       const pending = mobileTapPendingRef.current;
 
-      if (pending?.side === side && now - pending.time < MOBILE_DOUBLE_TAP_MS) {
-        clearMobileTapPending();
-        seekBySeconds(deltaSeconds);
-        showSkipFeedback(side);
+      if (
+        pending &&
+        pending.zone === zone &&
+        !pending.suppressPlayPause &&
+        now - pending.time <= MOBILE_DOUBLE_TAP_MS
+      ) {
+        if (pending.timerId) {
+          clearTimeout(pending.timerId);
+        }
+        mobileTapPendingRef.current = { zone, time: now, suppressPlayPause: true };
+
+        const player = playerRef.current;
+        if (player && typeof player.currentTime === "number") {
+          const duration = player.duration;
+          const maxTime =
+            duration && !Number.isNaN(duration)
+              ? Math.max(0, duration - 0.25)
+              : Number.POSITIVE_INFINITY;
+          const nextTime = Math.min(maxTime, Math.max(0, player.currentTime + deltaSeconds));
+          player.currentTime = nextTime;
+          setPlaybackUi((prev) => ({ ...prev, current: nextTime }));
+        }
+        showSkipFeedback(zone);
+
+        window.setTimeout(() => {
+          if (mobileTapPendingRef.current?.suppressPlayPause) {
+            mobileTapPendingRef.current = null;
+          }
+        }, MOBILE_DOUBLE_TAP_MS);
         return;
       }
 
       clearMobileTapPending();
-      const tapTime = now;
-      const timer = setTimeout(() => {
-        if (
-          mobileTapPendingRef.current?.side === side &&
-          mobileTapPendingRef.current?.time === tapTime
-        ) {
-          togglePlayPause();
-          mobileTapPendingRef.current = null;
+      const tapId = `${zone}-${now}`;
+      const timerId = window.setTimeout(() => {
+        const active = mobileTapPendingRef.current;
+        if (!active || active.tapId !== tapId || active.suppressPlayPause) {
+          return;
         }
+        mobileTapPendingRef.current = null;
+        togglePlayPause();
       }, MOBILE_DOUBLE_TAP_MS);
-      mobileTapPendingRef.current = { side, time: tapTime, timer };
+
+      mobileTapPendingRef.current = { zone, time: now, tapId, timerId };
     },
     [
       clearMobileTapPending,
       isMobilePlayerViewport,
-      seekBySeconds,
       showSkipFeedback,
       togglePlayPause
     ]
@@ -1257,21 +1309,27 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 className="player-skip-zone player-skip-zone--left"
                 tabIndex={-1}
                 aria-label="Двойное касание: −10 секунд"
+                onTouchStart={handlePlayerTouchStart("left")}
                 onTouchEnd={handlePlayerTouchEnd("left", -10)}
+                onClick={suppressMobileSyntheticClick}
               />
               <button
                 type="button"
                 className="player-skip-zone player-skip-zone--center"
                 tabIndex={-1}
                 aria-label="Воспроизведение или пауза"
+                onTouchStart={handlePlayerTouchStart("center")}
                 onTouchEnd={handlePlayerTouchEnd("center", 0)}
+                onClick={suppressMobileSyntheticClick}
               />
               <button
                 type="button"
                 className="player-skip-zone player-skip-zone--right"
                 tabIndex={-1}
                 aria-label="Двойное касание: +10 секунд"
+                onTouchStart={handlePlayerTouchStart("right")}
                 onTouchEnd={handlePlayerTouchEnd("right", 10)}
+                onClick={suppressMobileSyntheticClick}
               />
             </div>
             {skipFeedback ? (
