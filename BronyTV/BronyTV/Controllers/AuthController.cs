@@ -33,7 +33,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    public async Task<IActionResult> AdminLogin([FromBody] LoginRequest request)
     {
         var token = await _adminService.LoginAsync(request.Username, request.Password);
         if (token == null)
@@ -44,55 +44,41 @@ public class AuthController : ControllerBase
         return Ok(new { Token = token });
     }
 
-    [HttpPost("google")]
-    public async Task<IActionResult> GoogleLogin([FromBody] GoogleLoginRequest request, CancellationToken cancellationToken)
+    [HttpPost("register")]
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
-        var authResult = await _userAuthService.AuthenticateGoogleAsync(request.IdToken, cancellationToken);
-        if (authResult == null)
-        {
-            return Unauthorized("Недействительный Google ID token.");
-        }
+        var (response, error) = await _userAuthService.RegisterAsync(
+            request.Email,
+            request.Password,
+            request.Race,
+            cancellationToken);
 
-        var (user, _) = authResult.Value;
-        var sessionToken = _userAuthService.CreateSessionToken(user);
-        var lifetimeDays = int.TryParse(_configuration["Jwt:SessionDays"], out var days) ? days : 7;
-        Response.Cookies.Append(
-            AuthCookieHelper.SessionCookieName,
-            sessionToken,
-            AuthCookieHelper.CreateSessionCookieOptions(_environment, lifetimeDays));
-
-        return Ok(_userAuthService.MapUserResponse(user));
-    }
-
-    [Authorize(Roles = "User")]
-    [HttpPost("select-race")]
-    public async Task<IActionResult> SelectRace([FromBody] SelectRaceRequest request, CancellationToken cancellationToken)
-    {
-        if (!TryGetUserId(out var userId))
-        {
-            return Unauthorized();
-        }
-
-        var response = await _userAuthService.SelectRaceAsync(userId, request.Race, cancellationToken);
         if (response == null)
         {
-            return Conflict("Раса уже выбрана или указано недопустимое значение.");
+            return BadRequest(new { message = error ?? "Не удалось зарегистрироваться." });
         }
 
-        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+        var user = await _userRepository.GetByEmailAsync(response.Email, cancellationToken);
         if (user == null)
         {
-            return Unauthorized();
+            return StatusCode(StatusCodes.Status500InternalServerError);
         }
 
-        var sessionToken = _userAuthService.CreateSessionToken(user);
-        var lifetimeDays = int.TryParse(_configuration["Jwt:SessionDays"], out var days) ? days : 7;
-        Response.Cookies.Append(
-            AuthCookieHelper.SessionCookieName,
-            sessionToken,
-            AuthCookieHelper.CreateSessionCookieOptions(_environment, lifetimeDays));
-
+        AppendSessionCookie(user);
         return Ok(response);
+    }
+
+    [HttpPost("signin")]
+    public async Task<IActionResult> SignIn([FromBody] UserLoginRequest request, CancellationToken cancellationToken)
+    {
+        var user = await _userAuthService.AuthenticateAsync(request.Email, request.Password, cancellationToken);
+        if (user == null)
+        {
+            return Unauthorized(new { message = "Неверный email или пароль." });
+        }
+
+        AppendSessionCookie(user);
+        return Ok(_userAuthService.MapUserResponse(user));
     }
 
     [Authorize(Roles = "User")]
@@ -121,6 +107,16 @@ public class AuthController : ControllerBase
             string.Empty,
             AuthCookieHelper.CreateExpiredCookieOptions(_environment));
         return Ok();
+    }
+
+    private void AppendSessionCookie(DbContext.Entity.UserEntity user)
+    {
+        var sessionToken = _userAuthService.CreateSessionToken(user);
+        var lifetimeDays = int.TryParse(_configuration["Jwt:SessionDays"], out var days) ? days : 7;
+        Response.Cookies.Append(
+            AuthCookieHelper.SessionCookieName,
+            sessionToken,
+            AuthCookieHelper.CreateSessionCookieOptions(_environment, lifetimeDays));
     }
 
     private bool TryGetUserId(out Guid userId)

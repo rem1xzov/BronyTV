@@ -27,7 +27,6 @@ builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ISeasonService, SeasonService>();
 builder.Services.AddScoped<IVideoService, VideoService>();
-builder.Services.AddScoped<IGoogleTokenValidator, GoogleTokenValidator>();
 builder.Services.AddScoped<IUserAuthService, UserAuthService>();
 builder.Services.AddControllers();
 

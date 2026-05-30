@@ -22,9 +22,7 @@ import {
 } from "lucide-react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiFetch, apiUrl } from "./auth/api";
-import { useAuth } from "./auth/AuthContext";
-import GoogleSignInButton from "./components/GoogleSignInButton";
-import RaceSelectionModal from "./components/RaceSelectionModal";
+import AuthPanel from "./components/AuthPanel";
 
 const SEASON_INFO = [
   {
@@ -504,7 +502,7 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-auth">
-        <GoogleSignInButton />
+        <AuthPanel />
       </div>
       <button type="button" className="nav-pill theme-switch" onClick={onToggleTheme}>
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
@@ -784,7 +782,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
   const CONTROLS_HIDE_DELAY_MS = 2000;
   const PLAYER_CHROME_INTERACTIVE_SELECTOR =
-    ".player-chrome-bar, .player-timeline, input.player-timeline, .player-volume-control, .player-volume-slider, .player-chrome-btn, .player-settings-dropdown, .player-settings-wrap, .player-time";
+    ".player-chrome-bar, .player-timeline-wrap, .player-timeline, input.player-timeline, .player-volume-control, .player-volume-slider, .player-chrome-btn, .player-settings-dropdown, .player-settings-wrap, .player-time";
 
   const isPlayerChromeTarget = useCallback(
     (target) => Boolean(target?.closest?.(PLAYER_CHROME_INTERACTIVE_SELECTOR)),
@@ -1148,44 +1146,58 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [applyTimelineTime, revealControls]
   );
 
-  const handleTimelineTouchStart = useCallback(
-    (event) => {
+  const isolateTimelineTouch = useCallback((event) => {
+    event.stopPropagation();
+  }, []);
+
+  useEffect(() => {
+    const input = timelineInputRef.current;
+    if (!input || !videoSrc) {
+      return undefined;
+    }
+
+    const onTouchStart = (event) => {
       event.preventDefault();
       event.stopPropagation();
       setTimelineActive(true);
       revealControls();
-      const touch = event.touches?.[0];
+      const touch = event.touches[0];
       if (touch) {
         seekTimelineFromClientX(touch.clientX);
       }
-    },
-    [revealControls, seekTimelineFromClientX]
-  );
+    };
 
-  const handleTimelineTouchMove = useCallback(
-    (event) => {
+    const onTouchMove = (event) => {
       event.preventDefault();
       event.stopPropagation();
-      const touch = event.touches?.[0];
+      const touch = event.touches[0];
       if (touch) {
         seekTimelineFromClientX(touch.clientX);
       }
-    },
-    [seekTimelineFromClientX]
-  );
+    };
 
-  const handleTimelineTouchEnd = useCallback(
-    (event) => {
+    const onTouchEnd = (event) => {
       event.preventDefault();
       event.stopPropagation();
       setTimelineActive(false);
-      const touch = event.changedTouches?.[0];
+      const touch = event.changedTouches[0];
       if (touch) {
         seekTimelineFromClientX(touch.clientX);
       }
-    },
-    [seekTimelineFromClientX]
-  );
+    };
+
+    input.addEventListener("touchstart", onTouchStart, { passive: false });
+    input.addEventListener("touchmove", onTouchMove, { passive: false });
+    input.addEventListener("touchend", onTouchEnd, { passive: false });
+    input.addEventListener("touchcancel", onTouchEnd, { passive: false });
+
+    return () => {
+      input.removeEventListener("touchstart", onTouchStart);
+      input.removeEventListener("touchmove", onTouchMove);
+      input.removeEventListener("touchend", onTouchEnd);
+      input.removeEventListener("touchcancel", onTouchEnd);
+    };
+  }, [revealControls, seekTimelineFromClientX, videoSrc]);
 
   const handleTimelinePointerDown = useCallback(
     (event) => {
@@ -1602,25 +1614,28 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                   aria-label="Громкость"
                 />
               </div>
-              <input
-                ref={timelineInputRef}
-                type="range"
-                className="player-timeline"
-                min={0}
-                max={playbackUi.duration || 0}
-                step={0.1}
-                value={Math.min(playbackUi.current, playbackUi.duration || 0)}
-                onChange={handleSeek}
-                onInput={handleSeek}
-                onPointerDown={handleTimelinePointerDown}
-                onPointerUp={handleTimelinePointerUp}
-                onPointerCancel={handleTimelinePointerUp}
-                onTouchStart={handleTimelineTouchStart}
-                onTouchMove={handleTimelineTouchMove}
-                onTouchEnd={handleTimelineTouchEnd}
-                onTouchCancel={handleTimelineTouchEnd}
-                aria-label="Позиция воспроизведения"
-              />
+              <div
+                className="player-timeline-wrap"
+                onTouchStart={isolateTimelineTouch}
+                onTouchMove={isolateTimelineTouch}
+                onTouchEnd={isolateTimelineTouch}
+              >
+                <input
+                  ref={timelineInputRef}
+                  type="range"
+                  className="player-timeline"
+                  min={0}
+                  max={playbackUi.duration || 0}
+                  step={0.1}
+                  value={Math.min(playbackUi.current, playbackUi.duration || 0)}
+                  onChange={handleSeek}
+                  onInput={handleSeek}
+                  onPointerDown={handleTimelinePointerDown}
+                  onPointerUp={handleTimelinePointerUp}
+                  onPointerCancel={handleTimelinePointerUp}
+                  aria-label="Позиция воспроизведения"
+                />
+              </div>
               <span className="player-time">
                 {formatTime(playbackUi.current)} / {formatTime(playbackUi.duration)}
               </span>
@@ -1746,7 +1761,6 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 }
 
 export default function App() {
-  const { raceModalOpen, selectRace } = useAuth();
   const location = useLocation();
   const [currentSeason, setCurrentSeason] = useState(1);
   const [currentPage, setCurrentPage] = useState("home");
@@ -1892,7 +1906,6 @@ export default function App() {
 
   return (
     <div className="page-frame">
-      <RaceSelectionModal open={raceModalOpen} onConfirm={selectRace} />
       <div className="video-blur video-blur-left" />
       <div className="video-blur video-blur-right" />
       <div className="app-shell">

@@ -12,47 +12,75 @@ namespace BronyTV.Service;
 public class UserAuthService : IUserAuthService
 {
     private readonly IUserRepository _userRepository;
-    private readonly IGoogleTokenValidator _googleTokenValidator;
     private readonly IConfiguration _configuration;
 
-    public UserAuthService(
-        IUserRepository userRepository,
-        IGoogleTokenValidator googleTokenValidator,
-        IConfiguration configuration)
+    public UserAuthService(IUserRepository userRepository, IConfiguration configuration)
     {
         _userRepository = userRepository;
-        _googleTokenValidator = googleTokenValidator;
         _configuration = configuration;
     }
 
-    public async Task<(UserEntity User, bool IsNewUser)?> AuthenticateGoogleAsync(
-        string idToken,
+    public async Task<(AuthUserResponse? Response, string? Error)> RegisterAsync(
+        string email,
+        string password,
+        string race,
         CancellationToken cancellationToken = default)
     {
-        var payload = await _googleTokenValidator.ValidateAsync(idToken, cancellationToken);
-        if (payload == null)
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrEmpty(normalizedEmail))
+        {
+            return (null, "Укажите корректный email.");
+        }
+
+        if (string.IsNullOrWhiteSpace(password) || password.Length < 8)
+        {
+            return (null, "Пароль должен содержать минимум 8 символов.");
+        }
+
+        if (!UserRace.TryNormalize(race, out var normalizedRace))
+        {
+            return (null, "Выберите расу: пегасы, единороги или земные пони.");
+        }
+
+        if (await _userRepository.EmailExistsAsync(normalizedEmail, cancellationToken))
+        {
+            return (null, "Пользователь с таким email уже зарегистрирован.");
+        }
+
+        var now = DateTime.UtcNow;
+        var user = new UserEntity
+        {
+            Id = Guid.NewGuid(),
+            Email = normalizedEmail,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            Race = normalizedRace,
+            CreatedAtUtc = now,
+            RaceSelectedAtUtc = now
+        };
+
+        var created = await _userRepository.CreateAsync(user, cancellationToken);
+        return (MapUserResponse(created), null);
+    }
+
+    public async Task<UserEntity?> AuthenticateAsync(
+        string email,
+        string password,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrEmpty(normalizedEmail) || string.IsNullOrWhiteSpace(password))
         {
             return null;
         }
 
-        var existing = await _userRepository.GetByGoogleSubAsync(payload.Subject, cancellationToken);
-        if (existing != null)
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (user == null)
         {
-            return (existing, false);
+            return null;
         }
 
-        var user = new UserEntity
-        {
-            Id = Guid.NewGuid(),
-            GoogleSub = payload.Subject,
-            Email = SanitizeEmail(payload.Email),
-            DisplayName = SanitizeDisplayName(payload.Name),
-            Race = null,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-
-        var created = await _userRepository.CreateAsync(user, cancellationToken);
-        return (created, true);
+        var valid = BCrypt.Net.BCrypt.Verify(password, user.PasswordHash);
+        return valid ? user : null;
     }
 
     public string CreateSessionToken(UserEntity user)
@@ -61,14 +89,10 @@ public class UserAuthService : IUserAuthService
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email),
-            new(ClaimTypes.Name, user.DisplayName),
-            new(ClaimTypes.Role, "User")
+            new(ClaimTypes.Name, user.Email),
+            new(ClaimTypes.Role, "User"),
+            new("race", user.Race)
         };
-
-        if (!string.IsNullOrEmpty(user.Race))
-        {
-            claims.Add(new Claim("race", user.Race));
-        }
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -89,42 +113,9 @@ public class UserAuthService : IUserAuthService
         {
             Id = user.Id,
             Email = user.Email,
-            DisplayName = user.DisplayName,
-            Race = user.Race,
-            NeedsRaceSelection = string.IsNullOrEmpty(user.Race)
+            Race = user.Race
         };
 
-    public async Task<AuthUserResponse?> SelectRaceAsync(
-        Guid userId,
-        string race,
-        CancellationToken cancellationToken = default)
-    {
-        if (!UserRace.TryNormalize(race, out var normalizedRace))
-        {
-            return null;
-        }
-
-        var updated = await _userRepository.TrySetRaceAsync(userId, normalizedRace, cancellationToken);
-        if (!updated)
-        {
-            return null;
-        }
-
-        var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
-        return user == null ? null : MapUserResponse(user);
-    }
-
-    private static string SanitizeEmail(string email) =>
-        email.Trim().ToLowerInvariant();
-
-    private static string SanitizeDisplayName(string name)
-    {
-        var trimmed = name.Trim();
-        if (trimmed.Length > 200)
-        {
-            trimmed = trimmed[..200];
-        }
-
-        return trimmed;
-    }
+    private static string NormalizeEmail(string email) =>
+        string.IsNullOrWhiteSpace(email) ? string.Empty : email.Trim().ToLowerInvariant();
 }

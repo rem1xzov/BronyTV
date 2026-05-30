@@ -11,13 +11,6 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
         builder.ToTable("Users");
         builder.HasKey(user => user.Id);
 
-        builder.Property(user => user.GoogleSub)
-            .HasMaxLength(128)
-            .IsRequired();
-
-        builder.HasIndex(user => user.GoogleSub)
-            .IsUnique();
-
         builder.Property(user => user.Email)
             .HasMaxLength(320)
             .IsRequired();
@@ -25,16 +18,18 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
         builder.HasIndex(user => user.Email)
             .IsUnique();
 
-        builder.Property(user => user.DisplayName)
+        builder.Property(user => user.PasswordHash)
             .HasMaxLength(200)
             .IsRequired();
 
         builder.Property(user => user.Race)
-            .HasMaxLength(32);
+            .HasMaxLength(32)
+            .IsRequired();
 
         builder.Property(user => user.CreatedAtUtc)
             .IsRequired();
 
-        builder.Property(user => user.RaceSelectedAtUtc);
+        builder.Property(user => user.RaceSelectedAtUtc)
+            .IsRequired();
     }
 }

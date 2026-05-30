@@ -117,34 +117,27 @@ namespace BronyTV.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("DisplayName")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("character varying(200)");
-
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(320)
                         .HasColumnType("character varying(320)");
 
-                    b.Property<string>("GoogleSub")
+                    b.Property<string>("PasswordHash")
                         .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("Race")
+                        .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<DateTime?>("RaceSelectedAtUtc")
+                    b.Property<DateTime>("RaceSelectedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
-                        .IsUnique();
-
-                    b.HasIndex("GoogleSub")
                         .IsUnique();
 
                     b.ToTable("Users");

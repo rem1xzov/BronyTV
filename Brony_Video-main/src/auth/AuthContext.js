@@ -4,46 +4,27 @@ import { apiFetch } from "./api";
 const AuthContext = createContext(null);
 
 export const RACE_OPTIONS = [
-  {
-    id: "pegasus",
-    title: "Пегасы",
-    subtitle: "Pegasi",
-    description: "Быстрые и отважные небесные пони с крыльями."
-  },
-  {
-    id: "unicorn",
-    title: "Единороги",
-    subtitle: "Unicorns",
-    description: "Магически одарённые пони с рогом."
-  },
-  {
-    id: "earth_pony",
-    title: "Земные пони",
-    subtitle: "Earth Ponies",
-    description: "Сильные и надёжные хранители природы."
-  }
+  { id: "pegasus", label: "пегасы" },
+  { id: "unicorn", label: "единороги" },
+  { id: "earth_pony", label: "земные пони" }
 ];
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [raceModalOpen, setRaceModalOpen] = useState(false);
 
   const refreshUser = useCallback(async () => {
     try {
       const response = await apiFetch("/api/auth/me");
       if (!response.ok) {
         setUser(null);
-        setRaceModalOpen(false);
         return null;
       }
       const profile = await response.json();
       setUser(profile);
-      setRaceModalOpen(Boolean(profile.needsRaceSelection));
       return profile;
     } catch (error) {
       setUser(null);
-      setRaceModalOpen(false);
       return null;
     }
   }, []);
@@ -61,55 +42,48 @@ export function AuthProvider({ children }) {
     };
   }, [refreshUser]);
 
-  const loginWithGoogleCredential = useCallback(
-    async (credential) => {
-      const response = await apiFetch("/api/auth/google", {
-        method: "POST",
-        body: JSON.stringify({ idToken: credential })
-      });
-      if (!response.ok) {
-        throw new Error("Google authentication failed.");
-      }
-      const profile = await response.json();
-      setUser(profile);
-      setRaceModalOpen(Boolean(profile.needsRaceSelection));
-      return profile;
-    },
-    []
-  );
-
-  const selectRace = useCallback(async (race) => {
-    const response = await apiFetch("/api/auth/select-race", {
+  const register = useCallback(async ({ email, password, race }) => {
+    const response = await apiFetch("/api/auth/register", {
       method: "POST",
-      body: JSON.stringify({ race })
+      body: JSON.stringify({ email, password, race })
     });
+    const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error("Race selection failed.");
+      throw new Error(payload.message || "Не удалось зарегистрироваться.");
     }
-    const profile = await response.json();
-    setUser(profile);
-    setRaceModalOpen(false);
-    return profile;
+    setUser(payload);
+    return payload;
+  }, []);
+
+  const login = useCallback(async ({ email, password }) => {
+    const response = await apiFetch("/api/auth/signin", {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.message || "Неверный email или пароль.");
+    }
+    setUser(payload);
+    return payload;
   }, []);
 
   const logout = useCallback(async () => {
     await apiFetch("/api/auth/logout", { method: "POST" });
     setUser(null);
-    setRaceModalOpen(false);
   }, []);
 
   const value = useMemo(
     () => ({
       user,
       loading,
-      raceModalOpen,
       isAuthenticated: Boolean(user),
-      loginWithGoogleCredential,
-      selectRace,
+      register,
+      login,
       logout,
       refreshUser
     }),
-    [user, loading, raceModalOpen, loginWithGoogleCredential, selectRace, logout, refreshUser]
+    [user, loading, register, login, logout, refreshUser]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
