@@ -20,7 +20,16 @@ public class CommentController : ControllerBase
     [HttpGet("videos/{videoId:guid}/comments")]
     public async Task<IActionResult> GetComments(Guid videoId, CancellationToken cancellationToken)
     {
-        var comments = await _commentService.GetCommentsForVideoAsync(videoId, cancellationToken);
+        Guid? currentUserId = null;
+        if (TryGetUserId(out var userId))
+        {
+            currentUserId = userId;
+        }
+
+        var comments = await _commentService.GetCommentsForVideoAsync(
+            videoId,
+            currentUserId,
+            cancellationToken);
         return Ok(comments);
     }
 
@@ -40,6 +49,29 @@ public class CommentController : ControllerBase
             videoId,
             userId,
             request.Text,
+            request.ParentCommentId,
+            cancellationToken);
+
+        if (response == null)
+        {
+            return StatusCode(statusCode, new { message = error });
+        }
+
+        return Ok(response);
+    }
+
+    [Authorize(Roles = "User")]
+    [HttpPost("comments/{commentId:guid}/like")]
+    public async Task<IActionResult> ToggleLike(Guid commentId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var (response, error, statusCode) = await _commentService.ToggleLikeAsync(
+            commentId,
+            userId,
             cancellationToken);
 
         if (response == null)
@@ -77,6 +109,11 @@ public class CommentController : ControllerBase
     private bool TryGetUserId(out Guid userId)
     {
         userId = Guid.Empty;
+        if (User.Identity?.IsAuthenticated != true)
+        {
+            return false;
+        }
+
         var raw = User.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(raw, out userId);
     }

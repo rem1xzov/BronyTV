@@ -71,6 +71,45 @@ public static class DatabaseInitializer
             ON public."Comments" ("UserId");
         """;
 
+    private const string EnsureParentCommentIdColumnSql = """
+        ALTER TABLE public."Comments"
+            ADD COLUMN IF NOT EXISTS "ParentCommentId" uuid;
+
+        CREATE INDEX IF NOT EXISTS "IX_Comments_ParentCommentId"
+            ON public."Comments" ("ParentCommentId");
+
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_constraint
+                WHERE conname = 'FK_Comments_Comments_ParentCommentId'
+            ) THEN
+                ALTER TABLE public."Comments"
+                    ADD CONSTRAINT "FK_Comments_Comments_ParentCommentId"
+                    FOREIGN KEY ("ParentCommentId")
+                    REFERENCES public."Comments" ("Id")
+                    ON DELETE CASCADE;
+            END IF;
+        END $$;
+        """;
+
+    private const string EnsureCommentLikesTableSql = """
+        CREATE TABLE IF NOT EXISTS public."CommentLikes" (
+            "UserId" uuid NOT NULL,
+            "CommentId" uuid NOT NULL,
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            CONSTRAINT "PK_CommentLikes" PRIMARY KEY ("UserId", "CommentId"),
+            CONSTRAINT "FK_CommentLikes_Users_UserId" FOREIGN KEY ("UserId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_CommentLikes_Comments_CommentId" FOREIGN KEY ("CommentId")
+                REFERENCES public."Comments" ("Id") ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_CommentLikes_CommentId"
+            ON public."CommentLikes" ("CommentId");
+        """;
+
     public static async Task ApplyMigrationsAndEnsureSchemaAsync(
         DbBronyTV context,
         ILogger logger,
@@ -91,6 +130,26 @@ public static class DatabaseInitializer
         await EnsureUsernameColumnAsync(context, logger, cancellationToken);
         await EnsureAvatarEmojiColumnAsync(context, logger, cancellationToken);
         await EnsureCommentsTableAsync(context, logger, cancellationToken);
+        await EnsureParentCommentIdColumnAsync(context, logger, cancellationToken);
+        await EnsureCommentLikesTableAsync(context, logger, cancellationToken);
+    }
+
+    public static async Task EnsureParentCommentIdColumnAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureParentCommentIdColumnSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Comments\".\"ParentCommentId\" column and self-reference.");
+    }
+
+    public static async Task EnsureCommentLikesTableAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureCommentLikesTableSql, cancellationToken);
+        logger.LogInformation("Verified public.\"CommentLikes\" table exists (CREATE TABLE IF NOT EXISTS).");
     }
 
     public static async Task EnsureCommentsTableAsync(

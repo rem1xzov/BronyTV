@@ -15,6 +15,7 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<AdminEntity> Admins => Set<AdminEntity>();
     public DbSet<UserEntity> Users => Set<UserEntity>();
     public DbSet<CommentEntity> Comments => Set<CommentEntity>();
+    public DbSet<CommentLikeEntity> CommentLikes => Set<CommentLikeEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -24,5 +25,6 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new AdminConfiguration());
         modelBuilder.ApplyConfiguration(new UserConfiguration());
         modelBuilder.ApplyConfiguration(new CommentConfiguration());
+        modelBuilder.ApplyConfiguration(new CommentLikeConfiguration());
     }
 }

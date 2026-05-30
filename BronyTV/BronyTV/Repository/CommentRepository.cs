@@ -41,4 +41,63 @@ public class CommentRepository : ICommentRepository
         _context.Comments.Remove(comment);
         await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public async Task<Dictionary<Guid, int>> GetLikeCountsByCommentIdsAsync(
+        IReadOnlyCollection<Guid> commentIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (commentIds.Count == 0)
+        {
+            return new Dictionary<Guid, int>();
+        }
+
+        return await _context.CommentLikes
+            .AsNoTracking()
+            .Where(like => commentIds.Contains(like.CommentId))
+            .GroupBy(like => like.CommentId)
+            .Select(group => new { group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.Key, item => item.Count, cancellationToken);
+    }
+
+    public async Task<HashSet<Guid>> GetLikedCommentIdsForUserAsync(
+        Guid userId,
+        IReadOnlyCollection<Guid> commentIds,
+        CancellationToken cancellationToken = default)
+    {
+        if (commentIds.Count == 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var likedIds = await _context.CommentLikes
+            .AsNoTracking()
+            .Where(like => like.UserId == userId && commentIds.Contains(like.CommentId))
+            .Select(like => like.CommentId)
+            .ToListAsync(cancellationToken);
+
+        return likedIds.ToHashSet();
+    }
+
+    public Task<CommentLikeEntity?> GetLikeAsync(
+        Guid userId,
+        Guid commentId,
+        CancellationToken cancellationToken = default) =>
+        _context.CommentLikes.FirstOrDefaultAsync(
+            like => like.UserId == userId && like.CommentId == commentId,
+            cancellationToken);
+
+    public async Task AddLikeAsync(CommentLikeEntity like, CancellationToken cancellationToken = default)
+    {
+        _context.CommentLikes.Add(like);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveLikeAsync(CommentLikeEntity like, CancellationToken cancellationToken = default)
+    {
+        _context.CommentLikes.Remove(like);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public Task<int> GetLikeCountAsync(Guid commentId, CancellationToken cancellationToken = default) =>
+        _context.CommentLikes.CountAsync(like => like.CommentId == commentId, cancellationToken);
 }

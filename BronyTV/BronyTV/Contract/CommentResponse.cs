@@ -8,4 +8,7 @@ public class CommentResponse
     public string Username { get; set; } = string.Empty;
     public string Text { get; set; } = string.Empty;
     public DateTime CreatedAt { get; set; }
+    public Guid? ParentCommentId { get; set; }
+    public int LikeCount { get; set; }
+    public bool IsLikedByCurrentUser { get; set; }
 }

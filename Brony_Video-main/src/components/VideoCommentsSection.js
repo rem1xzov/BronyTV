@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Trash2 } from "lucide-react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Heart, MessageCircle, Trash2 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch } from "../auth/api";
@@ -14,12 +14,58 @@ function normalizeComment(raw) {
   const username = raw.username ?? raw.Username ?? "";
   const text = raw.text ?? raw.Text ?? "";
   const createdAt = raw.createdAt ?? raw.CreatedAt;
+  const parentCommentId = raw.parentCommentId ?? raw.ParentCommentId ?? null;
+  const likeCount = raw.likeCount ?? raw.LikeCount ?? 0;
+  const isLikedByCurrentUser = Boolean(
+    raw.isLikedByCurrentUser ?? raw.IsLikedByCurrentUser ?? false
+  );
 
   if (!id || !userId) {
     return null;
   }
 
-  return { id, userId, username, text, createdAt };
+  return {
+    id,
+    userId,
+    username,
+    text,
+    createdAt,
+    parentCommentId: parentCommentId || null,
+    likeCount: Number(likeCount) || 0,
+    isLikedByCurrentUser
+  };
+}
+
+function buildCommentTree(flatComments) {
+  const byId = new Map();
+
+  flatComments.forEach((comment) => {
+    byId.set(comment.id, { ...comment, replies: [] });
+  });
+
+  const roots = [];
+
+  flatComments.forEach((comment) => {
+    const node = byId.get(comment.id);
+    if (!node) {
+      return;
+    }
+
+    if (comment.parentCommentId && byId.has(comment.parentCommentId)) {
+      byId.get(comment.parentCommentId).replies.push(node);
+      return;
+    }
+
+    roots.push(node);
+  });
+
+  const sortNewestFirst = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
+  const sortOldestFirst = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
+
+  roots.sort(sortNewestFirst);
+  roots.forEach((root) => root.replies.sort(sortOldestFirst));
+
+  return roots;
 }
 
 function formatCommentDate(value) {
@@ -41,6 +87,140 @@ function formatCommentDate(value) {
   });
 }
 
+function CommentThread({
+  comment,
+  depth,
+  user,
+  canPost,
+  replyingToId,
+  replyText,
+  replySubmitting,
+  likingId,
+  deletingId,
+  onToggleReply,
+  onReplyTextChange,
+  onSubmitReply,
+  onCancelReply,
+  onToggleLike,
+  onDelete,
+  canModerate
+}) {
+  const isReplyOpen = replyingToId === comment.id;
+
+  return (
+    <li
+      className={`video-comment-item${depth > 0 ? " video-comment-item--reply" : ""}`}
+      style={depth > 0 ? { marginLeft: `${Math.min(depth, 4) * 20}px` } : undefined}
+    >
+      <div className="video-comment-body">
+        <div className="video-comment-main">
+          <p className="video-comment-author">@{comment.username || "anonymous"}</p>
+          <p className="video-comment-text">{comment.text}</p>
+          {comment.createdAt ? (
+            <time className="video-comment-date muted" dateTime={comment.createdAt}>
+              {formatCommentDate(comment.createdAt)}
+            </time>
+          ) : null}
+        </div>
+
+        <div className="video-comment-actions">
+          <button
+            type="button"
+            className={`video-comment-like${comment.isLikedByCurrentUser ? " is-liked" : ""}`}
+            onClick={() => onToggleLike(comment)}
+            disabled={!user || likingId === comment.id}
+            aria-pressed={comment.isLikedByCurrentUser}
+            aria-label={comment.isLikedByCurrentUser ? "Убрать лайк" : "Поставить лайк"}
+          >
+            <Heart size={16} fill={comment.isLikedByCurrentUser ? "currentColor" : "none"} />
+            <span>{comment.likeCount}</span>
+          </button>
+
+          {canPost ? (
+            <button
+              type="button"
+              className="video-comment-reply-btn"
+              onClick={() => onToggleReply(comment.id)}
+            >
+              <MessageCircle size={16} />
+              <span>Ответить</span>
+            </button>
+          ) : null}
+
+          {canModerate(comment) ? (
+            <button
+              type="button"
+              className="video-comment-delete"
+              onClick={() => onDelete(comment.id)}
+              disabled={deletingId === comment.id}
+              aria-label="Удалить комментарий"
+            >
+              <Trash2 size={16} />
+              <span>Удалить</span>
+            </button>
+          ) : null}
+        </div>
+      </div>
+
+      {isReplyOpen ? (
+        <form
+          className="video-comment-reply-form"
+          onSubmit={(event) => onSubmitReply(event, comment.id)}
+        >
+          <textarea
+            value={replyText}
+            onChange={(event) => onReplyTextChange(event.target.value)}
+            placeholder="Ваш ответ…"
+            rows={2}
+            maxLength={500}
+            disabled={replySubmitting}
+            autoFocus
+          />
+          <div className="video-comment-reply-actions">
+            <button type="submit" className="primary-btn small" disabled={replySubmitting}>
+              {replySubmitting ? "Отправка…" : "Отправить ответ"}
+            </button>
+            <button
+              type="button"
+              className="secondary-btn small"
+              onClick={onCancelReply}
+              disabled={replySubmitting}
+            >
+              Отмена
+            </button>
+          </div>
+        </form>
+      ) : null}
+
+      {comment.replies?.length > 0 ? (
+        <ul className="video-comments-replies">
+          {comment.replies.map((reply) => (
+            <CommentThread
+              key={reply.id}
+              comment={reply}
+              depth={depth + 1}
+              user={user}
+              canPost={canPost}
+              replyingToId={replyingToId}
+              replyText={replyText}
+              replySubmitting={replySubmitting}
+              likingId={likingId}
+              deletingId={deletingId}
+              onToggleReply={onToggleReply}
+              onReplyTextChange={onReplyTextChange}
+              onSubmitReply={onSubmitReply}
+              onCancelReply={onCancelReply}
+              onToggleLike={onToggleLike}
+              onDelete={onDelete}
+              canModerate={canModerate}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
 export default function VideoCommentsSection({ videoId, onRequestSetUsername }) {
   const { user, loading: authLoading } = useAuth();
   const [comments, setComments] = useState([]);
@@ -50,6 +230,13 @@ export default function VideoCommentsSection({ videoId, onRequestSetUsername }) 
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [likingId, setLikingId] = useState(null);
+  const [replyingToId, setReplyingToId] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [replySubmitting, setReplySubmitting] = useState(false);
+
+  const canPost = Boolean(user?.username);
+  const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
 
   const loadComments = useCallback(async () => {
     if (!videoId) {
@@ -81,6 +268,23 @@ export default function VideoCommentsSection({ videoId, onRequestSetUsername }) 
     loadComments();
   }, [loadComments]);
 
+  const postComment = async (text, parentCommentId = null) => {
+    const body = { text };
+    if (parentCommentId) {
+      body.parentCommentId = parentCommentId;
+    }
+
+    const response = await apiFetch(`/videos/${videoId}/comments`, {
+      method: "POST",
+      body: JSON.stringify(body)
+    });
+    const raw = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(raw.message || "Не удалось отправить комментарий.");
+    }
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     setSubmitError("");
@@ -104,22 +308,62 @@ export default function VideoCommentsSection({ videoId, onRequestSetUsername }) 
     setSubmitting(true);
 
     try {
-      const response = await apiFetch(`/videos/${videoId}/comments`, {
-        method: "POST",
-        body: JSON.stringify({ text: trimmed })
-      });
-      const raw = await response.json().catch(() => ({}));
-
-      if (!response.ok) {
-        throw new Error(raw.message || "Не удалось отправить комментарий.");
-      }
-
+      await postComment(trimmed);
       setCommentText("");
       await loadComments();
     } catch (error) {
       setSubmitError(error.message || "Не удалось отправить комментарий.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleSubmitReply = async (event, parentCommentId) => {
+    event.preventDefault();
+    setSubmitError("");
+
+    const trimmed = replyText.trim();
+    if (!trimmed) {
+      setSubmitError("Введите текст ответа.");
+      return;
+    }
+
+    setReplySubmitting(true);
+
+    try {
+      await postComment(trimmed, parentCommentId);
+      setReplyText("");
+      setReplyingToId(null);
+      await loadComments();
+    } catch (error) {
+      setSubmitError(error.message || "Не удалось отправить ответ.");
+    } finally {
+      setReplySubmitting(false);
+    }
+  };
+
+  const handleToggleLike = async (comment) => {
+    if (!user) {
+      setSubmitError("Войдите в аккаунт, чтобы ставить лайки.");
+      return;
+    }
+
+    setLikingId(comment.id);
+    setSubmitError("");
+
+    try {
+      const response = await apiFetch(`/comments/${comment.id}/like`, { method: "POST" });
+      const raw = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(raw.message || "Не удалось обновить лайк.");
+      }
+
+      await loadComments();
+    } catch (error) {
+      setSubmitError(error.message || "Не удалось обновить лайк.");
+    } finally {
+      setLikingId(null);
     }
   };
 
@@ -132,6 +376,11 @@ export default function VideoCommentsSection({ videoId, onRequestSetUsername }) 
       if (!response.ok) {
         const raw = await response.json().catch(() => ({}));
         throw new Error(raw.message || "Не удалось удалить комментарий.");
+      }
+
+      if (replyingToId === commentId) {
+        setReplyingToId(null);
+        setReplyText("");
       }
 
       await loadComments();
@@ -155,6 +404,18 @@ export default function VideoCommentsSection({ videoId, onRequestSetUsername }) 
     return isPlatformAdmin(user);
   };
 
+  const handleToggleReply = (commentId) => {
+    setSubmitError("");
+    if (replyingToId === commentId) {
+      setReplyingToId(null);
+      setReplyText("");
+      return;
+    }
+
+    setReplyingToId(commentId);
+    setReplyText("");
+  };
+
   if (!videoId) {
     return (
       <section className="video-comments">
@@ -171,7 +432,7 @@ export default function VideoCommentsSection({ videoId, onRequestSetUsername }) 
       {authLoading ? (
         <p className="muted">Проверка входа…</p>
       ) : user ? (
-        user.username ? (
+        canPost ? (
           <form className="video-comments-form" onSubmit={handleSubmit}>
             <label className="video-comments-field">
               <span className="sr-only">Ваш комментарий</span>
@@ -228,34 +489,33 @@ export default function VideoCommentsSection({ videoId, onRequestSetUsername }) 
         <p className="video-comments-message video-comments-message--error" role="alert">
           {commentsError}
         </p>
-      ) : comments.length === 0 ? (
+      ) : commentTree.length === 0 ? (
         <p className="muted">Пока нет комментариев. Будьте первым!</p>
       ) : (
         <ul className="video-comments-list">
-          {comments.map((comment) => (
-            <li key={comment.id} className="video-comment-item">
-              <div className="video-comment-main">
-                <p className="video-comment-author">@{comment.username || "anonymous"}</p>
-                <p className="video-comment-text">{comment.text}</p>
-                {comment.createdAt ? (
-                  <time className="video-comment-date muted" dateTime={comment.createdAt}>
-                    {formatCommentDate(comment.createdAt)}
-                  </time>
-                ) : null}
-              </div>
-              {canModerate(comment) ? (
-                <button
-                  type="button"
-                  className="video-comment-delete"
-                  onClick={() => handleDelete(comment.id)}
-                  disabled={deletingId === comment.id}
-                  aria-label="Удалить комментарий"
-                >
-                  <Trash2 size={16} />
-                  <span>Удалить</span>
-                </button>
-              ) : null}
-            </li>
+          {commentTree.map((comment) => (
+            <CommentThread
+              key={comment.id}
+              comment={comment}
+              depth={0}
+              user={user}
+              canPost={canPost}
+              replyingToId={replyingToId}
+              replyText={replyText}
+              replySubmitting={replySubmitting}
+              likingId={likingId}
+              deletingId={deletingId}
+              onToggleReply={handleToggleReply}
+              onReplyTextChange={setReplyText}
+              onSubmitReply={handleSubmitReply}
+              onCancelReply={() => {
+                setReplyingToId(null);
+                setReplyText("");
+              }}
+              onToggleLike={handleToggleLike}
+              onDelete={handleDelete}
+              canModerate={canModerate}
+            />
           ))}
         </ul>
       )}

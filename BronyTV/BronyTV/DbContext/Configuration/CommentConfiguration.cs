@@ -20,6 +20,12 @@ public class CommentConfiguration : IEntityTypeConfiguration<CommentEntity>
 
         builder.HasIndex(comment => comment.VideoId);
         builder.HasIndex(comment => comment.UserId);
+        builder.HasIndex(comment => comment.ParentCommentId);
+
+        builder.HasOne(comment => comment.ParentComment)
+            .WithMany(parent => parent.Replies)
+            .HasForeignKey(comment => comment.ParentCommentId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasOne(comment => comment.Video)
             .WithMany()
