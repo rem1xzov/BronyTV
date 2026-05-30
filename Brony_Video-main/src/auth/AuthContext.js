@@ -1,5 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { apiFetch } from "./api";
+import { normalizeAuthUser } from "./user";
+
+export { normalizeAuthUser };
 
 const AuthContext = createContext(null);
 
@@ -20,7 +23,7 @@ export function AuthProvider({ children }) {
         setUser(null);
         return null;
       }
-      const profile = await response.json();
+      const profile = normalizeAuthUser(await response.json());
       setUser(profile);
       return profile;
     } catch (error) {
@@ -47,10 +50,11 @@ export function AuthProvider({ children }) {
       method: "POST",
       body: JSON.stringify({ email, password, race })
     });
-    const payload = await response.json().catch(() => ({}));
+    const raw = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.message || "Не удалось зарегистрироваться.");
+      throw new Error(raw.message || "Не удалось зарегистрироваться.");
     }
+    const payload = normalizeAuthUser(raw);
     setUser(payload);
     return payload;
   }, []);
@@ -60,10 +64,11 @@ export function AuthProvider({ children }) {
       method: "POST",
       body: JSON.stringify({ email, password })
     });
-    const payload = await response.json().catch(() => ({}));
+    const raw = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw new Error(payload.message || "Неверный email или пароль.");
+      throw new Error(raw.message || "Неверный email или пароль.");
     }
+    const payload = normalizeAuthUser(raw);
     setUser(payload);
     return payload;
   }, []);

@@ -1,8 +1,9 @@
-import React, { useEffect, useId, useState } from "react";
+import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertCircle, LogIn, UserCircle, X } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
-import { getRaceBadgeClassName, getRaceLabel } from "../auth/race";
+import { getRaceDisplay } from "../auth/race";
+import { normalizeAuthUser } from "../auth/user";
 
 function ProfileSkeleton() {
   return (
@@ -19,16 +20,48 @@ function ProfileSkeleton() {
 export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
   const { user, refreshUser, logout } = useAuth();
   const titleId = useId();
+  const onCloseRef = useRef(onClose);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileUser, setProfileUser] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [fetchError, setFetchError] = useState("");
+
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!isOpen) {
       return undefined;
     }
 
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onCloseRef.current();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setProfileLoading(false);
+      setProfileUser(null);
+      setSessionExpired(false);
+      setFetchError("");
+      return undefined;
+    }
+
     let cancelled = false;
+    const cachedUser = normalizeAuthUser(user);
+    if (cachedUser) {
+      setProfileUser(cachedUser);
+    }
 
     const loadProfile = async () => {
       setProfileLoading(true);
@@ -40,9 +73,15 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
         if (cancelled) {
           return;
         }
-        if (!profile) {
+
+        const normalized = normalizeAuthUser(profile);
+        if (!normalized) {
+          setProfileUser(null);
           setSessionExpired(true);
+          return;
         }
+
+        setProfileUser(normalized);
       } catch (error) {
         if (!cancelled) {
           setFetchError("Не удалось загрузить профиль. Проверьте подключение и попробуйте снова.");
@@ -56,21 +95,10 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
 
     loadProfile();
 
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", handleKeyDown);
-
     return () => {
       cancelled = true;
-      document.body.style.overflow = "";
-      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose, refreshUser]);
+  }, [isOpen, refreshUser]);
 
   if (!isOpen) {
     return null;
@@ -88,8 +116,28 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
     onRequestSignIn?.();
   };
 
-  const displayUser = user;
-  const raceLabel = getRaceLabel(displayUser?.race);
+  const displayUser = profileUser ?? normalizeAuthUser(user);
+  const raceDisplay = getRaceDisplay(displayUser?.race);
+
+  const handleRetry = async () => {
+    setFetchError("");
+    setProfileLoading(true);
+    try {
+      const profile = await refreshUser();
+      const normalized = normalizeAuthUser(profile);
+      if (!normalized) {
+        setProfileUser(null);
+        setSessionExpired(true);
+        return;
+      }
+      setProfileUser(normalized);
+      setSessionExpired(false);
+    } catch (error) {
+      setFetchError("Не удалось загрузить профиль. Проверьте подключение и попробуйте снова.");
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   return createPortal(
     <div className="profile-modal-overlay" onClick={handleBackdropClick} role="presentation">
@@ -113,7 +161,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
         </header>
 
         <div className="profile-modal-body">
-          {profileLoading ? (
+          {profileLoading && !displayUser ? (
             <ProfileSkeleton />
           ) : sessionExpired ? (
             <div className="profile-modal-state profile-modal-state--expired">
@@ -142,24 +190,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
               <p className="profile-modal-state-title">Ошибка загрузки</p>
               <p className="profile-modal-state-text">{fetchError}</p>
               <div className="profile-modal-actions">
-                <button
-                  type="button"
-                  className="primary-btn profile-modal-action-btn"
-                  onClick={() => {
-                    setFetchError("");
-                    setProfileLoading(true);
-                    refreshUser()
-                      .then((profile) => {
-                        if (!profile) {
-                          setSessionExpired(true);
-                        }
-                      })
-                      .catch(() => {
-                        setFetchError("Не удалось загрузить профиль. Проверьте подключение и попробуйте снова.");
-                      })
-                      .finally(() => setProfileLoading(false));
-                  }}
-                >
+                <button type="button" className="primary-btn profile-modal-action-btn" onClick={handleRetry}>
                   Повторить
                 </button>
                 <button type="button" className="secondary-btn profile-modal-action-btn" onClick={onClose}>
@@ -169,6 +200,11 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
             </div>
           ) : displayUser ? (
             <div className="profile-modal-content">
+              {profileLoading ? (
+                <p className="profile-modal-refresh-hint muted" aria-live="polite">
+                  Обновление данных…
+                </p>
+              ) : null}
               <div className="profile-modal-avatar" aria-hidden="true">
                 <UserCircle size={40} />
               </div>
@@ -177,16 +213,14 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
                 <div className="profile-detail-row">
                   <dt>Ваш Email</dt>
                   <dd className="profile-detail-email" title={displayUser.email}>
-                    {displayUser.email}
+                    {displayUser.email || "—"}
                   </dd>
                 </div>
 
                 <div className="profile-detail-row profile-detail-row--race">
                   <dt>Раса</dt>
                   <dd>
-                    <span className={getRaceBadgeClassName(displayUser.race)}>
-                      {raceLabel}
-                    </span>
+                    <span className={raceDisplay.badgeClass}>{raceDisplay.label}</span>
                   </dd>
                 </div>
               </dl>
