@@ -148,6 +148,28 @@ public class UserAuthService : IUserAuthService
         return (MapUserResponse(user), null);
     }
 
+    public async Task<(bool Success, string? Error)> UpdatePasswordAsync(
+        Guid userId,
+        string newPassword,
+        string confirmPassword,
+        CancellationToken cancellationToken = default)
+    {
+        if (!PasswordRules.TryValidateChange(newPassword, confirmPassword, out var validationError))
+        {
+            return (false, validationError);
+        }
+
+        var user = await _userRepository.GetByIdForUpdateAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return (false, "Пользователь не найден.");
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        await _userRepository.SaveChangesAsync(user, cancellationToken);
+        return (true, null);
+    }
+
     private static string NormalizeEmail(string email) =>
         string.IsNullOrWhiteSpace(email) ? string.Empty : email.Trim().ToLowerInvariant();
 }

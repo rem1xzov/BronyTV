@@ -2275,6 +2275,101 @@ body[data-theme="dark"] .hero-thumb {
   min-height: 44px;
 }
 
+.profile-password-section {
+  width: 100%;
+  max-width: 360px;
+  margin: 8px auto 0;
+}
+
+.profile-password-toggle {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
+}
+
+.profile-password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-soft);
+  text-align: left;
+}
+
+.profile-password-form-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.profile-password-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.profile-password-field input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 1rem;
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.profile-password-field input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-soft));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.profile-password-message {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.profile-password-message--error {
+  color: #b91c1c;
+}
+
+.profile-password-message--success {
+  color: #047857;
+}
+
+.profile-password-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-password-save,
+.profile-password-cancel {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
+}
+
+@media (min-width: 480px) {
+  .profile-password-actions {
+    flex-direction: row;
+  }
+
+  .profile-password-save,
+  .profile-password-cancel {
+    flex: 1;
+  }
+}
+
 .profile-race-badge {
   display: inline-flex;
   align-items: center;

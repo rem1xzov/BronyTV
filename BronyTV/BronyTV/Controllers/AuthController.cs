@@ -120,6 +120,31 @@ public class AuthController : ControllerBase
         return Ok(response);
     }
 
+    [Authorize(Roles = "User")]
+    [HttpPut("update-password")]
+    public async Task<IActionResult> UpdatePassword(
+        [FromBody] UpdatePasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var (success, error) = await _userAuthService.UpdatePasswordAsync(
+            userId,
+            request.NewPassword,
+            request.ConfirmPassword,
+            cancellationToken);
+
+        if (!success)
+        {
+            return BadRequest(new { message = error ?? "Не удалось изменить пароль." });
+        }
+
+        return Ok(new { message = "Пароль успешно изменён." });
+    }
+
     [HttpPost("logout")]
     public IActionResult Logout()
     {

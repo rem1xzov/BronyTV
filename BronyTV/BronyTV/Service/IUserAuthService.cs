@@ -23,4 +23,10 @@ public interface IUserAuthService
         Guid userId,
         string username,
         CancellationToken cancellationToken = default);
+
+    Task<(bool Success, string? Error)> UpdatePasswordAsync(
+        Guid userId,
+        string newPassword,
+        string confirmPassword,
+        CancellationToken cancellationToken = default);
 }

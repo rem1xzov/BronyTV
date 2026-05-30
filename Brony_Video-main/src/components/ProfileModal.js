@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { getRaceDisplay } from "../auth/race";
 import { normalizeAuthUser } from "../auth/user";
 import { validateUsername } from "../auth/username";
+import { validateChangePassword } from "../auth/password";
 
 function ProfileSkeleton() {
   return (
@@ -19,7 +20,7 @@ function ProfileSkeleton() {
 }
 
 export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
-  const { user, refreshUser, logout, updateUsername } = useAuth();
+  const { user, refreshUser, logout, updateUsername, updatePassword } = useAuth();
   const titleId = useId();
   const onCloseRef = useRef(onClose);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -30,6 +31,12 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
   const [usernameError, setUsernameError] = useState("");
   const [usernameSaving, setUsernameSaving] = useState(false);
   const [usernameSuccess, setUsernameSuccess] = useState("");
+  const [passwordFormOpen, setPasswordFormOpen] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordSuccess, setPasswordSuccess] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
 
   onCloseRef.current = onClose;
 
@@ -62,6 +69,12 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
       setUsernameInput("");
       setUsernameError("");
       setUsernameSuccess("");
+      setPasswordFormOpen(false);
+      setNewPassword("");
+      setConfirmPassword("");
+      setPasswordError("");
+      setPasswordSuccess("");
+      setPasswordSaving(false);
       return undefined;
     }
 
@@ -153,6 +166,43 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
       setUsernameError(error.message || "Не удалось сохранить юзернейм.");
     } finally {
       setUsernameSaving(false);
+    }
+  };
+
+  const resetPasswordForm = () => {
+    setPasswordFormOpen(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setPasswordError("");
+    setPasswordSuccess("");
+    setPasswordSaving(false);
+  };
+
+  const handleSavePassword = async (event) => {
+    event.preventDefault();
+    setPasswordError("");
+    setPasswordSuccess("");
+
+    const validation = validateChangePassword(newPassword, confirmPassword);
+    if (!validation.valid) {
+      setPasswordError(validation.error);
+      return;
+    }
+
+    setPasswordSaving(true);
+    try {
+      await updatePassword({ newPassword, confirmPassword });
+      setPasswordSuccess("Пароль успешно изменен!");
+      setNewPassword("");
+      setConfirmPassword("");
+      window.setTimeout(() => {
+        setPasswordFormOpen(false);
+        setPasswordSuccess("");
+      }, 1500);
+    } catch (error) {
+      setPasswordError(error.message || "Не удалось изменить пароль.");
+    } finally {
+      setPasswordSaving(false);
     }
   };
 
@@ -319,6 +369,81 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
               <p className="profile-modal-notice">
                 Ваша раса выбрана при регистрации и не может быть изменена.
               </p>
+
+              <div className="profile-password-section">
+                {!passwordFormOpen ? (
+                  <button
+                    type="button"
+                    className="secondary-btn profile-password-toggle"
+                    onClick={() => {
+                      setPasswordFormOpen(true);
+                      setPasswordError("");
+                      setPasswordSuccess("");
+                    }}
+                  >
+                    Сменить пароль
+                  </button>
+                ) : (
+                  <form className="profile-password-form" onSubmit={handleSavePassword}>
+                    <p className="profile-password-form-title">Смена пароля</p>
+                    <label className="profile-password-field">
+                      <span>Новый пароль</span>
+                      <input
+                        type="password"
+                        value={newPassword}
+                        onChange={(event) => {
+                          setNewPassword(event.target.value);
+                          setPasswordError("");
+                          setPasswordSuccess("");
+                        }}
+                        autoComplete="new-password"
+                        aria-invalid={Boolean(passwordError)}
+                      />
+                    </label>
+                    <label className="profile-password-field">
+                      <span>Повторите новый пароль</span>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(event) => {
+                          setConfirmPassword(event.target.value);
+                          setPasswordError("");
+                          setPasswordSuccess("");
+                        }}
+                        autoComplete="new-password"
+                        aria-invalid={Boolean(passwordError)}
+                      />
+                    </label>
+                    {passwordError ? (
+                      <p className="profile-password-message profile-password-message--error" role="alert">
+                        {passwordError}
+                      </p>
+                    ) : null}
+                    {passwordSuccess ? (
+                      <p className="profile-password-message profile-password-message--success" role="status">
+                        {passwordSuccess}
+                      </p>
+                    ) : null}
+                    <div className="profile-password-actions">
+                      <button
+                        type="submit"
+                        className="primary-btn profile-password-save"
+                        disabled={passwordSaving}
+                      >
+                        {passwordSaving ? "Сохранение…" : "Сохранить новый пароль"}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-btn profile-password-cancel"
+                        onClick={resetPasswordForm}
+                        disabled={passwordSaving}
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  </form>
+                )}
+              </div>
             </div>
           ) : (
             <div className="profile-modal-state profile-modal-state--expired">

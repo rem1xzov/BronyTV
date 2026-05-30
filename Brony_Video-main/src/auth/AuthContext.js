@@ -92,6 +92,18 @@ export function AuthProvider({ children }) {
     return payload;
   }, []);
 
+  const updatePassword = useCallback(async ({ newPassword, confirmPassword }) => {
+    const response = await apiFetch("/auth/update-password", {
+      method: "PUT",
+      body: JSON.stringify({ newPassword, confirmPassword })
+    });
+    const raw = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(raw.message || "Не удалось изменить пароль.");
+    }
+    return raw;
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -101,9 +113,10 @@ export function AuthProvider({ children }) {
       login,
       logout,
       refreshUser,
-      updateUsername
+      updateUsername,
+      updatePassword
     }),
-    [user, loading, register, login, logout, refreshUser, updateUsername]
+    [user, loading, register, login, logout, refreshUser, updateUsername, updatePassword]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
