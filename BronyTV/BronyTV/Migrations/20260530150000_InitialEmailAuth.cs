@@ -6,22 +6,25 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace BronyTV.Migrations
 {
     /// <inheritdoc />
-    public partial class AddUsersTable : Migration
+    public partial class InitialEmailAuth : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.EnsureSchema(
+                name: "public");
+
             migrationBuilder.CreateTable(
                 name: "Users",
+                schema: "public",
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    GoogleSub = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     Email = table.Column<string>(type: "character varying(320)", maxLength: 320, nullable: false),
-                    DisplayName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    Race = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: true),
+                    PasswordHash = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    Race = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false),
                     CreatedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    RaceSelectedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                    RaceSelectedAtUtc = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -30,14 +33,9 @@ namespace BronyTV.Migrations
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_Email",
+                schema: "public",
                 table: "Users",
                 column: "Email",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_GoogleSub",
-                table: "Users",
-                column: "GoogleSub",
                 unique: true);
         }
 
@@ -45,7 +43,8 @@ namespace BronyTV.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
-                name: "Users");
+                name: "Users",
+                schema: "public");
         }
     }
 }

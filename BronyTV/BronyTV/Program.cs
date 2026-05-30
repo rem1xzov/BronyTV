@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using BronyTV.DbContext;
 using BronyTV.DbContext.Entity;
+using BronyTV.Infrastructure;
 using BronyTV.Repository;
 using BronyTV.Service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -93,7 +94,7 @@ var startupLogger = loggerFactory.CreateLogger("BronyTV.Startup");
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<DbBronyTV>();
-    await context.Database.MigrateAsync();
+    await DatabaseInitializer.ApplyMigrationsAndEnsureSchemaAsync(context, startupLogger);
 
     Directory.CreateDirectory(Path.Combine(app.Environment.WebRootPath, "content", "video"));
     var previewsDir = Path.Combine(app.Environment.WebRootPath, "content", "previews");

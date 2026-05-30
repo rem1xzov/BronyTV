@@ -1,0 +1,51 @@
+using BronyTV.DbContext;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
+namespace BronyTV.Infrastructure;
+
+public static class DatabaseInitializer
+{
+    private const string EnsureUsersTableSql = """
+        CREATE TABLE IF NOT EXISTS public."Users" (
+            "Id" uuid NOT NULL,
+            "Email" character varying(320) NOT NULL,
+            "PasswordHash" character varying(200) NOT NULL,
+            "Race" character varying(32) NOT NULL,
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            "RaceSelectedAtUtc" timestamp with time zone NOT NULL,
+            CONSTRAINT "PK_Users" PRIMARY KEY ("Id")
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_Email"
+            ON public."Users" ("Email");
+        """;
+
+    public static async Task ApplyMigrationsAndEnsureSchemaAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        var pending = (await context.Database.GetPendingMigrationsAsync(cancellationToken)).ToList();
+        if (pending.Count > 0)
+        {
+            logger.LogInformation("Applying pending EF migrations: {Migrations}", string.Join(", ", pending));
+        }
+        else
+        {
+            logger.LogInformation("No pending EF migrations detected.");
+        }
+
+        await context.Database.MigrateAsync(cancellationToken);
+        await EnsureUsersTableAsync(context, logger, cancellationToken);
+    }
+
+    public static async Task EnsureUsersTableAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureUsersTableSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Users\" table exists (CREATE TABLE IF NOT EXISTS).");
+    }
+}
