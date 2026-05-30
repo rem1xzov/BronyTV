@@ -104,6 +104,20 @@ export function AuthProvider({ children }) {
     return raw;
   }, []);
 
+  const updateAvatarEmoji = useCallback(async (emoji) => {
+    const response = await apiFetch("/auth/update-avatar-emoji", {
+      method: "PUT",
+      body: JSON.stringify({ emoji })
+    });
+    const raw = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(raw.message || "Не удалось сохранить эмодзи.");
+    }
+    const payload = normalizeAuthUser(raw);
+    setUser(payload);
+    return payload;
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -114,9 +128,10 @@ export function AuthProvider({ children }) {
       logout,
       refreshUser,
       updateUsername,
-      updatePassword
+      updatePassword,
+      updateAvatarEmoji
     }),
-    [user, loading, register, login, logout, refreshUser, updateUsername, updatePassword]
+    [user, loading, register, login, logout, refreshUser, updateUsername, updatePassword, updateAvatarEmoji]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

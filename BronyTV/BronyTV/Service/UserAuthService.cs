@@ -114,6 +114,7 @@ public class UserAuthService : IUserAuthService
             Id = user.Id,
             Email = user.Email,
             Username = user.Username,
+            AvatarEmoji = user.AvatarEmoji,
             Race = user.Race
         };
 
@@ -168,6 +169,27 @@ public class UserAuthService : IUserAuthService
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
         await _userRepository.SaveChangesAsync(user, cancellationToken);
         return (true, null);
+    }
+
+    public async Task<(AuthUserResponse? Response, string? Error)> UpdateAvatarEmojiAsync(
+        Guid userId,
+        string emoji,
+        CancellationToken cancellationToken = default)
+    {
+        if (!EmojiRules.TryNormalize(emoji, out var normalized, out var validationError))
+        {
+            return (null, validationError);
+        }
+
+        var user = await _userRepository.GetByIdForUpdateAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return (null, "Пользователь не найден.");
+        }
+
+        user.AvatarEmoji = normalized;
+        await _userRepository.SaveChangesAsync(user, cancellationToken);
+        return (MapUserResponse(user), null);
     }
 
     private static string NormalizeEmail(string email) =>

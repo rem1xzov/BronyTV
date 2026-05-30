@@ -1,6 +1,6 @@
 export const USERNAME_MIN_LENGTH = 4;
-export const USERNAME_MAX_LENGTH = 15;
-export const USERNAME_PATTERN = /^[a-zA-Z0-9_]{4,15}$/;
+export const USERNAME_MAX_LENGTH = 25;
+export const USERNAME_PATTERN = /^[a-zA-Z0-9_]{4,25}$/;
 
 export const validateUsername = (raw) => {
   const value = String(raw ?? "").trim();

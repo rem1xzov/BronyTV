@@ -19,12 +19,16 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
             .IsUnique();
 
         builder.Property(user => user.Username)
-            .HasMaxLength(15)
+            .HasMaxLength(25)
             .IsRequired(false);
 
         builder.HasIndex(user => user.Username)
             .IsUnique()
             .HasFilter("\"Username\" IS NOT NULL");
+
+        builder.Property(user => user.AvatarEmoji)
+            .HasMaxLength(32)
+            .IsRequired(false);
 
         builder.Property(user => user.PasswordHash)
             .HasMaxLength(200)

@@ -2148,6 +2148,135 @@ body[data-theme="dark"] .hero-thumb {
   border: 2px solid color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+.profile-avatar-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.profile-avatar-circle {
+  width: clamp(88px, 22vw, 112px);
+  height: clamp(88px, 22vw, 112px);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 3px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  box-shadow: var(--shadow-soft);
+}
+
+.profile-avatar-circle--pegasus {
+  background: linear-gradient(145deg, rgba(56, 189, 248, 0.35), rgba(14, 116, 144, 0.2));
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.profile-avatar-circle--unicorn {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.35), rgba(88, 28, 135, 0.2));
+  border-color: rgba(168, 85, 247, 0.45);
+}
+
+.profile-avatar-circle--earth_pony {
+  background: linear-gradient(145deg, rgba(245, 158, 11, 0.38), rgba(146, 64, 14, 0.2));
+  border-color: rgba(245, 158, 11, 0.45);
+}
+
+.profile-avatar-circle--default {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+.profile-avatar-emoji {
+  font-size: clamp(2.5rem, 8vw, 3.25rem);
+  line-height: 1;
+  user-select: none;
+}
+
+.profile-avatar-edit-btn {
+  min-height: 44px;
+  gap: 6px;
+}
+
+.profile-emoji-form {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-soft);
+}
+
+.profile-emoji-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-align: left;
+}
+
+.profile-emoji-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 14px;
+  font-size: 2rem;
+  text-align: center;
+  background: var(--bg-card);
+  color: var(--text-main);
+}
+
+.profile-emoji-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-soft));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.profile-emoji-message {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.profile-emoji-message--error {
+  color: #b91c1c;
+}
+
+.profile-emoji-message--success {
+  color: #047857;
+}
+
+.profile-emoji-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-emoji-save,
+.profile-emoji-cancel {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
+}
+
+@media (min-width: 480px) {
+  .profile-emoji-actions {
+    flex-direction: row;
+  }
+
+  .profile-emoji-save,
+  .profile-emoji-cancel {
+    flex: 1;
+  }
+}
+
 .profile-details {
   width: 100%;
   margin: 0;

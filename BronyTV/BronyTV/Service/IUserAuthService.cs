@@ -29,4 +29,9 @@ public interface IUserAuthService
         string newPassword,
         string confirmPassword,
         CancellationToken cancellationToken = default);
+
+    Task<(AuthUserResponse? Response, string? Error)> UpdateAvatarEmojiAsync(
+        Guid userId,
+        string emoji,
+        CancellationToken cancellationToken = default);
 }

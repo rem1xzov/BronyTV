@@ -145,6 +145,30 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Пароль успешно изменён." });
     }
 
+    [Authorize(Roles = "User")]
+    [HttpPut("update-avatar-emoji")]
+    public async Task<IActionResult> UpdateAvatarEmoji(
+        [FromBody] UpdateAvatarEmojiRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var (response, error) = await _userAuthService.UpdateAvatarEmojiAsync(
+            userId,
+            request.Emoji,
+            cancellationToken);
+
+        if (response == null)
+        {
+            return BadRequest(new { message = error ?? "Не удалось обновить эмодзи." });
+        }
+
+        return Ok(response);
+    }
+
     [HttpPost("logout")]
     public IActionResult Logout()
     {

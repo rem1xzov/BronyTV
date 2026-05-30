@@ -1,8 +1,9 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertCircle, LogIn, UserCircle, X } from "lucide-react";
+import { AlertCircle, LogIn, Pencil, UserCircle, X } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
-import { getRaceDisplay } from "../auth/race";
+import { resolveAvatarEmoji, validateAvatarEmoji } from "../auth/avatar";
+import { getRaceAvatarClassName, getRaceDisplay } from "../auth/race";
 import { normalizeAuthUser } from "../auth/user";
 import { validateUsername } from "../auth/username";
 import { validateChangePassword } from "../auth/password";
@@ -20,7 +21,7 @@ function ProfileSkeleton() {
 }
 
 export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
-  const { user, refreshUser, logout, updateUsername, updatePassword } = useAuth();
+  const { user, refreshUser, logout, updateUsername, updatePassword, updateAvatarEmoji } = useAuth();
   const titleId = useId();
   const onCloseRef = useRef(onClose);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -37,6 +38,11 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [emojiFormOpen, setEmojiFormOpen] = useState(false);
+  const [emojiInput, setEmojiInput] = useState("");
+  const [emojiError, setEmojiError] = useState("");
+  const [emojiSuccess, setEmojiSuccess] = useState("");
+  const [emojiSaving, setEmojiSaving] = useState(false);
 
   onCloseRef.current = onClose;
 
@@ -75,6 +81,11 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
       setPasswordError("");
       setPasswordSuccess("");
       setPasswordSaving(false);
+      setEmojiFormOpen(false);
+      setEmojiInput("");
+      setEmojiError("");
+      setEmojiSuccess("");
+      setEmojiSaving(false);
       return undefined;
     }
 
@@ -139,6 +150,8 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
 
   const displayUser = profileUser ?? normalizeAuthUser(user);
   const raceDisplay = getRaceDisplay(displayUser?.race);
+  const avatarClassName = getRaceAvatarClassName(displayUser?.race);
+  const avatarEmojiDisplay = resolveAvatarEmoji(displayUser);
   const hasUsername = Boolean(displayUser?.username);
 
   const handleSaveUsername = async (event) => {
@@ -203,6 +216,38 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
       setPasswordError(error.message || "Не удалось изменить пароль.");
     } finally {
       setPasswordSaving(false);
+    }
+  };
+
+  const handleSaveEmoji = async (event) => {
+    event.preventDefault();
+    setEmojiError("");
+    setEmojiSuccess("");
+
+    const validation = validateAvatarEmoji(emojiInput);
+    if (!validation.valid) {
+      setEmojiError(validation.error);
+      return;
+    }
+
+    setEmojiSaving(true);
+    try {
+      const updated = await updateAvatarEmoji(validation.value);
+      await refreshUser();
+      const normalized = normalizeAuthUser(updated) ?? normalizeAuthUser(user);
+      if (normalized) {
+        setProfileUser(normalized);
+      }
+      setEmojiSuccess("Эмодзи сохранено!");
+      setEmojiInput("");
+      window.setTimeout(() => {
+        setEmojiFormOpen(false);
+        setEmojiSuccess("");
+      }, 1200);
+    } catch (error) {
+      setEmojiError(error.message || "Не удалось сохранить эмодзи.");
+    } finally {
+      setEmojiSaving(false);
     }
   };
 
@@ -292,8 +337,86 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
                   Обновление данных…
                 </p>
               ) : null}
-              <div className="profile-modal-avatar" aria-hidden="true">
-                <UserCircle size={40} />
+
+              <div className="profile-avatar-block">
+                <div className={avatarClassName} aria-label="Аватар пользователя">
+                  <span className="profile-avatar-emoji" aria-hidden="true">
+                    {avatarEmojiDisplay}
+                  </span>
+                </div>
+
+                {!emojiFormOpen ? (
+                  <button
+                    type="button"
+                    className="secondary-btn profile-avatar-edit-btn"
+                    onClick={() => {
+                      setEmojiFormOpen(true);
+                      setEmojiInput(displayUser.avatarEmoji || "");
+                      setEmojiError("");
+                      setEmojiSuccess("");
+                    }}
+                  >
+                    <Pencil size={14} />
+                    <span>Изменить эмодзи</span>
+                  </button>
+                ) : (
+                  <form className="profile-emoji-form" onSubmit={handleSaveEmoji}>
+                    <label className="profile-emoji-field">
+                      <span>Эмодзи-аватар</span>
+                      <input
+                        type="text"
+                        className="profile-emoji-input"
+                        value={emojiInput}
+                        onChange={(event) => {
+                          const next = event.target.value;
+                          const graphemes =
+                            typeof Intl !== "undefined" && typeof Intl.Segmenter === "function"
+                              ? [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(next)].map(
+                                  (part) => part.segment
+                                )
+                              : next;
+                          setEmojiInput(graphemes.slice(0, 1).join(""));
+                          setEmojiError("");
+                          setEmojiSuccess("");
+                        }}
+                        placeholder="😀"
+                        maxLength={8}
+                        inputMode="text"
+                        autoComplete="off"
+                        aria-label="Эмодзи-аватар"
+                        aria-invalid={Boolean(emojiError)}
+                      />
+                    </label>
+                    {emojiError ? (
+                      <p className="profile-emoji-message profile-emoji-message--error" role="alert">
+                        {emojiError}
+                      </p>
+                    ) : null}
+                    {emojiSuccess ? (
+                      <p className="profile-emoji-message profile-emoji-message--success" role="status">
+                        {emojiSuccess}
+                      </p>
+                    ) : null}
+                    <div className="profile-emoji-actions">
+                      <button type="submit" className="primary-btn profile-emoji-save" disabled={emojiSaving}>
+                        {emojiSaving ? "Сохранение…" : "Сохранить"}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-btn profile-emoji-cancel"
+                        onClick={() => {
+                          setEmojiFormOpen(false);
+                          setEmojiInput("");
+                          setEmojiError("");
+                          setEmojiSuccess("");
+                        }}
+                        disabled={emojiSaving}
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  </form>
+                )}
               </div>
 
               <dl className="profile-details">
@@ -331,7 +454,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
                             autoCapitalize="off"
                             autoCorrect="off"
                             spellCheck={false}
-                            maxLength={15}
+                            maxLength={25}
                             aria-label="Юзернейм"
                             aria-invalid={Boolean(usernameError)}
                           />

@@ -6,6 +6,7 @@ export const normalizeAuthUser = (raw) => {
   const email = raw.email ?? raw.Email ?? "";
   const race = raw.race ?? raw.Race ?? "";
   const usernameRaw = raw.username ?? raw.Username ?? null;
+  const avatarEmojiRaw = raw.avatarEmoji ?? raw.AvatarEmoji ?? null;
   const id = raw.id ?? raw.Id;
 
   if (!email && !id) {
@@ -17,10 +18,16 @@ export const normalizeAuthUser = (raw) => {
       ? null
       : String(usernameRaw).trim().toLowerCase() || null;
 
+  const avatarEmoji =
+    avatarEmojiRaw == null || avatarEmojiRaw === ""
+      ? null
+      : String(avatarEmojiRaw).trim() || null;
+
   return {
     id,
     email,
     username,
+    avatarEmoji,
     race: typeof race === "string" ? race : String(race ?? "")
   };
 };

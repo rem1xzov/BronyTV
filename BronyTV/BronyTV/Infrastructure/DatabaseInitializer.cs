@@ -23,11 +23,31 @@ public static class DatabaseInitializer
 
     private const string EnsureUsernameColumnSql = """
         ALTER TABLE public."Users"
-            ADD COLUMN IF NOT EXISTS "Username" character varying(15);
+            ADD COLUMN IF NOT EXISTS "Username" character varying(25);
+
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = 'public'
+                  AND table_name = 'Users'
+                  AND column_name = 'Username'
+                  AND character_maximum_length < 25
+            ) THEN
+                ALTER TABLE public."Users"
+                    ALTER COLUMN "Username" TYPE character varying(25);
+            END IF;
+        END $$;
 
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_Username"
             ON public."Users" ("Username")
             WHERE "Username" IS NOT NULL;
+        """;
+
+    private const string EnsureAvatarEmojiColumnSql = """
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "AvatarEmoji" character varying(32);
         """;
 
     public static async Task ApplyMigrationsAndEnsureSchemaAsync(
@@ -48,6 +68,16 @@ public static class DatabaseInitializer
         await context.Database.MigrateAsync(cancellationToken);
         await EnsureUsersTableAsync(context, logger, cancellationToken);
         await EnsureUsernameColumnAsync(context, logger, cancellationToken);
+        await EnsureAvatarEmojiColumnAsync(context, logger, cancellationToken);
+    }
+
+    public static async Task EnsureAvatarEmojiColumnAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureAvatarEmojiColumnSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Users\".\"AvatarEmoji\" column.");
     }
 
     public static async Task EnsureUsernameColumnAsync(
