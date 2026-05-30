@@ -1,33 +1,30 @@
 import React, { useState } from "react";
-import { LogIn, LogOut, UserPlus } from "lucide-react";
-import { RACE_OPTIONS, useAuth } from "../auth/AuthContext";
+import { LogIn, LogOut, UserCircle, UserPlus } from "lucide-react";
+import { useAuth } from "../auth/AuthContext";
 import AuthModal from "./AuthModal";
-
-const RACE_LABEL_BY_ID = RACE_OPTIONS.reduce((acc, race) => {
-  acc[race.id] = race.label;
-  return acc;
-}, {});
-
-const getEmailPrefix = (email) => {
-  if (!email || typeof email !== "string") {
-    return "Пользователь";
-  }
-  const prefix = email.split("@")[0]?.trim();
-  return prefix || email;
-};
+import ProfileModal from "./ProfileModal";
 
 export default function AuthPanel() {
   const { user, loading, logout } = useAuth();
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalMode, setModalMode] = useState("signin");
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState("signin");
+  const [profileOpen, setProfileOpen] = useState(false);
 
-  const openModal = (mode) => {
-    setModalMode(mode);
-    setModalOpen(true);
+  const openAuthModal = (mode) => {
+    setAuthModalMode(mode);
+    setAuthModalOpen(true);
   };
 
-  const closeModal = () => {
-    setModalOpen(false);
+  const closeAuthModal = () => {
+    setAuthModalOpen(false);
+  };
+
+  const openProfile = () => {
+    setProfileOpen(true);
+  };
+
+  const closeProfile = () => {
+    setProfileOpen(false);
   };
 
   if (loading) {
@@ -41,39 +38,63 @@ export default function AuthPanel() {
   }
 
   if (user) {
-    const raceLabel = RACE_LABEL_BY_ID[user.race] || user.race;
-
     return (
-      <div className="sidebar-auth sidebar-auth--signed-in">
-        <div className="sidebar-user-card" title={user.email}>
-          <span className="sidebar-user-name">{getEmailPrefix(user.email)}</span>
-          <span className="sidebar-user-race">{raceLabel}</span>
+      <>
+        <div className="sidebar-auth sidebar-auth--signed-in">
+          <button
+            type="button"
+            className="sidebar-profile-btn"
+            onClick={openProfile}
+            aria-label="Личный кабинет"
+          >
+            <span className="sidebar-profile-avatar" aria-hidden="true">
+              <UserCircle size={18} />
+            </span>
+            <span className="sidebar-profile-label">
+              <span className="sidebar-profile-label-full">Личный кабинет</span>
+              <span className="sidebar-profile-label-short">Кабинет</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            className="sidebar-auth-btn sidebar-auth-btn--logout"
+            onClick={logout}
+            aria-label="Выйти"
+          >
+            <LogOut size={16} />
+            <span>Выйти</span>
+          </button>
         </div>
-        <button type="button" className="sidebar-auth-btn sidebar-auth-btn--logout" onClick={logout}>
-          <LogOut size={14} />
-          <span>Выйти</span>
-        </button>
-      </div>
+        <ProfileModal
+          isOpen={profileOpen}
+          onClose={closeProfile}
+          onRequestSignIn={() => openAuthModal("signin")}
+        />
+      </>
     );
   }
 
   return (
     <>
       <div className="sidebar-auth">
-        <button type="button" className="sidebar-auth-btn sidebar-auth-btn--primary" onClick={() => openModal("signin")}>
+        <button
+          type="button"
+          className="sidebar-auth-btn sidebar-auth-btn--primary"
+          onClick={() => openAuthModal("signin")}
+        >
           <LogIn size={14} />
           <span>Вход</span>
         </button>
-        <button type="button" className="sidebar-auth-btn" onClick={() => openModal("signup")}>
+        <button type="button" className="sidebar-auth-btn" onClick={() => openAuthModal("signup")}>
           <UserPlus size={14} />
           <span>Регистрация</span>
         </button>
       </div>
       <AuthModal
-        isOpen={modalOpen}
-        mode={modalMode}
-        onClose={closeModal}
-        onSwitchMode={setModalMode}
+        isOpen={authModalOpen}
+        mode={authModalMode}
+        onClose={closeAuthModal}
+        onSwitchMode={setAuthModalMode}
       />
     </>
   );

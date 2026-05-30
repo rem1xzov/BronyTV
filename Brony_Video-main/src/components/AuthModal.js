@@ -2,11 +2,7 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LogIn, UserPlus, X } from "lucide-react";
 import { RACE_OPTIONS, useAuth } from "../auth/AuthContext";
-
-const RACE_LABEL_BY_ID = RACE_OPTIONS.reduce((acc, race) => {
-  acc[race.id] = race.label;
-  return acc;
-}, {});
+import { getRaceLabel } from "../auth/race";
 
 export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
   const { login, register } = useAuth();
@@ -69,7 +65,7 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
           return;
         }
         await register({ email, password, race });
-        setSuccess(`Добро пожаловать! Ваша раса: ${RACE_LABEL_BY_ID[race]}.`);
+        setSuccess(`Добро пожаловать! Ваша раса: ${getRaceLabel(race)}.`);
       } else {
         await login({ email, password });
         setSuccess("Вы успешно вошли в аккаунт.");
