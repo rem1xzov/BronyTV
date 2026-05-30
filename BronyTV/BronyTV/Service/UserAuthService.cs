@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text;
 using BronyTV.Contract;
 using BronyTV.DbContext.Entity;
+using BronyTV.Infrastructure;
 using BronyTV.Models;
 using BronyTV.Repository;
 using Microsoft.IdentityModel.Tokens;
@@ -12,11 +13,16 @@ namespace BronyTV.Service;
 public class UserAuthService : IUserAuthService
 {
     private readonly IUserRepository _userRepository;
+    private readonly IAdminAccessService _adminAccessService;
     private readonly IConfiguration _configuration;
 
-    public UserAuthService(IUserRepository userRepository, IConfiguration configuration)
+    public UserAuthService(
+        IUserRepository userRepository,
+        IAdminAccessService adminAccessService,
+        IConfiguration configuration)
     {
         _userRepository = userRepository;
+        _adminAccessService = adminAccessService;
         _configuration = configuration;
     }
 
@@ -91,7 +97,8 @@ public class UserAuthService : IUserAuthService
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Name, user.Email),
             new(ClaimTypes.Role, "User"),
-            new("race", user.Race)
+            new("race", user.Race),
+            new("username", user.Username ?? string.Empty)
         };
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
@@ -115,7 +122,8 @@ public class UserAuthService : IUserAuthService
             Email = user.Email,
             Username = user.Username,
             AvatarEmoji = user.AvatarEmoji,
-            Race = user.Race
+            Race = user.Race,
+            IsPlatformAdmin = _adminAccessService.IsPrivilegedUser(user.Username, user.Email)
         };
 
     public async Task<(AuthUserResponse? Response, string? Error)> UpdateUsernameAsync(

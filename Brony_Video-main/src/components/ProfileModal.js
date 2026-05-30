@@ -1,6 +1,8 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertCircle, LogIn, Pencil, UserCircle, X } from "lucide-react";
+import { Link } from "react-router-dom";
+import { AlertCircle, LogIn, Pencil, Shield, UserCircle, X } from "lucide-react";
+import { isPlatformAdmin } from "../auth/adminAccess";
 import { useAuth } from "../auth/AuthContext";
 import { resolveAvatarEmoji, validateAvatarEmoji } from "../auth/avatar";
 import { getRaceAvatarClassName, getRaceDisplay } from "../auth/race";
@@ -153,6 +155,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
   const avatarClassName = getRaceAvatarClassName(displayUser?.race);
   const avatarEmojiDisplay = resolveAvatarEmoji(displayUser);
   const hasUsername = Boolean(displayUser?.username);
+  const showAdminPanel = isPlatformAdmin(displayUser);
 
   const handleSaveUsername = async (event) => {
     event.preventDefault();
@@ -492,6 +495,19 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
               <p className="profile-modal-notice">
                 Ваша раса выбрана при регистрации и не может быть изменена.
               </p>
+
+              {showAdminPanel ? (
+                <div className="profile-admin-section">
+                  <Link
+                    to="/admin"
+                    className="primary-btn profile-admin-panel-btn"
+                    onClick={onClose}
+                  >
+                    <Shield size={18} aria-hidden="true" />
+                    <span>Админ-панель</span>
+                  </Link>
+                </div>
+              ) : null}
 
               <div className="profile-password-section">
                 {!passwordFormOpen ? (

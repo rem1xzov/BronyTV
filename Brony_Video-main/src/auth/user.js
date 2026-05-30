@@ -7,6 +7,7 @@ export const normalizeAuthUser = (raw) => {
   const race = raw.race ?? raw.Race ?? "";
   const usernameRaw = raw.username ?? raw.Username ?? null;
   const avatarEmojiRaw = raw.avatarEmoji ?? raw.AvatarEmoji ?? null;
+  const isPlatformAdminRaw = raw.isPlatformAdmin ?? raw.IsPlatformAdmin ?? false;
   const id = raw.id ?? raw.Id;
 
   if (!email && !id) {
@@ -28,6 +29,7 @@ export const normalizeAuthUser = (raw) => {
     email,
     username,
     avatarEmoji,
-    race: typeof race === "string" ? race : String(race ?? "")
+    race: typeof race === "string" ? race : String(race ?? ""),
+    isPlatformAdmin: Boolean(isPlatformAdminRaw)
   };
 };

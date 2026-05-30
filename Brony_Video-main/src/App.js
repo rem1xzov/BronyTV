@@ -23,6 +23,7 @@ import {
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiFetch, apiUrl } from "./auth/api";
 import AuthPanel from "./components/AuthPanel";
+import AdminPanelPage from "./components/AdminPanelPage";
 
 const SEASON_INFO = [
   {
@@ -364,6 +365,9 @@ const getPageFromPath = (path) => {
   }
   if (path.startsWith("/season")) {
     return "season";
+  }
+  if (path.startsWith("/admin")) {
+    return "admin";
   }
   return "home";
 };
@@ -1889,6 +1893,7 @@ export default function App() {
             />
           }
         />
+        <Route path="/admin" element={<AdminPanelPage />} />
         <Route
           path="*"
           element={

@@ -17,6 +17,14 @@ export const apiUrl = (path) => {
   return `${API_BASE_URL}${normalized}`;
 };
 
+export const apiUpload = (path, formData, options = {}) =>
+  fetch(apiUrl(path), {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+    ...options
+  });
+
 export const apiFetch = (path, options = {}) => {
   const { credentials: _ignoredCredentials, headers: optionHeaders, ...restOptions } = options;
   const headers = { ...(optionHeaders || {}) };

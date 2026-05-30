@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
 using BronyTV.DbContext;
@@ -31,6 +32,8 @@ builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ISeasonService, SeasonService>();
 builder.Services.AddScoped<IVideoService, VideoService>();
 builder.Services.AddScoped<IUserAuthService, UserAuthService>();
+builder.Services.Configure<AdminAccessOptions>(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
+builder.Services.AddSingleton<IAdminAccessService, AdminAccessService>();
 builder.Services.AddControllers();
 
 builder.Services.Configure<CookiePolicyOptions>(options =>
@@ -121,6 +124,40 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
                 }
 
                 return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                if (principal?.Identity?.IsAuthenticated != true || principal.IsInRole("Admin"))
+                {
+                    return;
+                }
+
+                var adminAccess = context.HttpContext.RequestServices.GetRequiredService<IAdminAccessService>();
+                var username = principal.FindFirstValue("username");
+                var email = principal.FindFirstValue(ClaimTypes.Email);
+
+                if (!adminAccess.IsPrivilegedUser(username, email)
+                    && Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+                {
+                    var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
+                    var user = await userRepository.GetByIdAsync(userId);
+                    if (user != null)
+                    {
+                        username = user.Username;
+                        email = user.Email;
+                    }
+                }
+
+                if (!adminAccess.IsPrivilegedUser(username, email))
+                {
+                    return;
+                }
+
+                if (principal.Identity is ClaimsIdentity identity)
+                {
+                    identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                }
             }
         };
     });
@@ -168,6 +205,21 @@ await using (var scope = app.Services.CreateAsyncScope())
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"),
         });
         await context.SaveChangesAsync();
+    }
+
+    const string platformAdminLogin = "rainbowdash";
+    if (!await context.Admins.AnyAsync(admin => admin.Login == platformAdminLogin))
+    {
+        context.Admins.Add(new AdminEntity
+        {
+            Id = Guid.NewGuid(),
+            Login = platformAdminLogin,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("rainbowdash"),
+        });
+        await context.SaveChangesAsync();
+        startupLogger.LogInformation(
+            "Создана запись AdminEntity для {Login} (вход через /api/auth/login или сессия пользователя с этим юзернеймом).",
+            platformAdminLogin);
     }
 
     string BuildPosterPath(int seasonNumber)

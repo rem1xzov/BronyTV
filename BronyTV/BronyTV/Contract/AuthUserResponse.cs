@@ -7,4 +7,5 @@ public class AuthUserResponse
     public string? Username { get; set; }
     public string? AvatarEmoji { get; set; }
     public string Race { get; set; } = string.Empty;
+    public bool IsPlatformAdmin { get; set; }
 }

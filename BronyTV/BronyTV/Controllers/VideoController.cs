@@ -18,7 +18,7 @@ public class VideoController : ControllerBase
     }
 
     [HttpPost("upload")]
-    [Authorize]
+    [Authorize(Roles = "Admin")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(MaxUploadSizeBytes)]
     [RequestFormLimits(MultipartBodyLengthLimit = MaxUploadSizeBytes)]
