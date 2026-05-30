@@ -4,6 +4,7 @@ import { AlertCircle, LogIn, UserCircle, X } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { getRaceDisplay } from "../auth/race";
 import { normalizeAuthUser } from "../auth/user";
+import { validateUsername } from "../auth/username";
 
 function ProfileSkeleton() {
   return (
@@ -18,13 +19,17 @@ function ProfileSkeleton() {
 }
 
 export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
-  const { user, refreshUser, logout } = useAuth();
+  const { user, refreshUser, logout, updateUsername } = useAuth();
   const titleId = useId();
   const onCloseRef = useRef(onClose);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileUser, setProfileUser] = useState(null);
   const [sessionExpired, setSessionExpired] = useState(false);
   const [fetchError, setFetchError] = useState("");
+  const [usernameInput, setUsernameInput] = useState("");
+  const [usernameError, setUsernameError] = useState("");
+  const [usernameSaving, setUsernameSaving] = useState(false);
+  const [usernameSuccess, setUsernameSuccess] = useState("");
 
   onCloseRef.current = onClose;
 
@@ -54,6 +59,9 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
       setProfileUser(null);
       setSessionExpired(false);
       setFetchError("");
+      setUsernameInput("");
+      setUsernameError("");
+      setUsernameSuccess("");
       return undefined;
     }
 
@@ -118,6 +126,35 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
 
   const displayUser = profileUser ?? normalizeAuthUser(user);
   const raceDisplay = getRaceDisplay(displayUser?.race);
+  const hasUsername = Boolean(displayUser?.username);
+
+  const handleSaveUsername = async (event) => {
+    event.preventDefault();
+    setUsernameError("");
+    setUsernameSuccess("");
+
+    const validation = validateUsername(usernameInput);
+    if (!validation.valid) {
+      setUsernameError(validation.error);
+      return;
+    }
+
+    setUsernameSaving(true);
+    try {
+      const updated = await updateUsername(validation.value);
+      await refreshUser();
+      const normalized = normalizeAuthUser(updated) ?? normalizeAuthUser(user);
+      if (normalized) {
+        setProfileUser(normalized);
+      }
+      setUsernameSuccess("Юзернейм сохранён");
+      setUsernameInput(validation.value);
+    } catch (error) {
+      setUsernameError(error.message || "Не удалось сохранить юзернейм.");
+    } finally {
+      setUsernameSaving(false);
+    }
+  };
 
   const handleRetry = async () => {
     setFetchError("");
@@ -215,6 +252,60 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
                   <dd className="profile-detail-email" title={displayUser.email}>
                     {displayUser.email || "—"}
                   </dd>
+                </div>
+
+                <div className="profile-detail-row profile-detail-row--username">
+                  <dt>Юзернейм</dt>
+                  {hasUsername ? (
+                    <dd className="profile-username-value" title={`@${displayUser.username}`}>
+                      @{displayUser.username}
+                    </dd>
+                  ) : (
+                    <dd className="profile-username-editor">
+                      <form className="profile-username-form" onSubmit={handleSaveUsername}>
+                        <div className="profile-username-input-wrap">
+                          <span className="profile-username-prefix" aria-hidden="true">
+                            @
+                          </span>
+                          <input
+                            type="text"
+                            className="profile-username-input"
+                            value={usernameInput}
+                            onChange={(event) => {
+                              setUsernameInput(event.target.value);
+                              setUsernameError("");
+                              setUsernameSuccess("");
+                            }}
+                            placeholder="username"
+                            autoComplete="username"
+                            autoCapitalize="off"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            maxLength={15}
+                            aria-label="Юзернейм"
+                            aria-invalid={Boolean(usernameError)}
+                          />
+                        </div>
+                        {usernameError ? (
+                          <p className="profile-username-message profile-username-message--error" role="alert">
+                            {usernameError}
+                          </p>
+                        ) : null}
+                        {usernameSuccess ? (
+                          <p className="profile-username-message profile-username-message--success" role="status">
+                            {usernameSuccess}
+                          </p>
+                        ) : null}
+                        <button
+                          type="submit"
+                          className="primary-btn profile-username-save"
+                          disabled={usernameSaving}
+                        >
+                          {usernameSaving ? "Сохранение…" : "Сохранить"}
+                        </button>
+                      </form>
+                    </dd>
+                  )}
                 </div>
 
                 <div className="profile-detail-row profile-detail-row--race">

@@ -18,4 +18,9 @@ public interface IUserAuthService
 
     string CreateSessionToken(UserEntity user);
     AuthUserResponse MapUserResponse(UserEntity user);
+
+    Task<(AuthUserResponse? Response, string? Error)> UpdateUsernameAsync(
+        Guid userId,
+        string username,
+        CancellationToken cancellationToken = default);
 }

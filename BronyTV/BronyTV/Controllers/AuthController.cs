@@ -96,6 +96,30 @@ public class AuthController : ControllerBase
         return Ok(_userAuthService.MapUserResponse(user));
     }
 
+    [Authorize(Roles = "User")]
+    [HttpPut("update-username")]
+    public async Task<IActionResult> UpdateUsername(
+        [FromBody] UpdateUsernameRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var (response, error) = await _userAuthService.UpdateUsernameAsync(
+            userId,
+            request.Username,
+            cancellationToken);
+
+        if (response == null)
+        {
+            return BadRequest(new { message = error ?? "Не удалось обновить юзернейм." });
+        }
+
+        return Ok(response);
+    }
+
     [HttpPost("logout")]
     public IActionResult Logout()
     {

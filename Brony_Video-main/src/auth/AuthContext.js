@@ -78,6 +78,20 @@ export function AuthProvider({ children }) {
     setUser(null);
   }, []);
 
+  const updateUsername = useCallback(async (username) => {
+    const response = await apiFetch("/auth/update-username", {
+      method: "PUT",
+      body: JSON.stringify({ username })
+    });
+    const raw = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(raw.message || "Не удалось сохранить юзернейм.");
+    }
+    const payload = normalizeAuthUser(raw);
+    setUser(payload);
+    return payload;
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -86,9 +100,10 @@ export function AuthProvider({ children }) {
       register,
       login,
       logout,
-      refreshUser
+      refreshUser,
+      updateUsername
     }),
-    [user, loading, register, login, logout, refreshUser]
+    [user, loading, register, login, logout, refreshUser, updateUsername]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -21,6 +21,15 @@ public static class DatabaseInitializer
             ON public."Users" ("Email");
         """;
 
+    private const string EnsureUsernameColumnSql = """
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "Username" character varying(15);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_Username"
+            ON public."Users" ("Username")
+            WHERE "Username" IS NOT NULL;
+        """;
+
     public static async Task ApplyMigrationsAndEnsureSchemaAsync(
         DbBronyTV context,
         ILogger logger,
@@ -38,6 +47,16 @@ public static class DatabaseInitializer
 
         await context.Database.MigrateAsync(cancellationToken);
         await EnsureUsersTableAsync(context, logger, cancellationToken);
+        await EnsureUsernameColumnAsync(context, logger, cancellationToken);
+    }
+
+    public static async Task EnsureUsernameColumnAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureUsernameColumnSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Users\".\"Username\" column and unique index.");
     }
 
     public static async Task EnsureUsersTableAsync(

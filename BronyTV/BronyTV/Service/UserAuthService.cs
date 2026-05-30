@@ -113,8 +113,40 @@ public class UserAuthService : IUserAuthService
         {
             Id = user.Id,
             Email = user.Email,
+            Username = user.Username,
             Race = user.Race
         };
+
+    public async Task<(AuthUserResponse? Response, string? Error)> UpdateUsernameAsync(
+        Guid userId,
+        string username,
+        CancellationToken cancellationToken = default)
+    {
+        if (!UsernameRules.TryNormalize(username, out var normalized, out var validationError))
+        {
+            return (null, validationError);
+        }
+
+        var user = await _userRepository.GetByIdForUpdateAsync(userId, cancellationToken);
+        if (user == null)
+        {
+            return (null, "Пользователь не найден.");
+        }
+
+        if (string.Equals(user.Username, normalized, StringComparison.Ordinal))
+        {
+            return (MapUserResponse(user), null);
+        }
+
+        if (await _userRepository.UsernameExistsForOtherUserAsync(normalized, userId, cancellationToken))
+        {
+            return (null, "Этот юзернейм уже занят");
+        }
+
+        user.Username = normalized;
+        await _userRepository.SaveChangesAsync(user, cancellationToken);
+        return (MapUserResponse(user), null);
+    }
 
     private static string NormalizeEmail(string email) =>
         string.IsNullOrWhiteSpace(email) ? string.Empty : email.Trim().ToLowerInvariant();

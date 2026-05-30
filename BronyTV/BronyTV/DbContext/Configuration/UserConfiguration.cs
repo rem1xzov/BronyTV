@@ -18,6 +18,14 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
         builder.HasIndex(user => user.Email)
             .IsUnique();
 
+        builder.Property(user => user.Username)
+            .HasMaxLength(15)
+            .IsRequired(false);
+
+        builder.HasIndex(user => user.Username)
+            .IsUnique()
+            .HasFilter("\"Username\" IS NOT NULL");
+
         builder.Property(user => user.PasswordHash)
             .HasMaxLength(200)
             .IsRequired();

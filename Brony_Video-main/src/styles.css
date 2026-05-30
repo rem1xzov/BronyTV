@@ -2191,6 +2191,90 @@ body[data-theme="dark"] .hero-thumb {
   justify-content: center;
 }
 
+.profile-detail-row--username {
+  align-items: stretch;
+}
+
+.profile-detail-row--username dd {
+  width: 100%;
+}
+
+.profile-username-value {
+  font-size: clamp(1rem, 3.2vw, 1.12rem);
+  font-weight: 700;
+  color: var(--accent-strong);
+  word-break: break-word;
+}
+
+.profile-username-editor {
+  width: 100%;
+}
+
+.profile-username-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+.profile-username-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--bg-soft);
+  padding: 0 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.profile-username-input-wrap:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-soft));
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.profile-username-prefix {
+  color: var(--text-muted);
+  font-weight: 700;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.profile-username-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-main);
+  font-size: 1rem;
+  padding: 14px 0;
+  outline: none;
+}
+
+.profile-username-message {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.profile-username-message--error {
+  color: #b91c1c;
+}
+
+.profile-username-message--success {
+  color: #047857;
+}
+
+.profile-username-save {
+  width: 100%;
+  justify-content: center;
+  min-height: 44px;
+}
+
 .profile-race-badge {
   display: inline-flex;
   align-items: center;
