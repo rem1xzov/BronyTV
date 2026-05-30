@@ -41,6 +41,7 @@ services:
       BRONYTV_VIDEOS_ROOT: /app/media
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:-123456}"
       Cors__AllowedOrigins__0: ${FRONTEND_ORIGIN:-http://localhost:8080}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
     restart: unless-stopped
     networks:
       brony-net:

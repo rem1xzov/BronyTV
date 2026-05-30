@@ -15,20 +15,17 @@ public class AuthController : ControllerBase
     private readonly IAdminService _adminService;
     private readonly IUserAuthService _userAuthService;
     private readonly IUserRepository _userRepository;
-    private readonly IHostEnvironment _environment;
     private readonly IConfiguration _configuration;
 
     public AuthController(
         IAdminService adminService,
         IUserAuthService userAuthService,
         IUserRepository userRepository,
-        IHostEnvironment environment,
         IConfiguration configuration)
     {
         _adminService = adminService;
         _userAuthService = userAuthService;
         _userRepository = userRepository;
-        _environment = environment;
         _configuration = configuration;
     }
 
@@ -105,7 +102,7 @@ public class AuthController : ControllerBase
         Response.Cookies.Append(
             AuthCookieHelper.SessionCookieName,
             string.Empty,
-            AuthCookieHelper.CreateExpiredCookieOptions(_environment));
+            AuthCookieHelper.CreateExpiredCookieOptions(Request));
         return Ok();
     }
 
@@ -116,7 +113,7 @@ public class AuthController : ControllerBase
         Response.Cookies.Append(
             AuthCookieHelper.SessionCookieName,
             sessionToken,
-            AuthCookieHelper.CreateSessionCookieOptions(_environment, lifetimeDays));
+            AuthCookieHelper.CreateSessionCookieOptions(Request, lifetimeDays));
     }
 
     private bool TryGetUserId(out Guid userId)

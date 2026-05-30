@@ -7,7 +7,9 @@ using BronyTV.Infrastructure;
 using BronyTV.Repository;
 using BronyTV.Service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 
@@ -31,15 +33,61 @@ builder.Services.AddScoped<IVideoService, VideoService>();
 builder.Services.AddScoped<IUserAuthService, UserAuthService>();
 builder.Services.AddControllers();
 
-var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
-    ?? new[] { "http://localhost:8080" };
+builder.Services.Configure<CookiePolicyOptions>(options =>
+{
+    options.HttpOnly = HttpOnlyPolicy.Always;
+    options.Secure = CookieSecurePolicy.SameAsRequest;
+    options.MinimumSameSitePolicy = SameSiteMode.Lax;
+});
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+static string[] BuildAllowedOrigins(IConfiguration configuration)
+{
+    var origins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()?.ToList()
+        ?? new List<string> { "http://localhost:8080" };
+
+    var frontendOrigin = configuration["FRONTEND_ORIGIN"]
+        ?? Environment.GetEnvironmentVariable("FRONTEND_ORIGIN");
+    if (!string.IsNullOrWhiteSpace(frontendOrigin))
+    {
+        origins.Add(frontendOrigin.Trim());
+    }
+
+    var extraOrigins = configuration["Cors:ExtraOrigins"]
+        ?? Environment.GetEnvironmentVariable("CORS_EXTRA_ORIGINS");
+    if (!string.IsNullOrWhiteSpace(extraOrigins))
+    {
+        origins.AddRange(extraOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    return origins
+        .Where(origin => !string.IsNullOrWhiteSpace(origin))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+}
+
+var allowedOrigins = BuildAllowedOrigins(builder.Configuration);
 
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(OpenCorsPolicy, policy =>
     {
         policy
-            .WithOrigins(allowedOrigins)
+            .SetIsOriginAllowed(origin =>
+            {
+                if (string.IsNullOrWhiteSpace(origin))
+                {
+                    return false;
+                }
+
+                return allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
+            })
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()
@@ -191,6 +239,8 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 
 // CORS оборачивает статику: ответы /videos и wwwroot получают заголовки для кросс-доменного плеера.
+app.UseForwardedHeaders();
+app.UseCookiePolicy();
 app.UseCors(OpenCorsPolicy);
 
 // /videos/* отдаёт VideoStreamController (PhysicalFile + enableRangeProcessing) для Safari/iOS.

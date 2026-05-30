@@ -18,13 +18,14 @@ export const apiUrl = (path) => {
 };
 
 export const apiFetch = (path, options = {}) => {
-  const headers = { ...(options.headers || {}) };
-  if (options.body && !headers["Content-Type"]) {
+  const { credentials: _ignoredCredentials, headers: optionHeaders, ...restOptions } = options;
+  const headers = { ...(optionHeaders || {}) };
+  if (restOptions.body && !headers["Content-Type"]) {
     headers["Content-Type"] = "application/json";
   }
 
   return fetch(apiUrl(path), {
-    ...options,
+    ...restOptions,
     credentials: "include",
     headers
   });
