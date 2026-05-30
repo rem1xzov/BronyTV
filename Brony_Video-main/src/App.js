@@ -24,6 +24,7 @@ import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-
 import { apiFetch, apiUrl } from "./auth/api";
 import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
+import VideoCommentsSection from "./components/VideoCommentsSection";
 
 const SEASON_INFO = [
   {
@@ -751,6 +752,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   });
   const routeEpisode = location.state?.episode;
   const selectedEpisode = episodes.find((item) => item.id === episode) || routeEpisode || episodes[0];
+  const matchedRemoteVideo = remoteVideos.find(
+    (video) => (video.episodeNumber ?? video.EpisodeNumber) === selectedEpisode?.id
+  );
+  const videoId = matchedRemoteVideo?.id ?? matchedRemoteVideo?.Id ?? null;
   const nextEpisodes = episodes.filter((item) => item.id > (selectedEpisode?.id || 0)).slice(0, 5);
   const nextEpisode = episodes.find((item) => item.id === (selectedEpisode?.id || 0) + 1) || null;
   const playerRef = useRef(null);
@@ -1735,6 +1740,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
           Назад к сезону
         </Link>
       </div>
+      <VideoCommentsSection videoId={videoId} />
       <div className="next-videos">
         <h3>Следующие видео</h3>
         {nextEpisodes.length === 0 ? (

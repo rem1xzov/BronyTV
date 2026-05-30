@@ -50,6 +50,27 @@ public static class DatabaseInitializer
             ADD COLUMN IF NOT EXISTS "AvatarEmoji" character varying(32);
         """;
 
+    private const string EnsureCommentsTableSql = """
+        CREATE TABLE IF NOT EXISTS public."Comments" (
+            "Id" uuid NOT NULL,
+            "VideoId" uuid NOT NULL,
+            "UserId" uuid NOT NULL,
+            "Text" character varying(500) NOT NULL,
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            CONSTRAINT "PK_Comments" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_Comments_Videos_VideoId" FOREIGN KEY ("VideoId")
+                REFERENCES public."Videos" ("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_Comments_Users_UserId" FOREIGN KEY ("UserId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_Comments_VideoId"
+            ON public."Comments" ("VideoId");
+
+        CREATE INDEX IF NOT EXISTS "IX_Comments_UserId"
+            ON public."Comments" ("UserId");
+        """;
+
     public static async Task ApplyMigrationsAndEnsureSchemaAsync(
         DbBronyTV context,
         ILogger logger,
@@ -69,6 +90,16 @@ public static class DatabaseInitializer
         await EnsureUsersTableAsync(context, logger, cancellationToken);
         await EnsureUsernameColumnAsync(context, logger, cancellationToken);
         await EnsureAvatarEmojiColumnAsync(context, logger, cancellationToken);
+        await EnsureCommentsTableAsync(context, logger, cancellationToken);
+    }
+
+    public static async Task EnsureCommentsTableAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureCommentsTableSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Comments\" table exists (CREATE TABLE IF NOT EXISTS).");
     }
 
     public static async Task EnsureAvatarEmojiColumnAsync(

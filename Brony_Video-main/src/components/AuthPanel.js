@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { LogIn, LogOut, UserCircle, UserPlus } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import AuthModal from "./AuthModal";
@@ -26,6 +26,17 @@ export default function AuthPanel() {
   const closeProfile = () => {
     setProfileOpen(false);
   };
+
+  useEffect(() => {
+    const handleOpenProfile = () => {
+      if (user) {
+        setProfileOpen(true);
+      }
+    };
+
+    window.addEventListener("bronytv:open-profile", handleOpenProfile);
+    return () => window.removeEventListener("bronytv:open-profile", handleOpenProfile);
+  }, [user]);
 
   if (loading) {
     return (

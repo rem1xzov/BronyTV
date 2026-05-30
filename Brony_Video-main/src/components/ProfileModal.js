@@ -40,6 +40,11 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
   const [passwordError, setPasswordError] = useState("");
   const [passwordSuccess, setPasswordSuccess] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [usernameChangeFormOpen, setUsernameChangeFormOpen] = useState(false);
+  const [changeUsernameInput, setChangeUsernameInput] = useState("");
+  const [changeUsernameError, setChangeUsernameError] = useState("");
+  const [changeUsernameSuccess, setChangeUsernameSuccess] = useState("");
+  const [changeUsernameSaving, setChangeUsernameSaving] = useState(false);
   const [emojiFormOpen, setEmojiFormOpen] = useState(false);
   const [emojiInput, setEmojiInput] = useState("");
   const [emojiError, setEmojiError] = useState("");
@@ -83,6 +88,11 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
       setPasswordError("");
       setPasswordSuccess("");
       setPasswordSaving(false);
+      setUsernameChangeFormOpen(false);
+      setChangeUsernameInput("");
+      setChangeUsernameError("");
+      setChangeUsernameSuccess("");
+      setChangeUsernameSaving(false);
       setEmojiFormOpen(false);
       setEmojiInput("");
       setEmojiError("");
@@ -192,6 +202,46 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
     setPasswordError("");
     setPasswordSuccess("");
     setPasswordSaving(false);
+  };
+
+  const resetUsernameChangeForm = () => {
+    setUsernameChangeFormOpen(false);
+    setChangeUsernameInput(displayUser?.username || "");
+    setChangeUsernameError("");
+    setChangeUsernameSuccess("");
+    setChangeUsernameSaving(false);
+  };
+
+  const handleChangeUsername = async (event) => {
+    event.preventDefault();
+    setChangeUsernameError("");
+    setChangeUsernameSuccess("");
+
+    const validation = validateUsername(changeUsernameInput);
+    if (!validation.valid) {
+      setChangeUsernameError(validation.error);
+      return;
+    }
+
+    setChangeUsernameSaving(true);
+    try {
+      await updateUsername(validation.value);
+      const profile = await refreshUser();
+      const normalized = normalizeAuthUser(profile) ?? normalizeAuthUser(user);
+      if (normalized) {
+        setProfileUser(normalized);
+      }
+      setChangeUsernameSuccess("Юзернейм обновлён");
+      setChangeUsernameInput(validation.value);
+      window.setTimeout(() => {
+        setUsernameChangeFormOpen(false);
+        setChangeUsernameSuccess("");
+      }, 1200);
+    } catch (error) {
+      setChangeUsernameError(error.message || "Не удалось сохранить юзернейм.");
+    } finally {
+      setChangeUsernameSaving(false);
+    }
   };
 
   const handleSavePassword = async (event) => {
@@ -583,6 +633,79 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
                   </form>
                 )}
               </div>
+
+              {hasUsername ? (
+                <div className="profile-username-change-section">
+                  {!usernameChangeFormOpen ? (
+                    <button
+                      type="button"
+                      className="secondary-btn profile-username-change-toggle"
+                      onClick={() => {
+                        setUsernameChangeFormOpen(true);
+                        setChangeUsernameInput(displayUser.username || "");
+                        setChangeUsernameError("");
+                        setChangeUsernameSuccess("");
+                      }}
+                    >
+                      Сменить юзернейм
+                    </button>
+                  ) : (
+                    <form className="profile-username-change-form" onSubmit={handleChangeUsername}>
+                      <p className="profile-username-change-form-title">Смена юзернейма</p>
+                      <div className="profile-username-input-wrap">
+                        <span className="profile-username-prefix" aria-hidden="true">
+                          @
+                        </span>
+                        <input
+                          type="text"
+                          className="profile-username-input"
+                          value={changeUsernameInput}
+                          onChange={(event) => {
+                            setChangeUsernameInput(event.target.value);
+                            setChangeUsernameError("");
+                            setChangeUsernameSuccess("");
+                          }}
+                          placeholder="новый_юзернейм"
+                          autoComplete="username"
+                          autoCapitalize="off"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          maxLength={25}
+                          aria-label="Новый юзернейм"
+                          aria-invalid={Boolean(changeUsernameError)}
+                        />
+                      </div>
+                      {changeUsernameError ? (
+                        <p className="profile-username-message profile-username-message--error" role="alert">
+                          {changeUsernameError}
+                        </p>
+                      ) : null}
+                      {changeUsernameSuccess ? (
+                        <p className="profile-username-message profile-username-message--success" role="status">
+                          {changeUsernameSuccess}
+                        </p>
+                      ) : null}
+                      <div className="profile-username-change-actions">
+                        <button
+                          type="submit"
+                          className="primary-btn profile-username-change-save"
+                          disabled={changeUsernameSaving}
+                        >
+                          {changeUsernameSaving ? "Сохранение…" : "Сохранить юзернейм"}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary-btn profile-username-change-cancel"
+                          onClick={resetUsernameChangeForm}
+                          disabled={changeUsernameSaving}
+                        >
+                          Отмена
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                </div>
+              ) : null}
             </div>
           ) : (
             <div className="profile-modal-state profile-modal-state--expired">
