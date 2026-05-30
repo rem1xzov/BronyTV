@@ -40,6 +40,8 @@ services:
       VideoStorage__RootPath: /app/media
       BRONYTV_VIDEOS_ROOT: /app/media
       ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:-123456}"
+      Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+      Cors__AllowedOrigins__0: ${FRONTEND_ORIGIN:-http://localhost:8080}
     restart: unless-stopped
     networks:
       brony-net:
@@ -52,6 +54,7 @@ services:
       dockerfile: Brony_Video-main/Dockerfile
       args:
         REACT_APP_API_BASE_URL: /api
+        REACT_APP_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
     container_name: brony-frontend
     depends_on:
       backend:

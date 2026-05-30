@@ -1,4 +1,4 @@
-﻿using BronyTV.DbContext.Configuration;
+using BronyTV.DbContext.Configuration;
 using BronyTV.DbContext.Entity;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,11 +13,13 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<SeasonEntity> Seasons => Set<SeasonEntity>();
     public DbSet<VideoEntity> Videos => Set<VideoEntity>();
     public DbSet<AdminEntity> Admins => Set<AdminEntity>();
+    public DbSet<UserEntity> Users => Set<UserEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new SeasonConfiguration());
         modelBuilder.ApplyConfiguration(new VideoConfiguration());
         modelBuilder.ApplyConfiguration(new AdminConfiguration());
+        modelBuilder.ApplyConfiguration(new UserConfiguration());
     }
 }

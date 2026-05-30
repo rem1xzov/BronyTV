@@ -21,6 +21,10 @@ import {
   VolumeX
 } from "lucide-react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { apiFetch, apiUrl } from "./auth/api";
+import { useAuth } from "./auth/AuthContext";
+import GoogleSignInButton from "./components/GoogleSignInButton";
+import RaceSelectionModal from "./components/RaceSelectionModal";
 
 const SEASON_INFO = [
   {
@@ -230,14 +234,6 @@ const encodeResourcePath = (path) => {
     return query || "/";
   }
   return `/${segments.map((segment) => encodeURIComponent(segment)).join("/")}${query}`;
-};
-
-const apiUrl = (path) => {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  if (!API_BASE_URL) {
-    return normalized;
-  }
-  return `${API_BASE_URL}${normalized}`;
 };
 
 const toAbsoluteApiUrl = (path) => {
@@ -507,6 +503,9 @@ function EpisodePlaceholderIcon({ episodeNumber }) {
 function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
   return (
     <aside className="sidebar">
+      <div className="sidebar-auth">
+        <GoogleSignInButton />
+      </div>
       <button type="button" className="nav-pill theme-switch" onClick={onToggleTheme}>
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
         <span>{theme === "dark" ? "Свет" : "Тьма"}</span>
@@ -753,6 +752,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const nextEpisodes = episodes.filter((item) => item.id > (selectedEpisode?.id || 0)).slice(0, 5);
   const nextEpisode = episodes.find((item) => item.id === (selectedEpisode?.id || 0) + 1) || null;
   const playerRef = useRef(null);
+  const timelineInputRef = useRef(null);
   const playerShellRef = useRef(null);
   const settingsAnchorRef = useRef(null);
   const settingsDropdownRef = useRef(null);
@@ -1096,25 +1096,98 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     return () => shell.removeEventListener("mousemove", handleMouseMove);
   }, [revealControls, videoSrc]);
 
-  const handleSeek = useCallback(
-    (event) => {
+  const applyTimelineTime = useCallback((nextTime) => {
+    const player = playerRef.current;
+    const input = timelineInputRef.current;
+    if (!player) {
+      return;
+    }
+    const duration = player.duration || Number(input?.max) || 0;
+    if (!duration || Number.isNaN(nextTime)) {
+      return;
+    }
+    const maxTime = Math.max(0, duration - 0.25);
+    const clampedTime = Math.min(maxTime, Math.max(0, nextTime));
+    player.currentTime = clampedTime;
+    if (input) {
+      input.value = String(clampedTime);
+    }
+    setPlaybackUi((prev) => ({ ...prev, current: clampedTime }));
+  }, []);
+
+  const seekTimelineFromClientX = useCallback(
+    (clientX) => {
+      const input = timelineInputRef.current;
       const player = playerRef.current;
-      const nextTime = Number(event.target.value);
-      if (!player || Number.isNaN(nextTime)) {
+      if (!input || !player) {
         return;
       }
-      const duration = player.duration;
-      const maxTime =
-        duration && !Number.isNaN(duration) ? Math.max(0, duration - 0.25) : Number.POSITIVE_INFINITY;
-      const clampedTime = Math.min(maxTime, Math.max(0, nextTime));
-      player.currentTime = clampedTime;
-      setPlaybackUi((prev) => ({ ...prev, current: clampedTime }));
-      revealControls();
+      const rect = input.getBoundingClientRect();
+      if (!rect.width) {
+        return;
+      }
+      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      const duration = player.duration || Number(input.max) || 0;
+      if (!duration) {
+        return;
+      }
+      applyTimelineTime(ratio * duration);
     },
-    [revealControls]
+    [applyTimelineTime]
   );
 
-  const handleTimelineSeekStart = useCallback(
+  const handleSeek = useCallback(
+    (event) => {
+      const nextTime = Number(event.target.value);
+      if (Number.isNaN(nextTime)) {
+        return;
+      }
+      applyTimelineTime(nextTime);
+      revealControls();
+    },
+    [applyTimelineTime, revealControls]
+  );
+
+  const handleTimelineTouchStart = useCallback(
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setTimelineActive(true);
+      revealControls();
+      const touch = event.touches?.[0];
+      if (touch) {
+        seekTimelineFromClientX(touch.clientX);
+      }
+    },
+    [revealControls, seekTimelineFromClientX]
+  );
+
+  const handleTimelineTouchMove = useCallback(
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const touch = event.touches?.[0];
+      if (touch) {
+        seekTimelineFromClientX(touch.clientX);
+      }
+    },
+    [seekTimelineFromClientX]
+  );
+
+  const handleTimelineTouchEnd = useCallback(
+    (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setTimelineActive(false);
+      const touch = event.changedTouches?.[0];
+      if (touch) {
+        seekTimelineFromClientX(touch.clientX);
+      }
+    },
+    [seekTimelineFromClientX]
+  );
+
+  const handleTimelinePointerDown = useCallback(
     (event) => {
       event.stopPropagation();
       setTimelineActive(true);
@@ -1123,7 +1196,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [revealControls]
   );
 
-  const handleTimelineSeekEnd = useCallback((event) => {
+  const handleTimelinePointerUp = useCallback((event) => {
     event.stopPropagation();
     setTimelineActive(false);
   }, []);
@@ -1530,6 +1603,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 />
               </div>
               <input
+                ref={timelineInputRef}
                 type="range"
                 className="player-timeline"
                 min={0}
@@ -1538,14 +1612,13 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 value={Math.min(playbackUi.current, playbackUi.duration || 0)}
                 onChange={handleSeek}
                 onInput={handleSeek}
-                onPointerDown={handleTimelineSeekStart}
-                onPointerUp={handleTimelineSeekEnd}
-                onPointerCancel={handleTimelineSeekEnd}
-                onTouchStart={handleTimelineSeekStart}
-                onTouchEnd={handleTimelineSeekEnd}
-                onTouchCancel={handleTimelineSeekEnd}
-                onMouseDown={handleTimelineSeekStart}
-                onMouseUp={handleTimelineSeekEnd}
+                onPointerDown={handleTimelinePointerDown}
+                onPointerUp={handleTimelinePointerUp}
+                onPointerCancel={handleTimelinePointerUp}
+                onTouchStart={handleTimelineTouchStart}
+                onTouchMove={handleTimelineTouchMove}
+                onTouchEnd={handleTimelineTouchEnd}
+                onTouchCancel={handleTimelineTouchEnd}
                 aria-label="Позиция воспроизведения"
               />
               <span className="player-time">
@@ -1673,6 +1746,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 }
 
 export default function App() {
+  const { raceModalOpen, selectRace } = useAuth();
   const location = useLocation();
   const [currentSeason, setCurrentSeason] = useState(1);
   const [currentPage, setCurrentPage] = useState("home");
@@ -1694,7 +1768,7 @@ export default function App() {
   useEffect(() => {
     const loadSeasons = async () => {
       try {
-        const response = await fetch(apiUrl("/api/season"));
+        const response = await apiFetch("/api/season");
         if (!response.ok) {
           return;
         }
@@ -1716,7 +1790,7 @@ export default function App() {
       return;
     }
     try {
-      const response = await fetch(apiUrl(`/api/video/season/${seasonNumber}`));
+      const response = await apiFetch(`/api/video/season/${seasonNumber}`);
       if (!response.ok) {
         return;
       }
@@ -1818,6 +1892,7 @@ export default function App() {
 
   return (
     <div className="page-frame">
+      <RaceSelectionModal open={raceModalOpen} onConfirm={selectRace} />
       <div className="video-blur video-blur-left" />
       <div className="video-blur video-blur-right" />
       <div className="app-shell">
