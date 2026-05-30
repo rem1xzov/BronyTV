@@ -1782,7 +1782,7 @@ export default function App() {
   useEffect(() => {
     const loadSeasons = async () => {
       try {
-        const response = await apiFetch("/api/season");
+        const response = await apiFetch("/season");
         if (!response.ok) {
           return;
         }
@@ -1804,7 +1804,7 @@ export default function App() {
       return;
     }
     try {
-      const response = await apiFetch(`/api/video/season/${seasonNumber}`);
+      const response = await apiFetch(`/video/season/${seasonNumber}`);
       if (!response.ok) {
         return;
       }
