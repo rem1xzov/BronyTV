@@ -756,6 +756,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     (video) => (video.episodeNumber ?? video.EpisodeNumber) === selectedEpisode?.id
   );
   const videoId = matchedRemoteVideo?.id ?? matchedRemoteVideo?.Id ?? null;
+  const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
   const playerInstanceKey = `s${safeSeason}-e${selectedEpisode?.id || episode}-${videoId || videoSrc || "local"}`;
   const nextEpisodes = episodes.filter((item) => item.id > (selectedEpisode?.id || 0)).slice(0, 5);
   const nextEpisode = episodes.find((item) => item.id === (selectedEpisode?.id || 0) + 1) || null;
@@ -803,7 +804,6 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     !isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused || timelineActive;
   const controlsHidden = isPlaying && !controlsVisible && !controlsLocked;
 
-  const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
   const downloadFileName = useMemo(() => {
     const rawPath = selectedEpisode?.filePath || videoSrc;
     if (!rawPath) {
