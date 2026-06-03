@@ -3304,6 +3304,62 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 @media (max-width: 768px) {
+  .primary-btn,
+  .secondary-btn {
+    padding: 6px 12px;
+    font-size: 14px;
+    gap: 4px;
+  }
+
+  .primary-btn.small,
+  .secondary-btn.small {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+
+  .primary-btn svg,
+  .secondary-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .nav-pill {
+    min-width: 64px;
+    padding: 8px 4px;
+    font-size: 10px;
+    gap: 2px;
+  }
+
+  .nav-pill svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .sidebar-auth-btn,
+  .sidebar-profile-btn {
+    min-height: 38px;
+    padding: 8px 10px;
+    font-size: 9px;
+    gap: 2px;
+  }
+
+  .sidebar-auth-btn svg,
+  .sidebar-profile-btn svg {
+    width: 14px;
+    height: 14px;
+  }
+
+  .auth-modal-submit {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .episode-actions .primary-btn,
+  .episode-actions .secondary-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
   .profile-modal-overlay {
     padding: 16px;
     align-items: stretch;

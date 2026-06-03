@@ -756,6 +756,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     (video) => (video.episodeNumber ?? video.EpisodeNumber) === selectedEpisode?.id
   );
   const videoId = matchedRemoteVideo?.id ?? matchedRemoteVideo?.Id ?? null;
+  const playerInstanceKey = `s${safeSeason}-e${selectedEpisode?.id || episode}-${videoId || videoSrc || "local"}`;
   const nextEpisodes = episodes.filter((item) => item.id > (selectedEpisode?.id || 0)).slice(0, 5);
   const nextEpisode = episodes.find((item) => item.id === (selectedEpisode?.id || 0) + 1) || null;
   const playerRef = useRef(null);
@@ -834,7 +835,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     setVolumeFocused(false);
     setTimelineActive(false);
     lastSavedSecondRef.current = -1;
-  }, [videoSrc, safeSeason, episode]);
+  }, [videoSrc, safeSeason, episode, playerInstanceKey]);
 
   useEffect(() => {
     if (!settingsOpen) {
@@ -1010,6 +1011,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     }
     mobileTapPendingRef.current = null;
   }, []);
+
+  useEffect(() => {
+    clearMobileTapPending();
+  }, [playerInstanceKey, clearMobileTapPending]);
 
   const MOBILE_DOUBLE_TAP_MS = 300;
 
@@ -1250,11 +1255,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
       if (zone === "center") {
         clearMobileTapPending();
-        if (!isPlaying) {
-          togglePlayPause();
-          return;
-        }
         toggleControlsVisibility();
+        revealControls();
         return;
       }
 
@@ -1273,16 +1275,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         mobileTapPendingRef.current = { zone, time: now, suppressPlayPause: true };
 
         const player = playerRef.current;
-        if (player && typeof player.currentTime === "number") {
-          const duration = player.duration;
-          const maxTime =
-            duration && !Number.isNaN(duration)
-              ? Math.max(0, duration - 0.25)
-              : Number.POSITIVE_INFINITY;
-          const nextTime = Math.min(maxTime, Math.max(0, player.currentTime + deltaSeconds));
-          player.currentTime = nextTime;
-          setPlaybackUi((prev) => ({ ...prev, current: nextTime }));
-        }
+        seekBySeconds(deltaSeconds);
         showSkipFeedback(zone);
 
         window.setTimeout(() => {
@@ -1301,7 +1294,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
           return;
         }
         mobileTapPendingRef.current = null;
-        togglePlayPause();
+        toggleControlsVisibility();
         revealControls();
       }, MOBILE_DOUBLE_TAP_MS);
 
@@ -1311,11 +1304,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       clearMobileTapPending,
       isMobilePlayerViewport,
       isPlayerChromeTarget,
-      isPlaying,
       revealControls,
+      seekBySeconds,
       showSkipFeedback,
-      toggleControlsVisibility,
-      togglePlayPause
+      toggleControlsVisibility
     ]
   );
 
@@ -1378,16 +1370,26 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [applyPlaybackSpeed]
   );
 
+  const handleVideoLoadStart = useCallback((event) => {
+    const player = event.currentTarget;
+    player.currentTime = 0;
+    setPlaybackUi({ current: 0, duration: 0 });
+    setVideoEnded(false);
+    setNearEpisodeEnd(false);
+    setResumeLabel("");
+  }, []);
+
   const handleVideoLoadedMetadata = useCallback(
     (event) => {
       const player = event.currentTarget;
       player.playbackRate = playbackSpeed;
       player.volume = isMuted ? volume : volumeSliderValue;
       player.muted = isMuted;
-      setPlaybackUi({
-        current: player.currentTime || 0,
-        duration: player.duration || 0
-      });
+
+      const duration = player.duration || 0;
+      player.currentTime = 0;
+      setPlaybackUi({ current: 0, duration });
+
       const progressMap = readStorageObject(STORAGE_KEYS.VIDEO_PROGRESS);
       const saved = progressMap[progressStorageKey];
       if (!saved || typeof saved.time !== "number") {
@@ -1396,10 +1398,14 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       }
 
       const targetTime = Math.max(0, saved.time);
-      if (player.duration && targetTime > 0 && targetTime < player.duration - 1) {
+      if (duration && targetTime > 0 && targetTime < duration - 1) {
         player.currentTime = targetTime;
+        setPlaybackUi({ current: targetTime, duration });
+        setResumeLabel(`Продолжить с ${formatTime(targetTime)}`);
+        return;
       }
-      setResumeLabel(`Продолжить с ${formatTime(targetTime)}`);
+
+      setResumeLabel("");
     },
     [isMuted, playbackSpeed, progressStorageKey, volume, volumeSliderValue]
   );
@@ -1488,7 +1494,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         <div className="player-shell" ref={playerShellRef}>
           <div className="player-media-stage">
             <video
-              key={videoSrc}
+              key={playerInstanceKey}
               ref={playerRef}
               className="video-player video-large"
               playsInline
@@ -1497,10 +1503,13 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               src={videoSrc}
               onClick={() => {
                 if (window.matchMedia("(max-width: 768px)").matches) {
+                  toggleControlsVisibility();
+                  revealControls();
                   return;
                 }
                 togglePlayPause();
               }}
+              onLoadStart={handleVideoLoadStart}
               onLoadedMetadata={handleVideoLoadedMetadata}
               onTimeUpdate={handleVideoTimeUpdate}
               onPause={(event) => {
@@ -1530,7 +1539,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 type="button"
                 className="player-skip-zone player-skip-zone--center"
                 tabIndex={-1}
-                aria-label="Воспроизведение или пауза"
+                aria-label="Показать или скрыть элементы управления"
                 onTouchStart={handlePlayerTouchStart("center")}
                 onTouchEnd={handlePlayerTouchEnd("center", 0)}
                 onClick={suppressMobileSyntheticClick}

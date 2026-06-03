@@ -27,6 +27,14 @@ export default function AuthPanel() {
     setProfileOpen(false);
   };
 
+  const handleLogout = async () => {
+    const confirmed = window.confirm("Вы точно хотите выйти из аккаунта?");
+    if (!confirmed) {
+      return;
+    }
+    await logout();
+  };
+
   useEffect(() => {
     const handleOpenProfile = () => {
       if (user) {
@@ -69,7 +77,7 @@ export default function AuthPanel() {
           <button
             type="button"
             className="sidebar-auth-btn sidebar-auth-btn--logout"
-            onClick={logout}
+            onClick={handleLogout}
             aria-label="Выйти"
           >
             <LogOut size={16} />
