@@ -155,6 +155,10 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
   };
 
   const handleSignInAgain = async () => {
+    const confirmed = window.confirm("Вы точно хотите выйти из аккаунта?");
+    if (!confirmed) {
+      return;
+    }
     await logout();
     onClose();
     onRequestSignIn?.();
