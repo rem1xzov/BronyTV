@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { LogIn, UserPlus, X } from "lucide-react";
 import { RACE_OPTIONS, useAuth } from "../auth/AuthContext";
 import { getRaceLabel } from "../auth/race";
+import { validateUsername } from "../auth/username";
 
 export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
   const { login, register } = useAuth();
@@ -10,6 +11,7 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
   const firstFieldRef = useRef(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("");
   const [race, setRace] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -23,6 +25,7 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
     }
     setEmail("");
     setPassword("");
+    setUsername("");
     setRace("");
     setError("");
     setSuccess("");
@@ -64,8 +67,15 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
           setError("Выберите расу пони — выбор нельзя изменить позже.");
           return;
         }
-        await register({ email, password, race });
-        setSuccess(`Добро пожаловать! Ваша раса: ${getRaceLabel(race)}.`);
+
+        const usernameValidation = validateUsername(username);
+        if (!usernameValidation.valid) {
+          setError(usernameValidation.error);
+          return;
+        }
+
+        await register({ email, password, race, username: usernameValidation.value });
+        setSuccess(`Добро пожаловать, @${usernameValidation.value}! Ваша раса: ${getRaceLabel(race)}.`);
       } else {
         await login({ email, password });
         setSuccess("Вы успешно вошли в аккаунт.");
@@ -137,6 +147,30 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
               placeholder="Минимум 8 символов"
             />
           </label>
+
+          {isSignup ? (
+            <label className="auth-modal-field">
+              <span>Юзернейм</span>
+              <div className="auth-modal-username-wrap">
+                <span className="auth-modal-username-prefix" aria-hidden="true">
+                  @
+                </span>
+                <input
+                  type="text"
+                  required
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  placeholder="rainbowdash"
+                  autoComplete="username"
+                  autoCapitalize="off"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  maxLength={25}
+                />
+              </div>
+              <p className="auth-modal-notice">4–25 символов: латиница, цифры и _</p>
+            </label>
+          ) : null}
 
           {isSignup ? (
             <div className="auth-modal-field auth-modal-field--race">

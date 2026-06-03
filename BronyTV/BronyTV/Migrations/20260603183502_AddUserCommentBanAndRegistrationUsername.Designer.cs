@@ -3,6 +3,7 @@ using System;
 using BronyTV.DbContext;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace BronyTV.Migrations
 {
     [DbContext(typeof(DbBronyTV))]
-    partial class DbBronyTVModelSnapshot : ModelSnapshot
+    [Migration("20260603183502_AddUserCommentBanAndRegistrationUsername")]
+    partial class AddUserCommentBanAndRegistrationUsername
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

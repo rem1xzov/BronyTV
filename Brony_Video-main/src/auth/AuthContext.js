@@ -45,10 +45,10 @@ export function AuthProvider({ children }) {
     };
   }, [refreshUser]);
 
-  const register = useCallback(async ({ email, password, race }) => {
+  const register = useCallback(async ({ email, password, race, username }) => {
     const response = await apiFetch("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, race })
+      body: JSON.stringify({ email, password, race, username })
     });
     const raw = await response.json().catch(() => ({}));
     if (!response.ok) {

@@ -34,6 +34,7 @@ builder.Services.AddScoped<IVideoService, VideoService>();
 builder.Services.AddScoped<IUserAuthService, UserAuthService>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ICommentService, CommentService>();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
 builder.Services.Configure<AdminAccessOptions>(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
 builder.Services.AddSingleton<IAdminAccessService, AdminAccessService>();
 builder.Services.AddControllers();

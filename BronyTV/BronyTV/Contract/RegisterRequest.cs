@@ -17,4 +17,9 @@ public class RegisterRequest
     [Required]
     [MaxLength(32)]
     public string Race { get; set; } = string.Empty;
+
+    [Required]
+    [MinLength(4)]
+    [MaxLength(25)]
+    public string Username { get; set; } = string.Empty;
 }

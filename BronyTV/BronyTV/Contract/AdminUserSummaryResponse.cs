@@ -1,12 +1,11 @@
 namespace BronyTV.Contract;
 
-public class AuthUserResponse
+public class AdminUserSummaryResponse
 {
     public Guid Id { get; set; }
     public string Email { get; set; } = string.Empty;
     public string? Username { get; set; }
-    public string? AvatarEmoji { get; set; }
     public string Race { get; set; } = string.Empty;
-    public bool IsPlatformAdmin { get; set; }
     public bool IsBannedFromCommenting { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
 }

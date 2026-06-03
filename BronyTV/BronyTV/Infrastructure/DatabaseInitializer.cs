@@ -132,6 +132,21 @@ public static class DatabaseInitializer
         await EnsureCommentsTableAsync(context, logger, cancellationToken);
         await EnsureParentCommentIdColumnAsync(context, logger, cancellationToken);
         await EnsureCommentLikesTableAsync(context, logger, cancellationToken);
+        await EnsureUserCommentBanColumnAsync(context, logger, cancellationToken);
+    }
+
+    private const string EnsureUserCommentBanColumnSql = """
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "IsBannedFromCommenting" boolean NOT NULL DEFAULT FALSE;
+        """;
+
+    public static async Task EnsureUserCommentBanColumnAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureUserCommentBanColumnSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Users\".\"IsBannedFromCommenting\" column.");
     }
 
     public static async Task EnsureParentCommentIdColumnAsync(

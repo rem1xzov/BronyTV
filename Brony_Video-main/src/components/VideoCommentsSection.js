@@ -235,7 +235,8 @@ export default function VideoCommentsSection({ videoId, onRequestSetUsername }) 
   const [replyText, setReplyText] = useState("");
   const [replySubmitting, setReplySubmitting] = useState(false);
 
-  const canPost = Boolean(user?.username);
+  const isCommentBanned = Boolean(user?.isBannedFromCommenting);
+  const canPost = Boolean(user?.username) && !isCommentBanned;
   const commentTree = useMemo(() => buildCommentTree(comments), [comments]);
 
   const loadComments = useCallback(async () => {
@@ -429,8 +430,16 @@ export default function VideoCommentsSection({ videoId, onRequestSetUsername }) 
     <section className="video-comments">
       <h3>Комментарии</h3>
 
+      {isCommentBanned ? (
+        <div className="video-comments-ban-banner" role="alert">
+          Вы забанены администрацией и не можете оставлять комментарии
+        </div>
+      ) : null}
+
       {authLoading ? (
         <p className="muted">Проверка входа…</p>
+      ) : user && isCommentBanned ? (
+        <p className="muted">Просмотр и лайки доступны. Писать комментарии нельзя.</p>
       ) : user ? (
         canPost ? (
           <form className="video-comments-form" onSubmit={handleSubmit}>

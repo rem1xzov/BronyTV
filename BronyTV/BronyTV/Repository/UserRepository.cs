@@ -32,8 +32,32 @@ public class UserRepository : IUserRepository
                     && user.Id != userId,
             cancellationToken);
 
+    public Task<bool> UsernameExistsAsync(string username, CancellationToken cancellationToken = default) =>
+        _context.Users.AnyAsync(user => user.Username == username, cancellationToken);
+
     public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default) =>
         _context.Users.AnyAsync(user => user.Email == email, cancellationToken);
+
+    public async Task<IReadOnlyList<UserEntity>> SearchByUsernameOrEmailAsync(
+        string query,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = query.Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return Array.Empty<UserEntity>();
+        }
+
+        var emailQuery = $"%{normalized}%";
+        return await _context.Users
+            .AsNoTracking()
+            .Where(user =>
+                (user.Username != null && EF.Functions.ILike(user.Username, emailQuery))
+                || EF.Functions.ILike(user.Email, emailQuery))
+            .OrderBy(user => user.Username ?? user.Email)
+            .Take(20)
+            .ToListAsync(cancellationToken);
+    }
 
     public async Task<UserEntity> CreateAsync(UserEntity user, CancellationToken cancellationToken = default)
     {
@@ -46,5 +70,11 @@ public class UserRepository : IUserRepository
     {
         await _context.SaveChangesAsync(cancellationToken);
         return user;
+    }
+
+    public async Task DeleteAsync(UserEntity user, CancellationToken cancellationToken = default)
+    {
+        _context.Users.Remove(user);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }

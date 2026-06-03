@@ -30,6 +30,7 @@ public class UserAuthService : IUserAuthService
         string email,
         string password,
         string race,
+        string username,
         CancellationToken cancellationToken = default)
     {
         var normalizedEmail = NormalizeEmail(email);
@@ -48,9 +49,19 @@ public class UserAuthService : IUserAuthService
             return (null, "Выберите расу: пегасы, единороги или земные пони.");
         }
 
+        if (!UsernameRules.TryNormalize(username, out var normalizedUsername, out var usernameError))
+        {
+            return (null, usernameError);
+        }
+
         if (await _userRepository.EmailExistsAsync(normalizedEmail, cancellationToken))
         {
             return (null, "Пользователь с таким email уже зарегистрирован.");
+        }
+
+        if (await _userRepository.UsernameExistsAsync(normalizedUsername, cancellationToken))
+        {
+            return (null, "Этот юзернейм уже занят");
         }
 
         var now = DateTime.UtcNow;
@@ -58,10 +69,12 @@ public class UserAuthService : IUserAuthService
         {
             Id = Guid.NewGuid(),
             Email = normalizedEmail,
+            Username = normalizedUsername,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             Race = normalizedRace,
             CreatedAtUtc = now,
-            RaceSelectedAtUtc = now
+            RaceSelectedAtUtc = now,
+            IsBannedFromCommenting = false
         };
 
         var created = await _userRepository.CreateAsync(user, cancellationToken);
@@ -123,7 +136,8 @@ public class UserAuthService : IUserAuthService
             Username = user.Username,
             AvatarEmoji = user.AvatarEmoji,
             Race = user.Race,
-            IsPlatformAdmin = _adminAccessService.IsPrivilegedUser(user.Username, user.Email)
+            IsPlatformAdmin = _adminAccessService.IsPrivilegedUser(user.Username, user.Email),
+            IsBannedFromCommenting = user.IsBannedFromCommenting
         };
 
     public async Task<(AuthUserResponse? Response, string? Error)> UpdateUsernameAsync(

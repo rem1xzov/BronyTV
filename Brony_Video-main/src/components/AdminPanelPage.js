@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Home, Upload } from "lucide-react";
+import { ArrowLeft, Home, Upload, Users } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch, apiUpload } from "../auth/api";
@@ -21,6 +21,28 @@ function normalizeSeason(raw) {
   return { id, number, title };
 }
 
+function normalizeAdminUser(raw) {
+  if (!raw || typeof raw !== "object") {
+    return null;
+  }
+
+  const id = raw.id ?? raw.Id;
+  if (!id) {
+    return null;
+  }
+
+  return {
+    id,
+    email: raw.email ?? raw.Email ?? "",
+    username: raw.username ?? raw.Username ?? null,
+    race: raw.race ?? raw.Race ?? "",
+    isBannedFromCommenting: Boolean(
+      raw.isBannedFromCommenting ?? raw.IsBannedFromCommenting ?? false
+    ),
+    createdAtUtc: raw.createdAtUtc ?? raw.CreatedAtUtc ?? null
+  };
+}
+
 export default function AdminPanelPage() {
   const navigate = useNavigate();
   const { user, loading, refreshUser } = useAuth();
@@ -36,6 +58,13 @@ export default function AdminPanelPage() {
   const [uploadError, setUploadError] = useState("");
   const [uploadSuccess, setUploadSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [activeTab, setActiveTab] = useState("upload");
+  const [userQuery, setUserQuery] = useState("");
+  const [userResults, setUserResults] = useState([]);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [userActionError, setUserActionError] = useState("");
+  const [userActionMessage, setUserActionMessage] = useState("");
+  const [userActionId, setUserActionId] = useState(null);
 
   useEffect(() => {
     if (loading) {
@@ -162,6 +191,100 @@ export default function AdminPanelPage() {
     }
   };
 
+  const handleUserSearch = async (event) => {
+    event.preventDefault();
+    setUserActionError("");
+    setUserActionMessage("");
+
+    const query = userQuery.trim();
+    if (!query) {
+      setUserResults([]);
+      return;
+    }
+
+    setUserSearchLoading(true);
+
+    try {
+      const response = await apiFetch(
+        `/admin/users/search?query=${encodeURIComponent(query)}`
+      );
+      const raw = await response.json().catch(() => []);
+      if (!response.ok) {
+        const message = raw?.message || "Не удалось найти пользователей.";
+        throw new Error(message);
+      }
+
+      const list = Array.isArray(raw) ? raw : [];
+      setUserResults(list.map(normalizeAdminUser).filter(Boolean));
+    } catch (error) {
+      setUserActionError(error.message || "Не удалось найти пользователей.");
+      setUserResults([]);
+    } finally {
+      setUserSearchLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (targetUser) => {
+    const label = targetUser.username ? `@${targetUser.username}` : targetUser.email;
+    const confirmed = window.confirm(
+      `Полностью удалить пользователя ${label}? Это действие необратимо.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setUserActionId(targetUser.id);
+    setUserActionError("");
+    setUserActionMessage("");
+
+    try {
+      const response = await apiFetch(`/admin/users/${targetUser.id}`, { method: "DELETE" });
+      if (!response.ok) {
+        const raw = await response.json().catch(() => ({}));
+        throw new Error(raw.message || "Не удалось удалить пользователя.");
+      }
+
+      setUserResults((prev) => prev.filter((item) => item.id !== targetUser.id));
+      setUserActionMessage("Пользователь удалён.");
+    } catch (error) {
+      setUserActionError(error.message || "Не удалось удалить пользователя.");
+    } finally {
+      setUserActionId(null);
+    }
+  };
+
+  const handleToggleBan = async (targetUser) => {
+    setUserActionId(targetUser.id);
+    setUserActionError("");
+    setUserActionMessage("");
+
+    try {
+      const response = await apiFetch(`/admin/users/${targetUser.id}/toggle-comment-ban`, {
+        method: "PUT"
+      });
+      const raw = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(raw.message || "Не удалось изменить статус бана.");
+      }
+
+      const updated = normalizeAdminUser(raw);
+      if (updated) {
+        setUserResults((prev) =>
+          prev.map((item) => (item.id === updated.id ? updated : item))
+        );
+        setUserActionMessage(
+          updated.isBannedFromCommenting
+            ? "Пользователь забанен в комментариях."
+            : "Пользователь разбанен в комментариях."
+        );
+      }
+    } catch (error) {
+      setUserActionError(error.message || "Не удалось изменить статус бана.");
+    } finally {
+      setUserActionId(null);
+    }
+  };
+
   if (loading || !isPlatformAdmin(user)) {
     return (
       <section className="admin-panel admin-panel--loading">
@@ -175,7 +298,7 @@ export default function AdminPanelPage() {
       <header className="admin-panel-header">
         <div className="admin-panel-heading">
           <h1>Админ-панель</h1>
-          <p className="admin-panel-subtitle">Загрузка серий и управление каталогом</p>
+          <p className="admin-panel-subtitle">Загрузка серий, пользователи и модерация</p>
         </div>
         <div className="admin-panel-nav">
           <Link className="secondary-btn admin-panel-nav-btn" to="/">
@@ -189,6 +312,98 @@ export default function AdminPanelPage() {
         </div>
       </header>
 
+      <div className="admin-panel-tabs" role="tablist" aria-label="Разделы админ-панели">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "upload"}
+          className={`admin-panel-tab${activeTab === "upload" ? " is-active" : ""}`}
+          onClick={() => setActiveTab("upload")}
+        >
+          <Upload size={16} aria-hidden="true" />
+          <span>Загрузка видео</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "users"}
+          className={`admin-panel-tab${activeTab === "users" ? " is-active" : ""}`}
+          onClick={() => setActiveTab("users")}
+        >
+          <Users size={16} aria-hidden="true" />
+          <span>Управление пользователями</span>
+        </button>
+      </div>
+
+      {activeTab === "users" ? (
+        <article className="admin-card admin-card--users">
+          <h2>Управление пользователями</h2>
+          <form className="admin-user-search-form" onSubmit={handleUserSearch}>
+            <input
+              type="search"
+              value={userQuery}
+              onChange={(event) => setUserQuery(event.target.value)}
+              placeholder="Юзернейм или email"
+              aria-label="Поиск пользователя"
+            />
+            <button type="submit" className="primary-btn" disabled={userSearchLoading}>
+              {userSearchLoading ? "Поиск…" : "Найти"}
+            </button>
+          </form>
+
+          {userActionError ? (
+            <p className="admin-message admin-message--error" role="alert">
+              {userActionError}
+            </p>
+          ) : null}
+          {userActionMessage ? (
+            <p className="admin-message admin-message--success" role="status">
+              {userActionMessage}
+            </p>
+          ) : null}
+
+          {userResults.length === 0 && !userSearchLoading ? (
+            <p className="muted">Введите юзернейм или email и нажмите «Найти».</p>
+          ) : (
+            <ul className="admin-user-results">
+              {userResults.map((foundUser) => (
+                <li key={foundUser.id} className="admin-user-card">
+                  <div className="admin-user-card-meta">
+                    <strong>
+                      {foundUser.username ? `@${foundUser.username}` : "— без юзернейма —"}
+                    </strong>
+                    <span className="muted">{foundUser.email}</span>
+                    <span className="muted">ID: {foundUser.id}</span>
+                    {foundUser.isBannedFromCommenting ? (
+                      <span className="admin-user-ban-badge">Бан в комментариях</span>
+                    ) : null}
+                  </div>
+                  <div className="admin-user-card-actions">
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      disabled={userActionId === foundUser.id}
+                      onClick={() => handleToggleBan(foundUser)}
+                    >
+                      {foundUser.isBannedFromCommenting
+                        ? "Разбанить"
+                        : "Забанить в комментариях"}
+                    </button>
+                    <button
+                      type="button"
+                      className="danger-btn"
+                      disabled={userActionId === foundUser.id}
+                      onClick={() => handleDeleteUser(foundUser)}
+                    >
+                      Полностью удалить
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </article>
+      ) : (
       <div className="admin-panel-grid">
         <article className="admin-card">
           <h2>Сезоны в каталоге</h2>
@@ -305,6 +520,7 @@ export default function AdminPanelPage() {
           </form>
         </article>
       </div>
+      )}
     </section>
   );
 }

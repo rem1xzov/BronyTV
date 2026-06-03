@@ -43,5 +43,9 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
 
         builder.Property(user => user.RaceSelectedAtUtc)
             .IsRequired();
+
+        builder.Property(user => user.IsBannedFromCommenting)
+            .HasDefaultValue(false)
+            .IsRequired();
     }
 }

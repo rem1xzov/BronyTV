@@ -9,6 +9,7 @@ public interface IUserAuthService
         string email,
         string password,
         string race,
+        string username,
         CancellationToken cancellationToken = default);
 
     Task<UserEntity?> AuthenticateAsync(

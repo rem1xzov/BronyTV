@@ -10,4 +10,5 @@ public class UserEntity
     public string Race { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
     public DateTime RaceSelectedAtUtc { get; set; }
+    public bool IsBannedFromCommenting { get; set; }
 }

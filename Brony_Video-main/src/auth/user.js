@@ -8,6 +8,8 @@ export const normalizeAuthUser = (raw) => {
   const usernameRaw = raw.username ?? raw.Username ?? null;
   const avatarEmojiRaw = raw.avatarEmoji ?? raw.AvatarEmoji ?? null;
   const isPlatformAdminRaw = raw.isPlatformAdmin ?? raw.IsPlatformAdmin ?? false;
+  const isBannedFromCommentingRaw =
+    raw.isBannedFromCommenting ?? raw.IsBannedFromCommenting ?? false;
   const id = raw.id ?? raw.Id;
 
   if (!email && !id) {
@@ -30,6 +32,7 @@ export const normalizeAuthUser = (raw) => {
     username,
     avatarEmoji,
     race: typeof race === "string" ? race : String(race ?? ""),
-    isPlatformAdmin: Boolean(isPlatformAdminRaw)
+    isPlatformAdmin: Boolean(isPlatformAdminRaw),
+    isBannedFromCommenting: Boolean(isBannedFromCommentingRaw)
   };
 };

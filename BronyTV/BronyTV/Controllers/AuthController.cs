@@ -48,6 +48,7 @@ public class AuthController : ControllerBase
             request.Email,
             request.Password,
             request.Race,
+            request.Username,
             cancellationToken);
 
         if (response == null)

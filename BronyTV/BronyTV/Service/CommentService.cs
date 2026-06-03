@@ -72,6 +72,11 @@ public class CommentService : ICommentService
             return (null, "Сначала задайте юзернейм в личном кабинете.", StatusCodes.Status400BadRequest);
         }
 
+        if (user.IsBannedFromCommenting)
+        {
+            return (null, "Вы забанены и не можете писать комментарии", StatusCodes.Status403Forbidden);
+        }
+
         if (parentCommentId.HasValue)
         {
             var parent = await _commentRepository.GetByIdAsync(parentCommentId.Value, cancellationToken);

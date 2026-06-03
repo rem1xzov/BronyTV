@@ -1587,68 +1587,69 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 revealControls();
               }}
             >
-              <button
-                type="button"
-                className="player-chrome-btn"
-                onClick={() => {
-                  togglePlayPause();
-                  revealControls();
-                }}
-                aria-label={isPlaying ? "Пауза" : "Воспроизведение"}
-              >
-                {isPlaying ? <Pause size={20} /> : <Play size={20} />}
-              </button>
-              <div className="player-volume-control">
+              <div className="player-chrome-row">
                 <button
                   type="button"
-                  className="player-chrome-btn player-volume-btn"
-                  onClick={toggleMute}
-                  aria-label={isMuted ? "Включить звук" : "Выключить звук"}
-                >
-                  <VolumeIcon size={20} />
-                </button>
-                <input
-                  type="range"
-                  className="player-volume-slider"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  value={volumeSliderValue}
-                  onChange={handleVolumeChange}
-                  onFocus={() => {
-                    setVolumeFocused(true);
+                  className="player-chrome-btn"
+                  onClick={() => {
+                    togglePlayPause();
                     revealControls();
                   }}
-                  onBlur={() => setVolumeFocused(false)}
-                  aria-label="Громкость"
-                />
-              </div>
-              <div
-                className="player-timeline-wrap"
-                onTouchStart={isolateTimelineTouch}
-                onTouchMove={isolateTimelineTouch}
-                onTouchEnd={isolateTimelineTouch}
-              >
-                <input
-                  ref={timelineInputRef}
-                  type="range"
-                  className="player-timeline"
-                  min={0}
-                  max={playbackUi.duration || 0}
-                  step={0.1}
-                  value={Math.min(playbackUi.current, playbackUi.duration || 0)}
-                  onChange={handleSeek}
-                  onInput={handleSeek}
-                  onPointerDown={handleTimelinePointerDown}
-                  onPointerUp={handleTimelinePointerUp}
-                  onPointerCancel={handleTimelinePointerUp}
-                  aria-label="Позиция воспроизведения"
-                />
-              </div>
-              <span className="player-time">
-                {formatTime(playbackUi.current)} / {formatTime(playbackUi.duration)}
-              </span>
-              <div className="player-chrome-bar-right">
+                  aria-label={isPlaying ? "Пауза" : "Воспроизведение"}
+                >
+                  {isPlaying ? <Pause size={20} /> : <Play size={20} />}
+                </button>
+                <div className="player-volume-control">
+                  <button
+                    type="button"
+                    className="player-chrome-btn player-volume-btn"
+                    onClick={toggleMute}
+                    aria-label={isMuted ? "Включить звук" : "Выключить звук"}
+                  >
+                    <VolumeIcon size={20} />
+                  </button>
+                  <input
+                    type="range"
+                    className="player-volume-slider"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={volumeSliderValue}
+                    onChange={handleVolumeChange}
+                    onFocus={() => {
+                      setVolumeFocused(true);
+                      revealControls();
+                    }}
+                    onBlur={() => setVolumeFocused(false)}
+                    aria-label="Громкость"
+                  />
+                </div>
+                <div
+                  className="player-timeline-wrap"
+                  onTouchStart={isolateTimelineTouch}
+                  onTouchMove={isolateTimelineTouch}
+                  onTouchEnd={isolateTimelineTouch}
+                >
+                  <input
+                    ref={timelineInputRef}
+                    type="range"
+                    className="player-timeline"
+                    min={0}
+                    max={playbackUi.duration || 0}
+                    step={0.1}
+                    value={Math.min(playbackUi.current, playbackUi.duration || 0)}
+                    onChange={handleSeek}
+                    onInput={handleSeek}
+                    onPointerDown={handleTimelinePointerDown}
+                    onPointerUp={handleTimelinePointerUp}
+                    onPointerCancel={handleTimelinePointerUp}
+                    aria-label="Позиция воспроизведения"
+                  />
+                </div>
+                <span className="player-time">
+                  {formatTime(playbackUi.current)} / {formatTime(playbackUi.duration)}
+                </span>
+                <div className="player-chrome-bar-right">
                 <div className="player-settings-wrap" ref={settingsAnchorRef}>
                   <button
                     type="button"
@@ -1717,6 +1718,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 >
                   {isShellFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
                 </button>
+                </div>
               </div>
             </div>
           </div>
