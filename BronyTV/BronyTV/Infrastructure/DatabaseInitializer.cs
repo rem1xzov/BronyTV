@@ -133,6 +133,66 @@ public static class DatabaseInitializer
         await EnsureParentCommentIdColumnAsync(context, logger, cancellationToken);
         await EnsureCommentLikesTableAsync(context, logger, cancellationToken);
         await EnsureUserCommentBanColumnAsync(context, logger, cancellationToken);
+        await EnsureUserPlatformRoleColumnAsync(context, logger, cancellationToken);
+        await EnsureForumTablesAsync(context, logger, cancellationToken);
+    }
+
+    private const string EnsureUserPlatformRoleColumnSql = """
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "PlatformRole" character varying(16) NOT NULL DEFAULT 'User';
+        """;
+
+    private const string EnsureForumTablesSql = """
+        CREATE TABLE IF NOT EXISTS public."ForumThreads" (
+            "Id" uuid NOT NULL,
+            "Title" character varying(150) NOT NULL,
+            "Description" character varying(4000),
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            "AuthorId" uuid NOT NULL,
+            CONSTRAINT "PK_ForumThreads" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_ForumThreads_Users_AuthorId" FOREIGN KEY ("AuthorId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_ForumThreads_CreatedAtUtc"
+            ON public."ForumThreads" ("CreatedAtUtc");
+
+        CREATE TABLE IF NOT EXISTS public."ForumPosts" (
+            "Id" uuid NOT NULL,
+            "ThreadId" uuid NOT NULL,
+            "Content" character varying(4000) NOT NULL,
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            "AuthorId" uuid NOT NULL,
+            CONSTRAINT "PK_ForumPosts" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_ForumPosts_ForumThreads_ThreadId" FOREIGN KEY ("ThreadId")
+                REFERENCES public."ForumThreads" ("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_ForumPosts_Users_AuthorId" FOREIGN KEY ("AuthorId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_ForumPosts_ThreadId"
+            ON public."ForumPosts" ("ThreadId");
+
+        CREATE INDEX IF NOT EXISTS "IX_ForumPosts_CreatedAtUtc"
+            ON public."ForumPosts" ("CreatedAtUtc");
+        """;
+
+    public static async Task EnsureUserPlatformRoleColumnAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureUserPlatformRoleColumnSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Users\".\"PlatformRole\" column.");
+    }
+
+    public static async Task EnsureForumTablesAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureForumTablesSql, cancellationToken);
+        logger.LogInformation("Verified public forum tables exist (CREATE TABLE IF NOT EXISTS).");
     }
 
     private const string EnsureUserCommentBanColumnSql = """

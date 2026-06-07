@@ -15,6 +15,7 @@ import {
   SkipForward,
   Star,
   Sun,
+  MessageSquare,
   Tv,
   Volume1,
   Volume2,
@@ -24,6 +25,7 @@ import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-
 import { apiFetch, apiUrl } from "./auth/api";
 import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
+import ForumPage from "./components/ForumPage";
 import VideoCommentsSection from "./components/VideoCommentsSection";
 
 const SEASON_INFO = [
@@ -370,6 +372,9 @@ const getPageFromPath = (path) => {
   if (path.startsWith("/admin")) {
     return "admin";
   }
+  if (path.startsWith("/forum")) {
+    return "forum";
+  }
   return "home";
 };
 
@@ -516,6 +521,10 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
       <Link to="/" className={`nav-pill ${currentPage === "home" ? "active" : ""}`}>
         <Home size={16} />
         <span>Главная</span>
+      </Link>
+      <Link to="/forum" className={`nav-pill ${currentPage === "forum" ? "active" : ""}`}>
+        <MessageSquare size={16} />
+        <span>Форум</span>
       </Link>
       {Array.from({ length: CONSTANTS.TOTAL_SEASONS }, (_, index) => index + 1).map((season) => (
         <Link
@@ -1911,6 +1920,8 @@ export default function App() {
           }
         />
         <Route path="/admin" element={<AdminPanelPage />} />
+        <Route path="/forum" element={<ForumPage />} />
+        <Route path="/forum/:threadId" element={<ForumPage />} />
         <Route
           path="*"
           element={

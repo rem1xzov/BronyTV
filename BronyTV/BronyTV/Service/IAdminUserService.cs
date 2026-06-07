@@ -4,6 +4,11 @@ namespace BronyTV.Service;
 
 public interface IAdminUserService
 {
+    Task<AdminUserListResponse> ListUsersAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<AdminUserSummaryResponse>> SearchUsersAsync(
         string query,
         CancellationToken cancellationToken = default);
@@ -14,6 +19,14 @@ public interface IAdminUserService
         CancellationToken cancellationToken = default);
 
     Task<(AdminUserSummaryResponse? Response, string? Error, int StatusCode)> ToggleCommentBanAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task<(AdminUserSummaryResponse? Response, string? Error, int StatusCode)> PromoteToAdminAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task<(AdminUserSummaryResponse? Response, string? Error, int StatusCode)> DemoteFromAdminAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
 }

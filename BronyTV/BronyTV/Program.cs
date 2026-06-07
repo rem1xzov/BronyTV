@@ -35,6 +35,8 @@ builder.Services.AddScoped<IUserAuthService, UserAuthService>();
 builder.Services.AddScoped<ICommentRepository, CommentRepository>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<IAdminUserService, AdminUserService>();
+builder.Services.AddScoped<IForumRepository, ForumRepository>();
+builder.Services.AddScoped<IForumService, ForumService>();
 builder.Services.Configure<AdminAccessOptions>(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
 builder.Services.AddSingleton<IAdminAccessService, AdminAccessService>();
 builder.Services.AddControllers();
@@ -136,28 +138,40 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
                     return;
                 }
 
-                var adminAccess = context.HttpContext.RequestServices.GetRequiredService<IAdminAccessService>();
-                var username = principal.FindFirstValue("username");
-                var email = principal.FindFirstValue(ClaimTypes.Email);
-
-                if (!adminAccess.IsPrivilegedUser(username, email)
-                    && Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
-                {
-                    var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
-                    var user = await userRepository.GetByIdAsync(userId);
-                    if (user != null)
-                    {
-                        username = user.Username;
-                        email = user.Email;
-                    }
-                }
-
-                if (!adminAccess.IsPrivilegedUser(username, email))
+                if (principal.Identity is not ClaimsIdentity identity)
                 {
                     return;
                 }
 
-                if (principal.Identity is ClaimsIdentity identity)
+                var adminAccess = context.HttpContext.RequestServices.GetRequiredService<IAdminAccessService>();
+                var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
+                UserEntity? user = null;
+
+                if (Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+                {
+                    user = await userRepository.GetByIdAsync(userId);
+                }
+
+                if (user != null)
+                {
+                    if (adminAccess.IsOwnerUser(user)
+                        || string.Equals(user.PlatformRole, "Owner", StringComparison.Ordinal))
+                    {
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "Owner"));
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                        return;
+                    }
+
+                    if (string.Equals(user.PlatformRole, "Admin", StringComparison.Ordinal))
+                    {
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                        return;
+                    }
+                }
+
+                var username = user?.Username ?? principal.FindFirstValue("username");
+                var email = user?.Email ?? principal.FindFirstValue(ClaimTypes.Email);
+                if (adminAccess.IsPrivilegedUser(username, email))
                 {
                     identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
                 }
@@ -223,6 +237,20 @@ await using (var scope = app.Services.CreateAsyncScope())
         startupLogger.LogInformation(
             "Создана запись AdminEntity для {Login} (вход через /api/auth/login или сессия пользователя с этим юзернеймом).",
             platformAdminLogin);
+    }
+
+    var ownerUsers = await context.Users
+        .Where(user => user.Username != null && user.Username.ToLower() == platformAdminLogin)
+        .ToListAsync();
+    foreach (var ownerUser in ownerUsers)
+    {
+        ownerUser.PlatformRole = "Owner";
+    }
+
+    if (context.ChangeTracker.HasChanges())
+    {
+        await context.SaveChangesAsync();
+        startupLogger.LogInformation("Синхронизированы роли владельца для пользователей {Login}.", platformAdminLogin);
     }
 
     string BuildPosterPath(int seasonNumber)

@@ -13,6 +13,11 @@ public interface IUserRepository
     Task<IReadOnlyList<UserEntity>> SearchByUsernameOrEmailAsync(
         string query,
         CancellationToken cancellationToken = default);
+
+    Task<(IReadOnlyList<UserEntity> Items, int TotalCount)> ListUsersAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
     Task<UserEntity> CreateAsync(UserEntity user, CancellationToken cancellationToken = default);
     Task<UserEntity> SaveChangesAsync(UserEntity user, CancellationToken cancellationToken = default);
     Task DeleteAsync(UserEntity user, CancellationToken cancellationToken = default);

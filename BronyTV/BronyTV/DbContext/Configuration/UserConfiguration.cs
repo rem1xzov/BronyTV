@@ -47,5 +47,10 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
         builder.Property(user => user.IsBannedFromCommenting)
             .HasDefaultValue(false)
             .IsRequired();
+
+        builder.Property(user => user.PlatformRole)
+            .HasMaxLength(16)
+            .HasDefaultValue(Models.PlatformRoles.User)
+            .IsRequired();
     }
 }

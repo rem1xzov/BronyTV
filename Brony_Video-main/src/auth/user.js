@@ -7,6 +7,8 @@ export const normalizeAuthUser = (raw) => {
   const race = raw.race ?? raw.Race ?? "";
   const usernameRaw = raw.username ?? raw.Username ?? null;
   const avatarEmojiRaw = raw.avatarEmoji ?? raw.AvatarEmoji ?? null;
+  const platformRoleRaw = raw.platformRole ?? raw.PlatformRole ?? "User";
+  const isOwnerRaw = raw.isOwner ?? raw.IsOwner ?? false;
   const isPlatformAdminRaw = raw.isPlatformAdmin ?? raw.IsPlatformAdmin ?? false;
   const isBannedFromCommentingRaw =
     raw.isBannedFromCommenting ?? raw.IsBannedFromCommenting ?? false;
@@ -32,6 +34,8 @@ export const normalizeAuthUser = (raw) => {
     username,
     avatarEmoji,
     race: typeof race === "string" ? race : String(race ?? ""),
+    platformRole: String(platformRoleRaw || "User"),
+    isOwner: Boolean(isOwnerRaw),
     isPlatformAdmin: Boolean(isPlatformAdminRaw),
     isBannedFromCommenting: Boolean(isBannedFromCommentingRaw)
   };

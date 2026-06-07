@@ -59,6 +59,21 @@ public class UserRepository : IUserRepository
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<(IReadOnlyList<UserEntity> Items, int TotalCount)> ListUsersAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        var safePage = Math.Max(1, page);
+        var safePageSize = Math.Clamp(pageSize, 1, 100);
+        var skip = (safePage - 1) * safePageSize;
+
+        var query = _context.Users.AsNoTracking().OrderByDescending(user => user.CreatedAtUtc);
+        var total = await query.CountAsync(cancellationToken);
+        var items = await query.Skip(skip).Take(safePageSize).ToListAsync(cancellationToken);
+        return (items, total);
+    }
+
     public async Task<UserEntity> CreateAsync(UserEntity user, CancellationToken cancellationToken = default)
     {
         _context.Users.Add(user);

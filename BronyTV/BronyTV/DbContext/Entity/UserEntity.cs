@@ -11,4 +11,5 @@ public class UserEntity
     public DateTime CreatedAtUtc { get; set; }
     public DateTime RaceSelectedAtUtc { get; set; }
     public bool IsBannedFromCommenting { get; set; }
+    public string PlatformRole { get; set; } = "User";
 }

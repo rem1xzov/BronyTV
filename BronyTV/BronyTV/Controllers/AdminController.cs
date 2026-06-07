@@ -17,6 +17,16 @@ public class AdminController : ControllerBase
         _adminUserService = adminUserService;
     }
 
+    [HttpGet("users")]
+    public async Task<IActionResult> ListUsers(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var users = await _adminUserService.ListUsersAsync(page, pageSize, cancellationToken);
+        return Ok(users);
+    }
+
     [HttpGet("users/search")]
     public async Task<IActionResult> SearchUsers([FromQuery] string? query, CancellationToken cancellationToken)
     {
@@ -54,6 +64,36 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> ToggleCommentBan(Guid userId, CancellationToken cancellationToken)
     {
         var (response, error, statusCode) = await _adminUserService.ToggleCommentBanAsync(
+            userId,
+            cancellationToken);
+
+        if (response == null)
+        {
+            return StatusCode(statusCode, new { message = error });
+        }
+
+        return Ok(response);
+    }
+
+    [HttpPut("users/{userId:guid}/promote-admin")]
+    public async Task<IActionResult> PromoteAdmin(Guid userId, CancellationToken cancellationToken)
+    {
+        var (response, error, statusCode) = await _adminUserService.PromoteToAdminAsync(
+            userId,
+            cancellationToken);
+
+        if (response == null)
+        {
+            return StatusCode(statusCode, new { message = error });
+        }
+
+        return Ok(response);
+    }
+
+    [HttpPut("users/{userId:guid}/demote-admin")]
+    public async Task<IActionResult> DemoteAdmin(Guid userId, CancellationToken cancellationToken)
+    {
+        var (response, error, statusCode) = await _adminUserService.DemoteFromAdminAsync(
             userId,
             cancellationToken);
 

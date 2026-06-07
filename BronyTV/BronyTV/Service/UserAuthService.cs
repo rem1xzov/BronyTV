@@ -74,7 +74,8 @@ public class UserAuthService : IUserAuthService
             Race = normalizedRace,
             CreatedAtUtc = now,
             RaceSelectedAtUtc = now,
-            IsBannedFromCommenting = false
+            IsBannedFromCommenting = false,
+            PlatformRole = _adminAccessService.ResolveInitialRoleForUsername(normalizedUsername)
         };
 
         var created = await _userRepository.CreateAsync(user, cancellationToken);
@@ -109,10 +110,11 @@ public class UserAuthService : IUserAuthService
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Email, user.Email),
             new(ClaimTypes.Name, user.Email),
-            new(ClaimTypes.Role, "User"),
             new("race", user.Race),
-            new("username", user.Username ?? string.Empty)
+            new("username", user.Username ?? string.Empty),
+            new("platform_role", user.PlatformRole)
         };
+        AppendRoleClaims(claims, user);
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -136,7 +138,11 @@ public class UserAuthService : IUserAuthService
             Username = user.Username,
             AvatarEmoji = user.AvatarEmoji,
             Race = user.Race,
-            IsPlatformAdmin = _adminAccessService.IsPrivilegedUser(user.Username, user.Email),
+            PlatformRole = _adminAccessService.IsOwnerUser(user) ? PlatformRoles.Owner : user.PlatformRole,
+            IsOwner = _adminAccessService.IsOwnerUser(user),
+            IsPlatformAdmin = _adminAccessService.IsOwnerUser(user)
+                || PlatformRoles.IsAdminOrOwner(user.PlatformRole)
+                || _adminAccessService.IsPrivilegedUser(user.Username, user.Email),
             IsBannedFromCommenting = user.IsBannedFromCommenting
         };
 
@@ -212,6 +218,36 @@ public class UserAuthService : IUserAuthService
         user.AvatarEmoji = normalized;
         await _userRepository.SaveChangesAsync(user, cancellationToken);
         return (MapUserResponse(user), null);
+    }
+
+    private void AppendRoleClaims(List<Claim> claims, UserEntity user)
+    {
+        claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.User));
+
+        if (_adminAccessService.IsOwnerUser(user))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.Owner));
+            claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.Admin));
+            return;
+        }
+
+        if (PlatformRoles.IsOwner(user.PlatformRole))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.Owner));
+            claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.Admin));
+            return;
+        }
+
+        if (string.Equals(user.PlatformRole, PlatformRoles.Admin, StringComparison.Ordinal))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.Admin));
+            return;
+        }
+
+        if (_adminAccessService.IsPrivilegedUser(user.Username, user.Email))
+        {
+            claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.Admin));
+        }
     }
 
     private static string NormalizeEmail(string email) =>

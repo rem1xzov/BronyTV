@@ -36,11 +36,25 @@ function normalizeAdminUser(raw) {
     email: raw.email ?? raw.Email ?? "",
     username: raw.username ?? raw.Username ?? null,
     race: raw.race ?? raw.Race ?? "",
+    role: raw.role ?? raw.Role ?? "User",
+    isOwner: Boolean(raw.isOwner ?? raw.IsOwner ?? false),
     isBannedFromCommenting: Boolean(
       raw.isBannedFromCommenting ?? raw.IsBannedFromCommenting ?? false
     ),
     createdAtUtc: raw.createdAtUtc ?? raw.CreatedAtUtc ?? null
   };
+}
+
+const USERS_PAGE_SIZE = 20;
+
+function formatRoleLabel(user) {
+  if (user.isOwner || user.role === "Owner") {
+    return "Владелец";
+  }
+  if (user.role === "Admin") {
+    return "Админ";
+  }
+  return "Пользователь";
 }
 
 export default function AdminPanelPage() {
@@ -59,9 +73,11 @@ export default function AdminPanelPage() {
   const [uploadSuccess, setUploadSuccess] = useState("");
   const [uploading, setUploading] = useState(false);
   const [activeTab, setActiveTab] = useState("upload");
-  const [userQuery, setUserQuery] = useState("");
   const [userResults, setUserResults] = useState([]);
-  const [userSearchLoading, setUserSearchLoading] = useState(false);
+  const [userPage, setUserPage] = useState(1);
+  const [userTotal, setUserTotal] = useState(0);
+  const [userHasMore, setUserHasMore] = useState(false);
+  const [userListLoading, setUserListLoading] = useState(false);
   const [userActionError, setUserActionError] = useState("");
   const [userActionMessage, setUserActionMessage] = useState("");
   const [userActionId, setUserActionId] = useState(null);
@@ -191,38 +207,37 @@ export default function AdminPanelPage() {
     }
   };
 
-  const handleUserSearch = async (event) => {
-    event.preventDefault();
+  const loadUsers = async (page = userPage) => {
+    setUserListLoading(true);
     setUserActionError("");
-    setUserActionMessage("");
-
-    const query = userQuery.trim();
-    if (!query) {
-      setUserResults([]);
-      return;
-    }
-
-    setUserSearchLoading(true);
 
     try {
       const response = await apiFetch(
-        `/admin/users/search?query=${encodeURIComponent(query)}`
+        `/admin/users?page=${page}&pageSize=${USERS_PAGE_SIZE}`
       );
-      const raw = await response.json().catch(() => []);
+      const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const message = raw?.message || "Не удалось найти пользователей.";
-        throw new Error(message);
+        throw new Error(raw.message || "Не удалось загрузить пользователей.");
       }
 
-      const list = Array.isArray(raw) ? raw : [];
-      setUserResults(list.map(normalizeAdminUser).filter(Boolean));
+      const items = Array.isArray(raw.items ?? raw.Items) ? raw.items ?? raw.Items : [];
+      setUserResults(items.map(normalizeAdminUser).filter(Boolean));
+      setUserPage(Number(raw.page ?? raw.Page ?? page));
+      setUserTotal(Number(raw.totalCount ?? raw.TotalCount ?? 0));
+      setUserHasMore(Boolean(raw.hasMore ?? raw.HasMore));
     } catch (error) {
-      setUserActionError(error.message || "Не удалось найти пользователей.");
+      setUserActionError(error.message || "Не удалось загрузить пользователей.");
       setUserResults([]);
     } finally {
-      setUserSearchLoading(false);
+      setUserListLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (activeTab === "users") {
+      loadUsers(1);
+    }
+  }, [activeTab]);
 
   const handleDeleteUser = async (targetUser) => {
     const label = targetUser.username ? `@${targetUser.username}` : targetUser.email;
@@ -244,8 +259,8 @@ export default function AdminPanelPage() {
         throw new Error(raw.message || "Не удалось удалить пользователя.");
       }
 
-      setUserResults((prev) => prev.filter((item) => item.id !== targetUser.id));
       setUserActionMessage("Пользователь удалён.");
+      await loadUsers(userPage);
     } catch (error) {
       setUserActionError(error.message || "Не удалось удалить пользователя.");
     } finally {
@@ -280,6 +295,70 @@ export default function AdminPanelPage() {
       }
     } catch (error) {
       setUserActionError(error.message || "Не удалось изменить статус бана.");
+    } finally {
+      setUserActionId(null);
+    }
+  };
+
+  const handlePromoteAdmin = async (targetUser) => {
+    const confirmed = window.confirm(
+      "Вы уверены, что хотите назначить этого пользователя администратором?"
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setUserActionId(targetUser.id);
+    setUserActionError("");
+    setUserActionMessage("");
+
+    try {
+      const response = await apiFetch(`/admin/users/${targetUser.id}/promote-admin`, {
+        method: "PUT"
+      });
+      const raw = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(raw.message || "Не удалось назначить администратора.");
+      }
+
+      const updated = normalizeAdminUser(raw);
+      if (updated) {
+        setUserResults((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      }
+      setUserActionMessage("Пользователь назначен администратором.");
+    } catch (error) {
+      setUserActionError(error.message || "Не удалось назначить администратора.");
+    } finally {
+      setUserActionId(null);
+    }
+  };
+
+  const handleDemoteAdmin = async (targetUser) => {
+    const confirmed = window.confirm("Убрать у пользователя права администратора?");
+    if (!confirmed) {
+      return;
+    }
+
+    setUserActionId(targetUser.id);
+    setUserActionError("");
+    setUserActionMessage("");
+
+    try {
+      const response = await apiFetch(`/admin/users/${targetUser.id}/demote-admin`, {
+        method: "PUT"
+      });
+      const raw = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(raw.message || "Не удалось снять права администратора.");
+      }
+
+      const updated = normalizeAdminUser(raw);
+      if (updated) {
+        setUserResults((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      }
+      setUserActionMessage("Права администратора сняты.");
+    } catch (error) {
+      setUserActionError(error.message || "Не удалось снять права администратора.");
     } finally {
       setUserActionId(null);
     }
@@ -337,19 +416,13 @@ export default function AdminPanelPage() {
 
       {activeTab === "users" ? (
         <article className="admin-card admin-card--users">
-          <h2>Управление пользователями</h2>
-          <form className="admin-user-search-form" onSubmit={handleUserSearch}>
-            <input
-              type="search"
-              value={userQuery}
-              onChange={(event) => setUserQuery(event.target.value)}
-              placeholder="Юзернейм или email"
-              aria-label="Поиск пользователя"
-            />
-            <button type="submit" className="primary-btn" disabled={userSearchLoading}>
-              {userSearchLoading ? "Поиск…" : "Найти"}
-            </button>
-          </form>
+          <div className="admin-users-header">
+            <h2>Пользователи</h2>
+            <p className="muted">
+              Всего: {userTotal}
+              {userListLoading ? " · загрузка…" : ""}
+            </p>
+          </div>
 
           {userActionError ? (
             <p className="admin-message admin-message--error" role="alert">
@@ -362,46 +435,106 @@ export default function AdminPanelPage() {
             </p>
           ) : null}
 
-          {userResults.length === 0 && !userSearchLoading ? (
-            <p className="muted">Введите юзернейм или email и нажмите «Найти».</p>
+          {userListLoading && userResults.length === 0 ? (
+            <p className="muted">Загрузка списка пользователей…</p>
+          ) : userResults.length === 0 ? (
+            <p className="muted">Пользователи не найдены.</p>
           ) : (
-            <ul className="admin-user-results">
-              {userResults.map((foundUser) => (
-                <li key={foundUser.id} className="admin-user-card">
-                  <div className="admin-user-card-meta">
-                    <strong>
-                      {foundUser.username ? `@${foundUser.username}` : "— без юзернейма —"}
-                    </strong>
-                    <span className="muted">{foundUser.email}</span>
-                    <span className="muted">ID: {foundUser.id}</span>
-                    {foundUser.isBannedFromCommenting ? (
-                      <span className="admin-user-ban-badge">Бан в комментариях</span>
-                    ) : null}
-                  </div>
-                  <div className="admin-user-card-actions">
-                    <button
-                      type="button"
-                      className="secondary-btn"
-                      disabled={userActionId === foundUser.id}
-                      onClick={() => handleToggleBan(foundUser)}
-                    >
-                      {foundUser.isBannedFromCommenting
-                        ? "Разбанить"
-                        : "Забанить в комментариях"}
-                    </button>
-                    <button
-                      type="button"
-                      className="danger-btn"
-                      disabled={userActionId === foundUser.id}
-                      onClick={() => handleDeleteUser(foundUser)}
-                    >
-                      Полностью удалить
-                    </button>
-                  </div>
-                </li>
-              ))}
+            <ul className="admin-user-results admin-user-results--scroll">
+              {userResults.map((foundUser) => {
+                const isProtected = foundUser.isOwner;
+                const isAdmin = foundUser.role === "Admin";
+                const busy = userActionId === foundUser.id;
+
+                return (
+                  <li
+                    key={foundUser.id}
+                    className={`admin-user-card${isProtected ? " admin-user-card--owner" : ""}`}
+                  >
+                    <div className="admin-user-card-meta">
+                      <strong>
+                        {foundUser.username ? `@${foundUser.username}` : "— без юзернейма —"}
+                      </strong>
+                      <span className="muted">{foundUser.email}</span>
+                      <span className="admin-user-role-badge">{formatRoleLabel(foundUser)}</span>
+                      {foundUser.isBannedFromCommenting ? (
+                        <span className="admin-user-ban-badge">Бан в комментариях</span>
+                      ) : (
+                        <span className="admin-user-ok-badge">Комментарии разрешены</span>
+                      )}
+                    </div>
+                    {isProtected ? (
+                      <p className="admin-user-owner-note muted">
+                        Аккаунт владельца — действия недоступны.
+                      </p>
+                    ) : (
+                      <div className="admin-user-card-actions">
+                        {isAdmin ? (
+                          <button
+                            type="button"
+                            className="secondary-btn"
+                            disabled={busy}
+                            onClick={() => handleDemoteAdmin(foundUser)}
+                          >
+                            Удалить из админов
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="secondary-btn"
+                            disabled={busy}
+                            onClick={() => handlePromoteAdmin(foundUser)}
+                          >
+                            Сделать админом
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="secondary-btn"
+                          disabled={busy}
+                          onClick={() => handleToggleBan(foundUser)}
+                        >
+                          {foundUser.isBannedFromCommenting ? "Разбанить" : "Забанить"}
+                        </button>
+                        <button
+                          type="button"
+                          className="danger-btn"
+                          disabled={busy}
+                          onClick={() => handleDeleteUser(foundUser)}
+                        >
+                          Полностью удалить
+                        </button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ul>
           )}
+
+          {userTotal > USERS_PAGE_SIZE ? (
+            <div className="admin-users-pagination">
+              <button
+                type="button"
+                className="secondary-btn"
+                disabled={userPage <= 1 || userListLoading}
+                onClick={() => loadUsers(userPage - 1)}
+              >
+                Назад
+              </button>
+              <span className="muted">
+                Страница {userPage} из {Math.max(1, Math.ceil(userTotal / USERS_PAGE_SIZE))}
+              </span>
+              <button
+                type="button"
+                className="secondary-btn"
+                disabled={!userHasMore || userListLoading}
+                onClick={() => loadUsers(userPage + 1)}
+              >
+                Далее
+              </button>
+            </div>
+          ) : null}
         </article>
       ) : (
       <div className="admin-panel-grid">

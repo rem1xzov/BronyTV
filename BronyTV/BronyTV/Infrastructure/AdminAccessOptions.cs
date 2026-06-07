@@ -7,4 +7,8 @@ public class AdminAccessOptions
     public string[] PrivilegedUsernames { get; set; } = ["rainbowdash"];
 
     public string[] PrivilegedEmails { get; set; } = [];
+
+    public string[] OwnerUsernames { get; set; } = ["rainbowdash"];
+
+    public string[] OwnerUserIds { get; set; } = [];
 }

@@ -5,7 +5,12 @@ export function isPlatformAdmin(user) {
     return false;
   }
 
-  if (user.isPlatformAdmin === true) {
+  if (user.isPlatformAdmin === true || user.isOwner === true) {
+    return true;
+  }
+
+  const role = user.platformRole?.trim();
+  if (role === "Admin" || role === "Owner") {
     return true;
   }
 
