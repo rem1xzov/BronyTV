@@ -11,11 +11,6 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/5000"]
-      interval: 5s
-      timeout: 5s
-      retries: 6
     restart: unless-stopped
     networks:
       - brony-net
@@ -26,8 +21,7 @@ services:
       dockerfile: BronyTV/Dockerfile
     container_name: brony-backend
     depends_on:
-      db:
-        condition: service_healthy
+      - db
     ports:
       - "5000:5000"
     volumes:
@@ -41,11 +35,6 @@ services:
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:-G8#qT!p}
       - Cors__AllowedOrigins__0=${FRONTEND_ORIGIN:-http://localhost:8080}
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:8080}
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/"]
-      interval: 5s
-      timeout: 5s
-      retries: 6
     restart: unless-stopped
     networks:
       - brony-net
@@ -58,8 +47,7 @@ services:
         REACT_APP_API_BASE_URL: /api
     container_name: brony-frontend
     depends_on:
-      brony-backend:
-        condition: service_healthy
+      - brony-backend
     ports:
       - "8080:80"
     restart: always
