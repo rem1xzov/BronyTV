@@ -20,7 +20,7 @@ services:
     networks:
       - brony-net
 
- brony-backend:
+  brony-backend:
     build:
       context: .
       dockerfile: BronyTV/Dockerfile
@@ -41,7 +41,6 @@ services:
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:-G8#qT!p}
       - Cors__AllowedOrigins__0=${FRONTEND_ORIGIN:-http://localhost:8080}
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:8080}
-    # ДОБАВЛЯЕМ ПРОВЕРКУ ГОТОВНОСТИ БЭКЕНДА
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/"]
       interval: 5s
@@ -60,7 +59,7 @@ services:
     container_name: brony-frontend
     depends_on:
       brony-backend:
-        condition: service_healthy # ТЕПЕРЬ ЖДЕМ ПОЛНОЙ ГОТОВНОСТИ БЭКА, А НЕ ПРОСТО СТАРТА
+        condition: service_healthy
     ports:
       - "8080:80"
     restart: always
