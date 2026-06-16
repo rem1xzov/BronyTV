@@ -11,7 +11,6 @@ services:
       POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - postgres_data:/var/lib/postgresql/data
-
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d BronyTV"]
       interval: 5s
@@ -21,7 +20,7 @@ services:
     networks:
       - brony-net
 
-  backend:
+  brony-backend:
     build:
       context: .
       dockerfile: BronyTV/Dockerfile
@@ -54,7 +53,7 @@ services:
         REACT_APP_API_BASE_URL: /api
     container_name: brony-frontend
     depends_on:
-      backend:
+      brony-backend:
         condition: service_started
     ports:
       - "8080:80"
@@ -68,4 +67,3 @@ networks:
 
 volumes:
   postgres_data:
-    driver: local
