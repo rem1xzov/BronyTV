@@ -44,7 +44,8 @@ builder.Services.AddControllers();
 builder.Services.Configure<CookiePolicyOptions>(options =>
 {
     options.HttpOnly = HttpOnlyPolicy.Always;
-    options.Secure = CookieSecurePolicy.SameAsRequest;
+    options.Secure = CookieSecurePolicy.Never;
+    //options.Secure = CookieSecurePolicy.SameAsRequest;
     options.MinimumSameSitePolicy = SameSiteMode.Lax;
 });
 
