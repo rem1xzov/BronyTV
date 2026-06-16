@@ -46,7 +46,9 @@ services:
       args:
         REACT_APP_API_BASE_URL: /api
     container_name: brony-frontend
+    # ЖЕСТКАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ СТАРТА
     depends_on:
+      - db
       - brony-backend
     ports:
       - "8080:80"
