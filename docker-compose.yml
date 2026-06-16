@@ -38,6 +38,7 @@ services:
       - DISABLE_HTTPS_REDIRECT=true
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0:5000
+      ASPNETCORE_HTTPS_PORT: "0"
       - VideoStorage__RootPath=/app/media
       - BRONYTV_VIDEOS_ROOT=/app/media
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:-123456}
