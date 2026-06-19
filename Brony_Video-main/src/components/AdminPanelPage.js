@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Home, Upload, Users } from "lucide-react";
+import { ArrowLeft, Home, LifeBuoy, Upload, Users } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch, apiUpload } from "../auth/api";
+import AdminSupportPanel from "./AdminSupportPanel";
 
 function normalizeSeason(raw) {
   if (!raw || typeof raw !== "object") {
@@ -412,9 +413,21 @@ export default function AdminPanelPage() {
           <Users size={16} aria-hidden="true" />
           <span>Управление пользователями</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "support"}
+          className={`admin-panel-tab${activeTab === "support" ? " is-active" : ""}`}
+          onClick={() => setActiveTab("support")}
+        >
+          <LifeBuoy size={16} aria-hidden="true" />
+          <span>Обращения в поддержку</span>
+        </button>
       </div>
 
-      {activeTab === "users" ? (
+      {activeTab === "support" ? (
+        <AdminSupportPanel />
+      ) : activeTab === "users" ? (
         <article className="admin-card admin-card--users">
           <div className="admin-users-header">
             <h2>Пользователи</h2>
