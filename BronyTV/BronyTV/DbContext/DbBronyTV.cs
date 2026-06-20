@@ -18,6 +18,8 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<CommentLikeEntity> CommentLikes => Set<CommentLikeEntity>();
     public DbSet<ForumThreadEntity> ForumThreads => Set<ForumThreadEntity>();
     public DbSet<ForumPostEntity> ForumPosts => Set<ForumPostEntity>();
+    public DbSet<SupportTicketEntity> SupportTickets => Set<SupportTicketEntity>();
+    public DbSet<SupportMessageEntity> SupportMessages => Set<SupportMessageEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,5 +32,7 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new CommentLikeConfiguration());
         modelBuilder.ApplyConfiguration(new ForumThreadConfiguration());
         modelBuilder.ApplyConfiguration(new ForumPostConfiguration());
+        modelBuilder.ApplyConfiguration(new SupportTicketConfiguration());
+        modelBuilder.ApplyConfiguration(new SupportMessageConfiguration());
     }
 }

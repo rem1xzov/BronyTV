@@ -117,6 +117,16 @@ export function formatSupportDate(value) {
 
 export async function fetchUserTicket(userId) {
   const payload = await tryApi(`/support/tickets/me`);
+  if (Array.isArray(payload)) {
+    const tickets = payload.map(normalizeTicket).filter(Boolean);
+    if (tickets.length > 0) {
+      return tickets.sort(
+        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      )[0];
+    }
+    return null;
+  }
+
   const normalized = normalizeTicket(payload);
   if (normalized) {
     return normalized;

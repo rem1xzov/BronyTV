@@ -187,6 +187,68 @@ namespace BronyTV.Migrations
                     b.ToTable("Seasons", "public");
                 });
 
+            modelBuilder.Entity("BronyTV.DbContext.Entity.SupportMessageEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("SenderId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TicketId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("TicketId");
+
+                    b.ToTable("SupportMessages", "public");
+                });
+
+            modelBuilder.Entity("BronyTV.DbContext.Entity.SupportTicketEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsClosed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("IsClosed");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SupportTickets", "public");
+                });
+
             modelBuilder.Entity("BronyTV.DbContext.Entity.UserEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -356,6 +418,36 @@ namespace BronyTV.Migrations
                     b.Navigation("Author");
                 });
 
+            modelBuilder.Entity("BronyTV.DbContext.Entity.SupportMessageEntity", b =>
+                {
+                    b.HasOne("BronyTV.DbContext.Entity.UserEntity", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BronyTV.DbContext.Entity.SupportTicketEntity", "Ticket")
+                        .WithMany("Messages")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Sender");
+
+                    b.Navigation("Ticket");
+                });
+
+            modelBuilder.Entity("BronyTV.DbContext.Entity.SupportTicketEntity", b =>
+                {
+                    b.HasOne("BronyTV.DbContext.Entity.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("BronyTV.DbContext.Entity.VideoEntity", b =>
                 {
                     b.HasOne("BronyTV.DbContext.Entity.SeasonEntity", "Season")
@@ -377,6 +469,11 @@ namespace BronyTV.Migrations
             modelBuilder.Entity("BronyTV.DbContext.Entity.ForumThreadEntity", b =>
                 {
                     b.Navigation("Posts");
+                });
+
+            modelBuilder.Entity("BronyTV.DbContext.Entity.SupportTicketEntity", b =>
+                {
+                    b.Navigation("Messages");
                 });
 
             modelBuilder.Entity("BronyTV.DbContext.Entity.SeasonEntity", b =>

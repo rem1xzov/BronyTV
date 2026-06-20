@@ -135,6 +135,7 @@ public static class DatabaseInitializer
         await EnsureUserCommentBanColumnAsync(context, logger, cancellationToken);
         await EnsureUserPlatformRoleColumnAsync(context, logger, cancellationToken);
         await EnsureForumTablesAsync(context, logger, cancellationToken);
+        await EnsureSupportTablesAsync(context, logger, cancellationToken);
     }
 
     private const string EnsureUserPlatformRoleColumnSql = """
@@ -177,6 +178,47 @@ public static class DatabaseInitializer
             ON public."ForumPosts" ("CreatedAtUtc");
         """;
 
+    private const string EnsureSupportTablesSql = """
+        CREATE TABLE IF NOT EXISTS public."SupportTickets" (
+            "Id" uuid NOT NULL,
+            "UserId" uuid NOT NULL,
+            "Title" character varying(150) NOT NULL,
+            "IsClosed" boolean NOT NULL DEFAULT FALSE,
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            CONSTRAINT "PK_SupportTickets" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_SupportTickets_Users_UserId" FOREIGN KEY ("UserId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_SupportTickets_UserId"
+            ON public."SupportTickets" ("UserId");
+
+        CREATE INDEX IF NOT EXISTS "IX_SupportTickets_CreatedAtUtc"
+            ON public."SupportTickets" ("CreatedAtUtc");
+
+        CREATE INDEX IF NOT EXISTS "IX_SupportTickets_IsClosed"
+            ON public."SupportTickets" ("IsClosed");
+
+        CREATE TABLE IF NOT EXISTS public."SupportMessages" (
+            "Id" uuid NOT NULL,
+            "TicketId" uuid NOT NULL,
+            "SenderId" uuid NOT NULL,
+            "Content" character varying(4000) NOT NULL,
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            CONSTRAINT "PK_SupportMessages" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_SupportMessages_SupportTickets_TicketId" FOREIGN KEY ("TicketId")
+                REFERENCES public."SupportTickets" ("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_SupportMessages_Users_SenderId" FOREIGN KEY ("SenderId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_SupportMessages_TicketId"
+            ON public."SupportMessages" ("TicketId");
+
+        CREATE INDEX IF NOT EXISTS "IX_SupportMessages_CreatedAtUtc"
+            ON public."SupportMessages" ("CreatedAtUtc");
+        """;
+
     public static async Task EnsureUserPlatformRoleColumnAsync(
         DbBronyTV context,
         ILogger logger,
@@ -193,6 +235,15 @@ public static class DatabaseInitializer
     {
         await context.Database.ExecuteSqlRawAsync(EnsureForumTablesSql, cancellationToken);
         logger.LogInformation("Verified public forum tables exist (CREATE TABLE IF NOT EXISTS).");
+    }
+
+    public static async Task EnsureSupportTablesAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureSupportTablesSql, cancellationToken);
+        logger.LogInformation("Verified public support tables exist (CREATE TABLE IF NOT EXISTS).");
     }
 
     private const string EnsureUserCommentBanColumnSql = """
