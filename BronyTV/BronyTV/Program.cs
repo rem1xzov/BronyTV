@@ -21,8 +21,13 @@ var videosStorageRoot = builder.Configuration["VideoStorage:RootPath"]
 const string OpenCorsPolicy = "OpenCorsPolicy";
 
 builder.Services.AddDbContext<DbBronyTV>(options =>
+{
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
-        x => x.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
+        x => x.MigrationsHistoryTable("__EFMigrationsHistory", "public"));
+    
+    // Глушим ошибку расхождения C# моделей со снимком snapshot
+    options.ConfigureWarnings(warnings => warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 builder.Services.AddScoped<IVideoRepository, VideoRepository>();
 builder.Services.AddScoped<ISeasonRepository, SeasonRepository>();
