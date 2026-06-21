@@ -70,11 +70,9 @@ public class SupportService : ISupportService
             Title = trimmedTitle,
             IsClosed = false,
             CreatedAtUtc = now,
-            User = user,
             Messages = new List<SupportMessageEntity> { message }
         };
 
-        message.Sender = user;
         message.Ticket = ticket;
 
         await _supportRepository.AddTicketAsync(ticket, cancellationToken);
