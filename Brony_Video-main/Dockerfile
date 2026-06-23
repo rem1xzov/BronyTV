@@ -14,6 +14,9 @@ COPY Brony_Video-main/src ./src
 ARG REACT_APP_API_BASE_URL=/api
 ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
 
+ENV GENERATE_SOURCEMAP=false
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 RUN npm run build
 
 FROM nginx:1.27-alpine AS final
