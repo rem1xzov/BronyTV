@@ -11,7 +11,7 @@ RUN npm install
 COPY Brony_Video-main/public ./public
 COPY Brony_Video-main/src ./src
 
-ARG REACT_APP_API_BASE_URL=
+ARG REACT_APP_API_BASE_URL=/api
 ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
 
 RUN npm run build

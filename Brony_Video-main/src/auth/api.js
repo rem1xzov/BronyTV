@@ -1,4 +1,5 @@
-const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL || "").replace(/\/$/, "");
+// Same-origin /api in production (nginx reverse proxy). Override via REACT_APP_API_BASE_URL for dev.
+const API_BASE_URL = (process.env.REACT_APP_API_BASE_URL ?? "/api").replace(/\/$/, "");
 
 export const apiUrl = (path) => {
   let normalized = path.startsWith("/") ? path : `/${path}`;

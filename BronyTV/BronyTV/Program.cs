@@ -18,7 +18,7 @@ var builder = WebApplication.CreateBuilder(args);
 var videosStorageRoot = builder.Configuration["VideoStorage:RootPath"]
     ?? Environment.GetEnvironmentVariable("BRONYTV_VIDEOS_ROOT")
     ?? "/app/media";
-const string OpenCorsPolicy = "OpenCorsPolicy";
+const string AllowBronyTvPolicy = "AllowBronyTv";
 
 builder.Services.AddDbContext<DbBronyTV>(options =>
 {
@@ -51,8 +51,7 @@ builder.Services.AddControllers();
 builder.Services.Configure<CookiePolicyOptions>(options =>
 {
     options.HttpOnly = HttpOnlyPolicy.Always;
-    options.Secure = CookieSecurePolicy.None;
-    //options.Secure = CookieSecurePolicy.SameAsRequest;
+    options.Secure = CookieSecurePolicy.SameAsRequest;
     options.MinimumSameSitePolicy = SameSiteMode.Lax;
 });
 
@@ -92,18 +91,10 @@ var allowedOrigins = BuildAllowedOrigins(builder.Configuration);
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(OpenCorsPolicy, policy =>
+    options.AddPolicy(AllowBronyTvPolicy, policy =>
     {
         policy
-            .SetIsOriginAllowed(origin =>
-            {
-                if (string.IsNullOrWhiteSpace(origin))
-                {
-                    return false;
-                }
-
-                return allowedOrigins.Contains(origin, StringComparer.OrdinalIgnoreCase);
-            })
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()
@@ -332,7 +323,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
 // CORS оборачивает статику: ответы /videos и wwwroot получают заголовки для кросс-доменного плеера.
 app.UseForwardedHeaders();
 app.UseCookiePolicy();
-app.UseCors(OpenCorsPolicy);
+app.UseCors(AllowBronyTvPolicy);
 
 // /videos/* отдаёт VideoStreamController (PhysicalFile + enableRangeProcessing) для Safari/iOS.
 
