@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, MessageSquare, Search } from "lucide-react";
+import { ArrowLeft, MessageSquare, Search, Trash2 } from "lucide-react";
 import {
+  closeSupportTicket,
   fetchAllTickets,
   filterTickets,
   formatSupportDate,
@@ -18,6 +19,7 @@ export default function AdminSupportPanel() {
   const [mobileView, setMobileView] = useState("list");
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [closing, setClosing] = useState(false);
 
   const loadTickets = useCallback(async () => {
     setLoading(true);
@@ -87,6 +89,34 @@ export default function AdminSupportPanel() {
     }
   };
 
+  const handleCloseTicket = async () => {
+    if (!selectedTicket || closing) {
+      return;
+    }
+
+    const ticketId = selectedTicket.id;
+    const confirmed = window.confirm("Закрыть это обращение? Оно исчезнет из списка активных.");
+    if (!confirmed) {
+      return;
+    }
+
+    setClosing(true);
+    setError("");
+    try {
+      await closeSupportTicket(ticketId);
+      setTickets((prev) => {
+        const remaining = prev.filter((ticket) => ticket.id !== ticketId);
+        setSelectedId((current) => (current === ticketId ? remaining[0]?.id ?? null : current));
+        return remaining;
+      });
+      setMobileView("list");
+    } catch (closeError) {
+      setError(closeError.message || "Не удалось закрыть обращение.");
+    } finally {
+      setClosing(false);
+    }
+  };
+
   return (
     <article className="admin-card admin-card--support">
       <div className="admin-support-shell">
@@ -99,7 +129,7 @@ export default function AdminSupportPanel() {
           </header>
 
           <label className="admin-support-search">
-            <Search size={16} aria-hidden="true" />
+            <Search size={14} aria-hidden="true" />
             <input
               type="search"
               value={search}
@@ -112,7 +142,7 @@ export default function AdminSupportPanel() {
           {loading ? (
             <p className="muted">Загрузка обращений…</p>
           ) : filteredTickets.length === 0 ? (
-            <p className="muted">Обращений пока нет.</p>
+            <p className="muted">Активных обращений нет.</p>
           ) : (
             <ul className="admin-support-ticket-list">
               {filteredTickets.map((ticket) => (
@@ -146,7 +176,7 @@ export default function AdminSupportPanel() {
                   className="secondary-btn admin-support-back-btn"
                   onClick={handleBackToList}
                 >
-                  <ArrowLeft size={16} />
+                  <ArrowLeft size={14} />
                   <span>К списку</span>
                 </button>
                 <div className="admin-support-chat-heading">
@@ -155,6 +185,15 @@ export default function AdminSupportPanel() {
                     @{selectedTicket.username || "anonymous"} · {formatSupportDate(selectedTicket.createdAt)}
                   </p>
                 </div>
+                <button
+                  type="button"
+                  className="secondary-btn admin-support-close-btn"
+                  onClick={handleCloseTicket}
+                  disabled={closing}
+                >
+                  <Trash2 size={14} />
+                  <span>{closing ? "Закрытие…" : "Закрыть обращение"}</span>
+                </button>
               </header>
 
               <ul className="admin-support-chat-messages" ref={messagesRef}>
@@ -178,15 +217,15 @@ export default function AdminSupportPanel() {
               <form className="admin-support-reply-form" onSubmit={handleSendReply}>
                 <textarea
                   className="admin-support-reply-input"
-                  rows={3}
+                  rows={2}
                   value={reply}
                   onChange={(event) => setReply(event.target.value)}
                   placeholder="Ответ пользователю…"
                   aria-label="Ответ пользователю"
                 />
-                <button type="submit" className="primary-btn" disabled={sending || !reply.trim()}>
-                  <MessageSquare size={16} />
-                  <span>{sending ? "Отправка…" : "Ответить"}</span>
+                <button type="submit" className="primary-btn admin-support-reply-btn" disabled={sending || !reply.trim()}>
+                  <MessageSquare size={14} />
+                  <span>{sending ? "…" : "Ответить"}</span>
                 </button>
               </form>
             </>

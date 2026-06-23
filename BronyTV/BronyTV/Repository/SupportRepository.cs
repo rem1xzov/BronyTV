@@ -20,6 +20,7 @@ public class SupportRepository : ISupportRepository
             .AsNoTracking()
             .Include(ticket => ticket.User)
             .Include(ticket => ticket.Messages)
+                .ThenInclude(message => message.Sender)
             .Where(ticket => ticket.UserId == userId)
             .OrderByDescending(ticket => ticket.CreatedAtUtc)
             .ToListAsync(cancellationToken);
@@ -32,6 +33,8 @@ public class SupportRepository : ISupportRepository
             .AsNoTracking()
             .Include(ticket => ticket.User)
             .Include(ticket => ticket.Messages)
+                .ThenInclude(message => message.Sender)
+            .Where(ticket => !ticket.IsClosed)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(searchQuery))

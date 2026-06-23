@@ -30,6 +30,7 @@ function normalizeMessage(raw) {
   return {
     id,
     text,
+    senderId: raw.senderId ?? raw.SenderId ?? null,
     authorRole: raw.authorRole ?? raw.AuthorRole ?? "user",
     authorUsername: raw.authorUsername ?? raw.AuthorUsername ?? "",
     createdAt: raw.createdAt ?? raw.CreatedAt ?? new Date().toISOString()
@@ -52,13 +53,17 @@ function normalizeTicket(raw) {
     ? (raw.messages ?? raw.Messages).map(normalizeMessage).filter(Boolean)
     : [];
 
+  const isClosed = raw.isClosed ?? raw.IsClosed ?? false;
+  const statusRaw = raw.status ?? raw.Status ?? (isClosed ? "closed" : "open");
+
   return {
     id,
     userId,
     username: raw.username ?? raw.Username ?? "",
     subject,
     description: raw.description ?? raw.Description ?? "",
-    status: raw.status ?? raw.Status ?? "open",
+    isClosed: isClosed || statusRaw === "closed",
+    status: statusRaw === "closed" || isClosed ? "closed" : "open",
     createdAt: raw.createdAt ?? raw.CreatedAt ?? new Date().toISOString(),
     updatedAt: raw.updatedAt ?? raw.UpdatedAt ?? raw.createdAt ?? raw.CreatedAt ?? new Date().toISOString(),
     messages
@@ -115,34 +120,56 @@ export function formatSupportDate(value) {
   });
 }
 
-export async function fetchUserTicket(userId) {
+function sortTicketsByUpdated(tickets) {
+  return [...tickets].sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  );
+}
+
+export function isOwnMessage(message, userId) {
+  if (message?.senderId && userId) {
+    return String(message.senderId) === String(userId);
+  }
+  return message?.authorRole !== "admin";
+}
+
+export function getTicketStatusLabel(ticket) {
+  return ticket?.isClosed || ticket?.status === "closed" ? "Закрыт" : "Открыт";
+}
+
+export async function fetchUserTickets(userId) {
   const payload = await tryApi(`/support/tickets/me`);
   if (Array.isArray(payload)) {
-    const tickets = payload.map(normalizeTicket).filter(Boolean);
-    if (tickets.length > 0) {
-      return tickets.sort(
-        (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      )[0];
-    }
-    return null;
+    return sortTicketsByUpdated(payload.map(normalizeTicket).filter(Boolean));
   }
 
   const normalized = normalizeTicket(payload);
   if (normalized) {
-    return normalized;
+    return [normalized];
   }
 
-  return readLocalTickets().find((ticket) => ticket.userId === userId) || null;
+  return sortTicketsByUpdated(readLocalTickets().filter((ticket) => ticket.userId === userId));
+}
+
+/** @deprecated Use fetchUserTickets — returns most recent ticket only */
+export async function fetchUserTicket(userId) {
+  const tickets = await fetchUserTickets(userId);
+  return tickets[0] ?? null;
 }
 
 export async function fetchAllTickets() {
   const payload = await tryApi("/support/tickets");
   if (Array.isArray(payload)) {
-    return payload.map(normalizeTicket).filter(Boolean);
+    return sortTicketsByUpdated(
+      payload
+        .map(normalizeTicket)
+        .filter(Boolean)
+        .filter((ticket) => !ticket.isClosed && ticket.status !== "closed")
+    );
   }
 
-  return readLocalTickets().sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  return sortTicketsByUpdated(
+    readLocalTickets().filter((ticket) => !ticket.isClosed && ticket.status !== "closed")
   );
 }
 
@@ -160,6 +187,7 @@ export async function createSupportTicket({ userId, username, subject, descripti
   const initialMessage = {
     id: createId("msg"),
     text: description.trim(),
+    senderId: userId,
     authorRole: "user",
     authorUsername: username || "user",
     createdAt: now
@@ -176,13 +204,13 @@ export async function createSupportTicket({ userId, username, subject, descripti
     messages: [initialMessage]
   };
 
-  const tickets = readLocalTickets().filter((item) => item.userId !== userId);
+  const tickets = readLocalTickets();
   tickets.unshift(ticket);
   writeLocalTickets(tickets);
   return ticket;
 }
 
-export async function sendSupportMessage({ ticketId, authorRole, authorUsername, text }) {
+export async function sendSupportMessage({ ticketId, authorRole, authorUsername, senderId, text }) {
   const trimmed = text.trim();
   if (!trimmed) {
     throw new Error("Сообщение не может быть пустым.");
@@ -207,6 +235,7 @@ export async function sendSupportMessage({ ticketId, authorRole, authorUsername,
   const message = {
     id: createId("msg"),
     text: trimmed,
+    senderId: senderId ?? null,
     authorRole,
     authorUsername,
     createdAt: now
@@ -219,6 +248,21 @@ export async function sendSupportMessage({ ticketId, authorRole, authorUsername,
   };
   writeLocalTickets(tickets);
   return tickets[index];
+}
+
+export async function closeSupportTicket(ticketId) {
+  await tryApi(`/support/tickets/${ticketId}/close`, { method: "PUT" });
+
+  const tickets = readLocalTickets();
+  const index = tickets.findIndex((ticket) => ticket.id === ticketId);
+  if (index !== -1) {
+    tickets[index] = {
+      ...tickets[index],
+      isClosed: true,
+      status: "closed"
+    };
+    writeLocalTickets(tickets);
+  }
 }
 
 export function filterTickets(tickets, query) {
