@@ -161,10 +161,10 @@ const NEXT_EPISODE_REMAINING_SECONDS = 90;
 
 const PLAYBACK_SPEED_OPTIONS = [
   { value: 0.5, label: "0.5x" },
-  { value: 1, label: "1x (Normal)" },
+  { value: 0.75, label: "0.75x" },
+  { value: 1, label: "1x (обычная)" },
   { value: 1.25, label: "1.25x" },
   { value: 1.5, label: "1.5x" },
-  { value: 1.75, label: "1.75x" },
   { value: 2, label: "2x" }
 ];
 
@@ -1375,8 +1375,50 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const handlePlaybackSpeedSelect = useCallback(
     (speed) => {
       applyPlaybackSpeed(speed);
+      setSpeedSubmenuOpen(false);
+      setSettingsOpen(false);
     },
     [applyPlaybackSpeed]
+  );
+
+  const handleVideoDownload = useCallback(
+    async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (!videoSrc) {
+        return;
+      }
+
+      try {
+        const response = await fetch(videoSrc, { credentials: "include" });
+        if (!response.ok) {
+          throw new Error("download failed");
+        }
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = downloadFileName;
+        link.rel = "noopener";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+      } catch (error) {
+        const link = document.createElement("a");
+        link.href = videoSrc;
+        link.download = downloadFileName;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+      }
+
+      setSettingsOpen(false);
+      setSpeedSubmenuOpen(false);
+    },
+    [downloadFileName, videoSrc]
   );
 
   const handleVideoLoadStart = useCallback((event) => {
@@ -1643,7 +1685,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                   />
                 </div>
                 <div
-                  className="player-timeline-wrap"
+                  className={`player-timeline-wrap${timelineActive ? " is-active" : ""}`}
                   onTouchStart={isolateTimelineTouch}
                   onTouchMove={isolateTimelineTouch}
                   onTouchEnd={isolateTimelineTouch}
@@ -1667,28 +1709,55 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 <span className="player-time">
                   {formatTime(playbackUi.current)} / {formatTime(playbackUi.duration)}
                 </span>
-                <div className="player-chrome-bar-right">
-                <div className="player-settings-wrap" ref={settingsAnchorRef}>
+                <div
+                  className="player-chrome-bar-right"
+                  onClick={(event) => event.stopPropagation()}
+                  onTouchStart={(event) => event.stopPropagation()}
+                >
+                <div
+                  className="player-settings-wrap"
+                  ref={settingsAnchorRef}
+                  onMouseLeave={() => setSpeedSubmenuOpen(false)}
+                >
                   <button
                     type="button"
                     className="player-chrome-btn"
-                    onClick={() => {
+                    onClick={(event) => {
+                      event.stopPropagation();
                       setSettingsOpen((prev) => !prev);
                       setSpeedSubmenuOpen(false);
                       revealControls();
                     }}
+                    onTouchEnd={(event) => event.stopPropagation()}
                     aria-label="Настройки плеера"
                     aria-expanded={settingsOpen}
+                    aria-haspopup="menu"
                   >
                     <MoreVertical size={20} />
                   </button>
                   {settingsOpen ? (
-                    <div className="player-settings-dropdown" ref={settingsDropdownRef} role="menu">
+                    <div
+                      className="player-settings-dropdown"
+                      ref={settingsDropdownRef}
+                      role="menu"
+                      onClick={(event) => event.stopPropagation()}
+                      onTouchStart={(event) => event.stopPropagation()}
+                    >
                       <button
                         type="button"
                         className="player-settings-row"
-                        onClick={() => setSpeedSubmenuOpen((prev) => !prev)}
+                        role="menuitem"
+                        aria-haspopup="true"
                         aria-expanded={speedSubmenuOpen}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSpeedSubmenuOpen((prev) => !prev);
+                        }}
+                        onMouseEnter={() => {
+                          if (!window.matchMedia("(max-width: 768px)").matches) {
+                            setSpeedSubmenuOpen(true);
+                          }
+                        }}
                       >
                         <span>Скорость воспроизведения</span>
                         <ChevronRight
@@ -1702,10 +1771,15 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                             <button
                               key={option.value}
                               type="button"
+                              role="menuitemradio"
+                              aria-checked={playbackSpeed === option.value}
                               className={`player-settings-option${
                                 playbackSpeed === option.value ? " is-active" : ""
                               }`}
-                              onClick={() => handlePlaybackSpeedSelect(option.value)}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handlePlaybackSpeedSelect(option.value);
+                              }}
                             >
                               <span>{option.label}</span>
                               {playbackSpeed === option.value ? <Check size={16} /> : null}
@@ -1713,25 +1787,26 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                           ))}
                         </div>
                       ) : null}
-                      <a
+                      <button
+                        type="button"
                         className="player-settings-row player-settings-download"
-                        href={videoSrc}
-                        download={downloadFileName}
-                        onClick={() => {
-                          setSettingsOpen(false);
-                          setSpeedSubmenuOpen(false);
-                        }}
+                        role="menuitem"
+                        onClick={handleVideoDownload}
                       >
                         <Download size={16} />
                         <span>Скачать видео</span>
-                      </a>
+                      </button>
                     </div>
                   ) : null}
                 </div>
                 <button
                   type="button"
                   className="player-chrome-btn"
-                  onClick={toggleShellFullscreen}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleShellFullscreen();
+                  }}
+                  onTouchEnd={(event) => event.stopPropagation()}
                   aria-label={isShellFullscreen ? "Выйти из полноэкранного режима" : "Полноэкранный режим"}
                 >
                   {isShellFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
