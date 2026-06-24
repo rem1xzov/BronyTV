@@ -755,11 +755,21 @@ body[data-theme="dark"] .hero-thumb {
   }
 }
 
+.player-shell.is-settings-open {
+  overflow: visible;
+}
+
+.player-shell.is-settings-open .player-custom-controls,
+.player-custom-controls.is-settings-open {
+  overflow: visible;
+}
+
 .player-custom-controls {
   position: absolute;
   inset: 0;
   z-index: 20;
   pointer-events: none;
+  overflow: visible;
 }
 
 .player-chrome-bar.v-control-hidden {
@@ -771,6 +781,11 @@ body[data-theme="dark"] .hero-thumb {
 .player-chrome-bar.v-control-hidden .player-settings-dropdown {
   opacity: 0;
   pointer-events: none;
+}
+
+.player-chrome-bar.is-settings-open .player-settings-dropdown {
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .player-action-overlays {
@@ -817,6 +832,8 @@ body[data-theme="dark"] .hero-thumb {
   background: transparent;
   cursor: default;
   -webkit-tap-highlight-color: transparent;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .player-skip-feedback {
@@ -1020,11 +1037,16 @@ body[data-theme="dark"] .hero-thumb {
   display: flex;
   align-items: center;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
   padding: 10px 12px;
   box-sizing: border-box;
   background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.82));
   pointer-events: none;
+}
+
+.player-chrome-bar.is-settings-open {
+  overflow: visible;
+  z-index: 2147483647;
 }
 
 .player-chrome-row {
@@ -1035,7 +1057,7 @@ body[data-theme="dark"] .hero-thumb {
   width: 100%;
   min-width: 0;
   min-height: 44px;
-  overflow: hidden;
+  overflow: visible;
   pointer-events: auto;
 }
 
@@ -1175,6 +1197,7 @@ body[data-theme="dark"] .hero-thumb {
 .player-settings-wrap {
   position: relative;
   flex-shrink: 0;
+  z-index: 2147483647;
 }
 
 .player-settings-dropdown {
@@ -1190,6 +1213,17 @@ body[data-theme="dark"] .hero-thumb {
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
   z-index: 2147483647;
   backdrop-filter: blur(8px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow: visible;
+  pointer-events: auto;
+}
+
+.player-settings-row span,
+.player-settings-option span,
+.player-settings-download span {
+  color: #fff;
 }
 
 .player-settings-row {
@@ -1633,12 +1667,31 @@ body[data-theme="dark"] .hero-thumb {
     bottom: var(--player-chrome-height);
     width: 100%;
     height: auto;
-    pointer-events: none;
+    pointer-events: auto;
+    touch-action: manipulation;
+    z-index: 15;
+  }
+
+  .player-skip-zone--left {
+    width: 50%;
+    height: 100%;
+    flex-shrink: 0;
+  }
+
+  .player-skip-zone--right {
+    width: 50%;
+    height: 100%;
+    flex-shrink: 0;
   }
 
   .player-chrome-bar {
     pointer-events: auto;
     z-index: 2147483645;
+  }
+
+  .player-chrome-bar.is-settings-open {
+    overflow: visible;
+    z-index: 2147483647;
   }
 
   .player-chrome-bar.v-control-hidden {
@@ -1653,26 +1706,13 @@ body[data-theme="dark"] .hero-thumb {
   .player-chrome-bar:not(.v-control-hidden) .player-volume-slider,
   .player-chrome-bar:not(.v-control-hidden) .player-time,
   .player-chrome-bar:not(.v-control-hidden) .player-settings-wrap,
+  .player-chrome-bar:not(.v-control-hidden) .player-settings-dropdown,
   .player-chrome-bar:not(.v-control-hidden) .player-chrome-bar-right {
     pointer-events: auto !important;
   }
 
-  .player-skip-zone--left {
-    width: 40%;
-    height: 100%;
-    flex-shrink: 0;
-  }
-
-  .player-skip-zone--center {
-    width: 20%;
-    height: 100%;
-    flex-shrink: 0;
-  }
-
-  .player-skip-zone--right {
-    width: 40%;
-    height: 100%;
-    flex-shrink: 0;
+  .player-shell.is-settings-open {
+    overflow: visible;
   }
 
   .player-shell:not(:fullscreen):not(:-webkit-full-screen) .player-chrome-bar {
@@ -1758,6 +1798,8 @@ body[data-theme="dark"] .hero-thumb {
     min-width: 210px;
     right: 0;
     bottom: calc(100% + 8px);
+    display: flex;
+    overflow: visible;
   }
 
   .player-shell:not(:fullscreen):not(:-webkit-full-screen) .player-timeline {

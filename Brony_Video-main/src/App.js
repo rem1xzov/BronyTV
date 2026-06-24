@@ -774,6 +774,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const playerShellRef = useRef(null);
   const settingsAnchorRef = useRef(null);
   const settingsDropdownRef = useRef(null);
+  const playerTouchLayerRef = useRef(null);
+  const settingsOpenedAtRef = useRef(0);
   const volumeBeforeMuteRef = useRef(readStoredVolume());
   const progressStorageKey = `s${safeSeason}e${selectedEpisode?.id || 1}`;
   const [resumeLabel, setResumeLabel] = useState("");
@@ -850,7 +852,11 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     if (!settingsOpen) {
       return undefined;
     }
+    settingsOpenedAtRef.current = Date.now();
     const handlePointerDown = (event) => {
+      if (Date.now() - settingsOpenedAtRef.current < 400) {
+        return;
+      }
       if (settingsAnchorRef.current?.contains(event.target)) {
         return;
       }
@@ -861,7 +867,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       setSpeedSubmenuOpen(false);
     };
     document.addEventListener("mousedown", handlePointerDown);
-    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown, { passive: true });
     return () => {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("touchstart", handlePointerDown);
@@ -1032,17 +1038,6 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     []
   );
 
-  const suppressMobileSyntheticClick = useCallback(
-    (event) => {
-      if (!isMobilePlayerViewport()) {
-        return;
-      }
-      event.preventDefault();
-      event.stopPropagation();
-    },
-    [isMobilePlayerViewport]
-  );
-
   const clearControlsHideTimer = useCallback(() => {
     if (controlsHideTimerRef.current) {
       clearTimeout(controlsHideTimerRef.current);
@@ -1089,6 +1084,25 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       return nextVisible;
     });
   }, [clearControlsHideTimer, controlsLocked, scheduleControlsHide]);
+
+  const toggleSettingsMenu = useCallback(
+    (event) => {
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      setSettingsOpen((previous) => {
+        const next = !previous;
+        if (next) {
+          settingsOpenedAtRef.current = Date.now();
+        }
+        return next;
+      });
+      setSpeedSubmenuOpen(false);
+      revealControls();
+    },
+    [revealControls]
+  );
 
   useEffect(() => {
     if (controlsLocked) {
@@ -1236,8 +1250,13 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     setTimelineActive(false);
   }, []);
 
-  const handlePlayerTouchStart = useCallback(
-    (zone) => (event) => {
+  useEffect(() => {
+    const layer = playerTouchLayerRef.current;
+    if (!layer || !videoSrc) {
+      return undefined;
+    }
+
+    const onTouchStart = (event) => {
       if (!isMobilePlayerViewport()) {
         return;
       }
@@ -1245,13 +1264,9 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         return;
       }
       event.preventDefault();
-      event.stopPropagation();
-    },
-    [isMobilePlayerViewport, isPlayerChromeTarget]
-  );
+    };
 
-  const handlePlayerTouchEnd = useCallback(
-    (zone, deltaSeconds) => (event) => {
+    const onTouchEnd = (event) => {
       if (!isMobilePlayerViewport()) {
         return;
       }
@@ -1259,36 +1274,37 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         revealControls();
         return;
       }
+
       event.preventDefault();
       event.stopPropagation();
 
-      if (zone === "center") {
-        clearMobileTapPending();
-        toggleControlsVisibility();
-        revealControls();
+      const touch = event.changedTouches[0];
+      const shell = playerShellRef.current;
+      if (!touch || !shell) {
         return;
       }
 
+      const rect = shell.getBoundingClientRect();
+      const relativeX = touch.clientX - rect.left;
+      const side = relativeX < rect.width / 2 ? "left" : "right";
+      const deltaSeconds = side === "left" ? -10 : 10;
       const now = Date.now();
       const pending = mobileTapPendingRef.current;
 
       if (
         pending &&
-        pending.zone === zone &&
-        !pending.suppressPlayPause &&
+        pending.side === side &&
+        !pending.suppressSingleTap &&
         now - pending.time <= MOBILE_DOUBLE_TAP_MS
       ) {
         if (pending.timerId) {
           clearTimeout(pending.timerId);
         }
-        mobileTapPendingRef.current = { zone, time: now, suppressPlayPause: true };
-
-        const player = playerRef.current;
+        mobileTapPendingRef.current = { side, time: now, suppressSingleTap: true };
         seekBySeconds(deltaSeconds);
-        showSkipFeedback(zone);
-
+        showSkipFeedback(side);
         window.setTimeout(() => {
-          if (mobileTapPendingRef.current?.suppressPlayPause) {
+          if (mobileTapPendingRef.current?.suppressSingleTap) {
             mobileTapPendingRef.current = null;
           }
         }, MOBILE_DOUBLE_TAP_MS);
@@ -1296,10 +1312,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       }
 
       clearMobileTapPending();
-      const tapId = `${zone}-${now}`;
+      const tapId = `${side}-${now}`;
       const timerId = window.setTimeout(() => {
         const active = mobileTapPendingRef.current;
-        if (!active || active.tapId !== tapId || active.suppressPlayPause) {
+        if (!active || active.tapId !== tapId) {
           return;
         }
         mobileTapPendingRef.current = null;
@@ -1307,18 +1323,26 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         revealControls();
       }, MOBILE_DOUBLE_TAP_MS);
 
-      mobileTapPendingRef.current = { zone, time: now, tapId, timerId };
-    },
-    [
-      clearMobileTapPending,
-      isMobilePlayerViewport,
-      isPlayerChromeTarget,
-      revealControls,
-      seekBySeconds,
-      showSkipFeedback,
-      toggleControlsVisibility
-    ]
-  );
+      mobileTapPendingRef.current = { side, time: now, tapId, timerId };
+    };
+
+    layer.addEventListener("touchstart", onTouchStart, { passive: false });
+    layer.addEventListener("touchend", onTouchEnd, { passive: false });
+
+    return () => {
+      layer.removeEventListener("touchstart", onTouchStart);
+      layer.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [
+    clearMobileTapPending,
+    isMobilePlayerViewport,
+    isPlayerChromeTarget,
+    revealControls,
+    seekBySeconds,
+    showSkipFeedback,
+    toggleControlsVisibility,
+    videoSrc
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1542,7 +1566,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       </h2>
       {resumeLabel ? <p className="muted">{resumeLabel}</p> : null}
       {videoSrc ? (
-        <div className="player-shell" ref={playerShellRef}>
+        <div className={`player-shell${settingsOpen ? " is-settings-open" : ""}`} ref={playerShellRef}>
           <div className="player-media-stage">
             <video
               key={playerInstanceKey}
@@ -1575,35 +1599,13 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               onError={() => setVideoError(true)}
             />
           </div>
-          <div className="player-custom-controls" aria-label="Управление плеером">
-            <div className="player-touch-layer" aria-hidden="true">
-              <button
-                type="button"
-                className="player-skip-zone player-skip-zone--left"
-                tabIndex={-1}
-                aria-label="Двойное касание: −10 секунд"
-                onTouchStart={handlePlayerTouchStart("left")}
-                onTouchEnd={handlePlayerTouchEnd("left", -10)}
-                onClick={suppressMobileSyntheticClick}
-              />
-              <button
-                type="button"
-                className="player-skip-zone player-skip-zone--center"
-                tabIndex={-1}
-                aria-label="Показать или скрыть элементы управления"
-                onTouchStart={handlePlayerTouchStart("center")}
-                onTouchEnd={handlePlayerTouchEnd("center", 0)}
-                onClick={suppressMobileSyntheticClick}
-              />
-              <button
-                type="button"
-                className="player-skip-zone player-skip-zone--right"
-                tabIndex={-1}
-                aria-label="Двойное касание: +10 секунд"
-                onTouchStart={handlePlayerTouchStart("right")}
-                onTouchEnd={handlePlayerTouchEnd("right", 10)}
-                onClick={suppressMobileSyntheticClick}
-              />
+          <div
+            className={`player-custom-controls${settingsOpen ? " is-settings-open" : ""}`}
+            aria-label="Управление плеером"
+          >
+            <div className="player-touch-layer" ref={playerTouchLayerRef} aria-hidden="true">
+              <div className="player-skip-zone player-skip-zone--left" aria-hidden="true" />
+              <div className="player-skip-zone player-skip-zone--right" aria-hidden="true" />
             </div>
             {skipFeedback ? (
               <div
@@ -1638,7 +1640,9 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               ) : null}
             </div>
             <div
-              className={`player-chrome-bar${controlsHidden ? " v-control-hidden" : ""}`}
+              className={`player-chrome-bar${controlsHidden ? " v-control-hidden" : ""}${
+                settingsOpen ? " is-settings-open" : ""
+              }`}
               onMouseEnter={revealControls}
               onTouchStart={(event) => {
                 if (event.target?.closest?.("input.player-timeline")) {
@@ -1723,12 +1727,24 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                     type="button"
                     className="player-chrome-btn"
                     onClick={(event) => {
-                      event.stopPropagation();
-                      setSettingsOpen((prev) => !prev);
-                      setSpeedSubmenuOpen(false);
-                      revealControls();
+                      if (isMobilePlayerViewport()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                      }
+                      toggleSettingsMenu(event);
                     }}
-                    onTouchEnd={(event) => event.stopPropagation()}
+                    onTouchStart={(event) => {
+                      event.stopPropagation();
+                    }}
+                    onTouchEnd={(event) => {
+                      if (!isMobilePlayerViewport()) {
+                        return;
+                      }
+                      event.preventDefault();
+                      event.stopPropagation();
+                      toggleSettingsMenu(event);
+                    }}
                     aria-label="Настройки плеера"
                     aria-expanded={settingsOpen}
                     aria-haspopup="menu"
@@ -1741,7 +1757,12 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                       ref={settingsDropdownRef}
                       role="menu"
                       onClick={(event) => event.stopPropagation()}
-                      onTouchStart={(event) => event.stopPropagation()}
+                      onTouchStart={(event) => {
+                        event.stopPropagation();
+                      }}
+                      onTouchEnd={(event) => {
+                        event.stopPropagation();
+                      }}
                     >
                       <button
                         type="button"
@@ -1750,11 +1771,17 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                         aria-haspopup="true"
                         aria-expanded={speedSubmenuOpen}
                         onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          setSpeedSubmenuOpen((prev) => !prev);
+                        }}
+                        onTouchEnd={(event) => {
+                          event.preventDefault();
                           event.stopPropagation();
                           setSpeedSubmenuOpen((prev) => !prev);
                         }}
                         onMouseEnter={() => {
-                          if (!window.matchMedia("(max-width: 768px)").matches) {
+                          if (!isMobilePlayerViewport()) {
                             setSpeedSubmenuOpen(true);
                           }
                         }}
@@ -1777,6 +1804,12 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                                 playbackSpeed === option.value ? " is-active" : ""
                               }`}
                               onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                handlePlaybackSpeedSelect(option.value);
+                              }}
+                              onTouchEnd={(event) => {
+                                event.preventDefault();
                                 event.stopPropagation();
                                 handlePlaybackSpeedSelect(option.value);
                               }}
@@ -1791,7 +1824,22 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                         type="button"
                         className="player-settings-row player-settings-download"
                         role="menuitem"
-                        onClick={handleVideoDownload}
+                        onClick={(event) => {
+                          if (isMobilePlayerViewport()) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            return;
+                          }
+                          handleVideoDownload(event);
+                        }}
+                        onTouchEnd={(event) => {
+                          if (!isMobilePlayerViewport()) {
+                            return;
+                          }
+                          event.preventDefault();
+                          event.stopPropagation();
+                          handleVideoDownload(event);
+                        }}
                       >
                         <Download size={16} />
                         <span>Скачать видео</span>
