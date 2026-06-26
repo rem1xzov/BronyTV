@@ -1229,6 +1229,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
   const handlePlayerTouchEnd = useCallback(
     (zone, deltaSeconds) => (event) => {
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+
       if (!isMobilePlayerViewport()) {
         return;
       }
@@ -1236,7 +1240,6 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         revealControls();
         return;
       }
-      event.preventDefault();
       event.stopPropagation();
 
       if (zone === "center") {
@@ -1482,7 +1485,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               key={videoSrc}
               ref={playerRef}
               className="video-player video-large"
-              playsInline
+              playsInline={true}
+              webkit-playsinline="true"
               preload="metadata"
               controls={false}
               src={videoSrc}
