@@ -9,6 +9,7 @@ import {
   Minimize,
   MoreVertical,
   Moon,
+  MessageSquare,
   Pause,
   Play,
   PlayCircle,
