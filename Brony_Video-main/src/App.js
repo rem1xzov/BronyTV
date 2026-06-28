@@ -362,6 +362,9 @@ const getPageFromPath = (path) => {
   if (path.startsWith("/player")) {
     return "player";
   }
+  if (path.startsWith("/forum")) { 
+    return "forum";
+  }
   if (path.startsWith("/season")) {
     return "season";
   }
@@ -511,6 +514,10 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
       <Link to="/" className={`nav-pill ${currentPage === "home" ? "active" : ""}`}>
         <Home size={16} />
         <span>Главная</span>
+      </Link>
+      <Link to="/forum" className={`nav-pill ${currentPage === "forum" ? "active" : ""}`}>
+        <MessageSquare size={16} />
+        <span>Форум</span>
       </Link>
       {Array.from({ length: CONSTANTS.TOTAL_SEASONS }, (_, index) => index + 1).map((season) => (
         <Link
@@ -1865,6 +1872,8 @@ export default function App() {
             />
           }
         />
+          <Route path="/forum" element={<ForumPage />} />
+      <Route path="/forum/:threadId" element={<ForumPage />} />
         <Route
           path="/season/:seasonId"
           element={
