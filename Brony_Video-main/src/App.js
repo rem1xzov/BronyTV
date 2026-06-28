@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiFetch, apiUrl } from "./auth/api";
+import ForumPage from "./components/ForumPage";
 import AuthPanel from "./components/AuthPanel";
 
 const SEASON_INFO = [
