@@ -1,4 +1,4 @@
-const FALLBACK_PRIVILEGED_USERNAMES = new Set(["rainbowdash"]);
+const FALLBACK_PRIVILEGED_USERNAMES = new Set(["rainbowdash"]); // Твой резервный список
 
 export function isPlatformAdmin(user) {
   if (!user) {
@@ -9,10 +9,14 @@ export function isPlatformAdmin(user) {
     return true;
   }
 
-  const role = user.platformRole?.trim();
-  if (role === "Admin" || role === "Owner") {
-    return true;
+  const rawRole = user.platformRole || user.role;
+  if (rawRole) {
+    const role = rawRole.trim().toLowerCase();
+    if (role === "admin" || role === "owner") {
+      return true;
+    }
   }
+
 
   const username = user.username?.trim().toLowerCase();
   return Boolean(username && FALLBACK_PRIVILEGED_USERNAMES.has(username));
