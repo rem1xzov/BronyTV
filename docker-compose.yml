@@ -42,7 +42,7 @@ services:
 
   frontend:
     build:
-      context: .
+      context: ./Brony_Video-main
       dockerfile: Brony_Video-main/Dockerfile
       args:
         REACT_APP_API_BASE_URL: /api
