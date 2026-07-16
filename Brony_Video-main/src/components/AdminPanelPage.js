@@ -32,13 +32,19 @@ function normalizeAdminUser(raw) {
     return null;
   }
 
+  const role = raw.role ?? raw.Role ?? raw.platformRole ?? raw.PlatformRole ?? "User";
+  const isOwner = Boolean(raw.isOwner ?? raw.IsOwner ?? (role === "Owner"));
+  const isPlatformAdmin = Boolean(raw.isPlatformAdmin ?? raw.IsPlatformAdmin ?? (role === "Admin" || role === "Owner"));
+
   return {
     id,
     email: raw.email ?? raw.Email ?? "",
     username: raw.username ?? raw.Username ?? null,
     race: raw.race ?? raw.Race ?? "",
-    role: raw.role ?? raw.Role ?? "User",
-    isOwner: Boolean(raw.isOwner ?? raw.IsOwner ?? false),
+    role,
+    platformRole: role,
+    isOwner,
+    isPlatformAdmin,
     isBannedFromCommenting: Boolean(
       raw.isBannedFromCommenting ?? raw.IsBannedFromCommenting ?? false
     ),
@@ -49,10 +55,10 @@ function normalizeAdminUser(raw) {
 const USERS_PAGE_SIZE = 20;
 
 function formatRoleLabel(user) {
-  if (user.isOwner || user.role === "Owner") {
+  if (user.isOwner || user.platformRole === "Owner" || user.role === "Owner") {
     return "Владелец";
   }
-  if (user.role === "Admin") {
+  if (user.isPlatformAdmin || user.platformRole === "Admin" || user.role === "Admin") {
     return "Админ";
   }
   return "Пользователь";
@@ -82,6 +88,14 @@ export default function AdminPanelPage() {
   const [userActionError, setUserActionError] = useState("");
   const [userActionMessage, setUserActionMessage] = useState("");
   const [userActionId, setUserActionId] = useState(null);
+
+  const [newUsername, setNewUsername] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRole, setNewRole] = useState("User");
+  const [createUserError, setCreateUserError] = useState("");
+  const [createUserSuccess, setCreateUserSuccess] = useState("");
+  const [creatingUser, setCreatingUser] = useState(false);
 
   useEffect(() => {
     if (loading) {
@@ -214,7 +228,7 @@ export default function AdminPanelPage() {
 
     try {
       const response = await apiFetch(
-        `/admin/users?page=${page}&pageSize=${USERS_PAGE_SIZE}`
+        `/users?page=${page}&pageSize=${USERS_PAGE_SIZE}`
       );
       const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -254,7 +268,7 @@ export default function AdminPanelPage() {
     setUserActionMessage("");
 
     try {
-      const response = await apiFetch(`/admin/users/${targetUser.id}`, { method: "DELETE" });
+      const response = await apiFetch(`/users/${targetUser.id}`, { method: "DELETE" });
       if (!response.ok) {
         const raw = await response.json().catch(() => ({}));
         throw new Error(raw.message || "Не удалось удалить пользователя.");
@@ -275,8 +289,9 @@ export default function AdminPanelPage() {
     setUserActionMessage("");
 
     try {
-      const response = await apiFetch(`/admin/users/${targetUser.id}/toggle-comment-ban`, {
-        method: "PUT"
+      const response = await apiFetch(`/users/${targetUser.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isBannedFromCommenting: !targetUser.isBannedFromCommenting })
       });
       const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -314,8 +329,9 @@ export default function AdminPanelPage() {
     setUserActionMessage("");
 
     try {
-      const response = await apiFetch(`/admin/users/${targetUser.id}/promote-admin`, {
-        method: "PUT"
+      const response = await apiFetch(`/users/${targetUser.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role: "Admin" })
       });
       const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -345,8 +361,9 @@ export default function AdminPanelPage() {
     setUserActionMessage("");
 
     try {
-      const response = await apiFetch(`/admin/users/${targetUser.id}/demote-admin`, {
-        method: "PUT"
+      const response = await apiFetch(`/users/${targetUser.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role: "User" })
       });
       const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -362,6 +379,41 @@ export default function AdminPanelPage() {
       setUserActionError(error.message || "Не удалось снять права администратора.");
     } finally {
       setUserActionId(null);
+    }
+  };
+
+  const handleCreateUser = async (event) => {
+    event.preventDefault();
+    setCreateUserError("");
+    setCreateUserSuccess("");
+    setCreatingUser(true);
+
+    try {
+      const response = await apiFetch("/users", {
+        method: "POST",
+        body: JSON.stringify({
+          username: newUsername,
+          email: newEmail,
+          password: newPassword,
+          role: newRole,
+          race: "earth_pony"
+        })
+      });
+      const raw = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(raw.message || "Не удалось создать пользователя.");
+      }
+
+      setCreateUserSuccess(`Пользователь @${raw.username || newUsername} успешно создан!`);
+      setNewUsername("");
+      setNewEmail("");
+      setNewPassword("");
+      setNewRole("User");
+      await loadUsers(1);
+    } catch (error) {
+      setCreateUserError(error.message || "Не удалось создать пользователя.");
+    } finally {
+      setCreatingUser(false);
     }
   };
 
@@ -428,127 +480,204 @@ export default function AdminPanelPage() {
       {activeTab === "support" ? (
         <AdminSupportPanel />
       ) : activeTab === "users" ? (
-        <article className="admin-card admin-card--users">
-          <div className="admin-users-header">
-            <h2>Пользователи</h2>
-            <p className="muted">
-              Всего: {userTotal}
-              {userListLoading ? " · загрузка…" : ""}
-            </p>
-          </div>
+        <div className="admin-panel-grid">
+          {/* Форма создания нового аккаунта */}
+          <article className="admin-card">
+            <h2>
+              <Users size={20} aria-hidden="true" />
+              <span>Создать пользователя</span>
+            </h2>
+            <form className="admin-upload-form" onSubmit={handleCreateUser}>
+              {createUserError ? (
+                <p className="admin-message admin-message--error" role="alert">
+                  {createUserError}
+                </p>
+              ) : null}
+              {createUserSuccess ? (
+                <p className="admin-message admin-message--success" role="status">
+                  {createUserSuccess}
+                </p>
+              ) : null}
 
-          {userActionError ? (
-            <p className="admin-message admin-message--error" role="alert">
-              {userActionError}
-            </p>
-          ) : null}
-          {userActionMessage ? (
-            <p className="admin-message admin-message--success" role="status">
-              {userActionMessage}
-            </p>
-          ) : null}
+              <label className="admin-field">
+                <span>Имя пользователя (Username)</span>
+                <input
+                  type="text"
+                  placeholder="Юзернейм"
+                  value={newUsername}
+                  onChange={(event) => setNewUsername(event.target.value)}
+                  required
+                />
+              </label>
 
-          {userListLoading && userResults.length === 0 ? (
-            <p className="muted">Загрузка списка пользователей…</p>
-          ) : userResults.length === 0 ? (
-            <p className="muted">Пользователи не найдены.</p>
-          ) : (
-            <ul className="admin-user-results admin-user-results--scroll">
-              {userResults.map((foundUser) => {
-                const isProtected = foundUser.isOwner;
-                const isAdmin = foundUser.role === "Admin";
-                const busy = userActionId === foundUser.id;
+              <label className="admin-field">
+                <span>Электронная почта (Email)</span>
+                <input
+                  type="email"
+                  placeholder="email@example.com"
+                  value={newEmail}
+                  onChange={(event) => setNewEmail(event.target.value)}
+                  required
+                />
+              </label>
 
-                return (
-                  <li
-                    key={foundUser.id}
-                    className={`admin-user-card${isProtected ? " admin-user-card--owner" : ""}`}
-                  >
-                    <div className="admin-user-card-meta">
-                      <strong>
-                        {foundUser.username ? `@${foundUser.username}` : "— без юзернейма —"}
-                      </strong>
-                      <span className="muted">{foundUser.email}</span>
-                      <span className="admin-user-role-badge">{formatRoleLabel(foundUser)}</span>
-                      {foundUser.isBannedFromCommenting ? (
-                        <span className="admin-user-ban-badge">Бан в комментариях</span>
-                      ) : (
-                        <span className="admin-user-ok-badge">Комментарии разрешены</span>
-                      )}
-                    </div>
-                    {isProtected ? (
-                      <p className="admin-user-owner-note muted">
-                        Аккаунт владельца — действия недоступны.
-                      </p>
-                    ) : (
-                      <div className="admin-user-card-actions">
-                        {isAdmin ? (
-                          <button
-                            type="button"
-                            className="secondary-btn"
-                            disabled={busy}
-                            onClick={() => handleDemoteAdmin(foundUser)}
-                          >
-                            Удалить из админов
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            className="secondary-btn"
-                            disabled={busy}
-                            onClick={() => handlePromoteAdmin(foundUser)}
-                          >
-                            Сделать админом
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          className="secondary-btn"
-                          disabled={busy}
-                          onClick={() => handleToggleBan(foundUser)}
-                        >
-                          {foundUser.isBannedFromCommenting ? "Разбанить" : "Забанить"}
-                        </button>
-                        <button
-                          type="button"
-                          className="danger-btn"
-                          disabled={busy}
-                          onClick={() => handleDeleteUser(foundUser)}
-                        >
-                          Полностью удалить
-                        </button>
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
+              <label className="admin-field">
+                <span>Пароль (Password)</span>
+                <input
+                  type="password"
+                  placeholder="Минимум 8 символов"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  required
+                />
+              </label>
 
-          {userTotal > USERS_PAGE_SIZE ? (
-            <div className="admin-users-pagination">
+              <label className="admin-field">
+                <span>Роль (Role)</span>
+                <select
+                  value={newRole}
+                  onChange={(event) => setNewRole(event.target.value)}
+                  required
+                >
+                  <option value="User">Пользователь</option>
+                  <option value="Admin">Администратор</option>
+                  <option value="Owner">Владелец</option>
+                </select>
+              </label>
+
               <button
-                type="button"
-                className="secondary-btn"
-                disabled={userPage <= 1 || userListLoading}
-                onClick={() => loadUsers(userPage - 1)}
+                type="submit"
+                className="primary-btn admin-submit-btn"
+                disabled={creatingUser}
               >
-                Назад
+                {creatingUser ? "Создание..." : "Создать аккаунт"}
               </button>
-              <span className="muted">
-                Страница {userPage} из {Math.max(1, Math.ceil(userTotal / USERS_PAGE_SIZE))}
-              </span>
-              <button
-                type="button"
-                className="secondary-btn"
-                disabled={!userHasMore || userListLoading}
-                onClick={() => loadUsers(userPage + 1)}
-              >
-                Далее
-              </button>
+            </form>
+          </article>
+
+          {/* Список пользователей */}
+          <article className="admin-card admin-card--users">
+            <div className="admin-users-header">
+              <h2>Пользователи</h2>
+              <p className="muted">
+                Всего: {userTotal}
+                {userListLoading ? " · загрузка…" : ""}
+              </p>
             </div>
-          ) : null}
-        </article>
+
+            {userActionError ? (
+              <p className="admin-message admin-message--error" role="alert">
+                {userActionError}
+              </p>
+            ) : null}
+            {userActionMessage ? (
+              <p className="admin-message admin-message--success" role="status">
+                {userActionMessage}
+              </p>
+            ) : null}
+
+            {userListLoading && userResults.length === 0 ? (
+              <p className="muted">Загрузка списка пользователей…</p>
+            ) : userResults.length === 0 ? (
+              <p className="muted">Пользователи не найдены.</p>
+            ) : (
+              <ul className="admin-user-results admin-user-results--scroll">
+                {userResults.map((foundUser) => {
+                  const isProtected = foundUser.isOwner;
+                  const isAdmin = foundUser.isPlatformAdmin || foundUser.role === "Admin" || foundUser.platformRole === "Admin";
+                  const busy = userActionId === foundUser.id;
+
+                  return (
+                    <li
+                      key={foundUser.id}
+                      className={`admin-user-card${isProtected ? " admin-user-card--owner" : ""}`}
+                    >
+                      <div className="admin-user-card-meta">
+                        <strong>
+                          {foundUser.username ? `@${foundUser.username}` : "— без юзернейма —"}
+                        </strong>
+                        <span className="muted">{foundUser.email}</span>
+                        <span className="admin-user-role-badge">{formatRoleLabel(foundUser)}</span>
+                        {foundUser.isBannedFromCommenting ? (
+                          <span className="admin-user-ban-badge">Бан в комментариях</span>
+                        ) : (
+                          <span className="admin-user-ok-badge">Комментарии разрешены</span>
+                        )}
+                      </div>
+                      {isProtected ? (
+                        <p className="admin-user-owner-note muted">
+                          Аккаунт владельца — действия недоступны.
+                        </p>
+                      ) : (
+                        <div className="admin-user-card-actions">
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              className="secondary-btn"
+                              disabled={busy}
+                              onClick={() => handleDemoteAdmin(foundUser)}
+                            >
+                              Удалить из админов
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="secondary-btn"
+                              disabled={busy}
+                              onClick={() => handlePromoteAdmin(foundUser)}
+                            >
+                              Сделать админом
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            className="secondary-btn"
+                            disabled={busy}
+                            onClick={() => handleToggleBan(foundUser)}
+                          >
+                            {foundUser.isBannedFromCommenting ? "Разбанить" : "Забанить"}
+                          </button>
+                          <button
+                            type="button"
+                            className="danger-btn"
+                            disabled={busy}
+                            onClick={() => handleDeleteUser(foundUser)}
+                          >
+                            Полностью удалить
+                          </button>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {userTotal > USERS_PAGE_SIZE ? (
+              <div className="admin-users-pagination">
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  disabled={userPage <= 1 || userListLoading}
+                  onClick={() => loadUsers(userPage - 1)}
+                >
+                  Назад
+                </button>
+                <span className="muted">
+                  Страница {userPage} из {Math.max(1, Math.ceil(userTotal / USERS_PAGE_SIZE))}
+                </span>
+                <button
+                  type="button"
+                  className="secondary-btn"
+                  disabled={!userHasMore || userListLoading}
+                  onClick={() => loadUsers(userPage + 1)}
+                >
+                  Далее
+                </button>
+              </div>
+            ) : null}
+          </article>
+        </div>
       ) : (
       <div className="admin-panel-grid">
         <article className="admin-card">

@@ -25,6 +25,8 @@ import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-
 import { apiFetch, apiUrl } from "./auth/api";
 import ForumPage from "./components/ForumPage";
 import AuthPanel from "./components/AuthPanel";
+import AdminPanelPage from "./components/AdminPanelPage";
+
 
 const SEASON_INFO = [
   {
@@ -1876,6 +1878,7 @@ export default function App() {
         />
           <Route path="/forum" element={<ForumPage />} />
       <Route path="/forum/:threadId" element={<ForumPage />} />
+      <Route path="/admin" element={<AdminPanelPage />} />
         <Route
           path="/season/:seasonId"
           element={
