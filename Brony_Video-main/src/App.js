@@ -157,7 +157,7 @@ const getSeasonIntroConfig = (seasonId) => {
   };
 };
 
-const NEXT_EPISODE_REMAINING_SECONDS = 90;
+const NEXT_EPISODE_REMAINING_SECONDS = 30;
 
 const PLAYBACK_SPEED_OPTIONS = [
   { value: 0.5, label: "0.5x" },
@@ -1020,6 +1020,17 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     []
   );
 
+  const isMobileTouchDevice = useCallback(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+    return (
+      window.matchMedia("(pointer: coarse)").matches ||
+      "ontouchstart" in window ||
+      (navigator.maxTouchPoints ?? 0) > 0
+    );
+  }, []);
+
   const suppressMobileSyntheticClick = useCallback(
     (event) => {
       if (!isMobilePlayerViewport()) {
@@ -1333,6 +1344,111 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       }
     };
   }, [clearControlsHideTimer, clearMobileTapPending]);
+
+  useEffect(() => {
+    const shell = playerShellRef.current;
+    const video = playerRef.current;
+    if (!shell || !video || !videoSrc || !isShellFullscreen || !isMobileTouchDevice()) {
+      return undefined;
+    }
+
+    const resolveZoneFromClientX = (clientX) => {
+      const rect = shell.getBoundingClientRect();
+      if (!rect.width) {
+        return null;
+      }
+      return clientX - rect.left < rect.width / 2 ? "left" : "right";
+    };
+
+    const handleFullscreenTouchStart = (event) => {
+      if (isPlayerChromeTarget(event.target)) {
+        return;
+      }
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+    };
+
+    const handleFullscreenTouchEnd = (event) => {
+      if (isPlayerChromeTarget(event.target)) {
+        revealControls();
+        return;
+      }
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      event.stopPropagation();
+
+      const touch = event.changedTouches[0];
+      if (!touch) {
+        return;
+      }
+
+      const zone = resolveZoneFromClientX(touch.clientX);
+      if (!zone) {
+        return;
+      }
+
+      const deltaSeconds = zone === "left" ? -10 : 10;
+      const now = Date.now();
+      const pending = mobileTapPendingRef.current;
+
+      if (
+        pending &&
+        pending.zone === zone &&
+        !pending.suppressPlayPause &&
+        now - pending.time <= MOBILE_DOUBLE_TAP_MS
+      ) {
+        if (pending.timerId) {
+          clearTimeout(pending.timerId);
+        }
+        mobileTapPendingRef.current = { zone, time: now, suppressPlayPause: true };
+        seekBySeconds(deltaSeconds);
+        showSkipFeedback(zone);
+        window.setTimeout(() => {
+          if (mobileTapPendingRef.current?.suppressPlayPause) {
+            mobileTapPendingRef.current = null;
+          }
+        }, MOBILE_DOUBLE_TAP_MS);
+        return;
+      }
+
+      clearMobileTapPending();
+      const tapId = `fs-${zone}-${now}`;
+      const timerId = window.setTimeout(() => {
+        const active = mobileTapPendingRef.current;
+        if (!active || active.tapId !== tapId || active.suppressPlayPause) {
+          return;
+        }
+        mobileTapPendingRef.current = null;
+        toggleControlsVisibility();
+      }, MOBILE_DOUBLE_TAP_MS);
+      mobileTapPendingRef.current = { zone, time: now, tapId, timerId };
+    };
+
+    const touchOptions = { passive: false, capture: true };
+    shell.addEventListener("touchstart", handleFullscreenTouchStart, touchOptions);
+    shell.addEventListener("touchend", handleFullscreenTouchEnd, touchOptions);
+    video.addEventListener("touchstart", handleFullscreenTouchStart, touchOptions);
+    video.addEventListener("touchend", handleFullscreenTouchEnd, touchOptions);
+
+    return () => {
+      shell.removeEventListener("touchstart", handleFullscreenTouchStart, touchOptions);
+      shell.removeEventListener("touchend", handleFullscreenTouchEnd, touchOptions);
+      video.removeEventListener("touchstart", handleFullscreenTouchStart, touchOptions);
+      video.removeEventListener("touchend", handleFullscreenTouchEnd, touchOptions);
+    };
+  }, [
+    clearMobileTapPending,
+    isMobileTouchDevice,
+    isPlayerChromeTarget,
+    isShellFullscreen,
+    revealControls,
+    seekBySeconds,
+    showSkipFeedback,
+    toggleControlsVisibility,
+    videoSrc
+  ]);
 
   useEffect(() => {
     if (!videoSrc) {

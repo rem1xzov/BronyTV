@@ -910,6 +910,8 @@ body[data-theme="dark"] .hero-thumb {
   background-color: #000 !important;
   aspect-ratio: unset;
   box-sizing: border-box;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .player-shell:fullscreen .player-media-stage,
@@ -1867,6 +1869,14 @@ body[data-theme="dark"] .hero-thumb {
     right: 0;
     bottom: var(--player-chrome-height);
     height: auto;
+    pointer-events: none;
+  }
+
+  .player-shell:fullscreen video,
+  .player-shell:-webkit-full-screen video {
+    pointer-events: auto;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .player-shell:fullscreen .player-media-stage,
