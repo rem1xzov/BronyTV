@@ -1,0 +1,6 @@
+@BronyTV_HostAddress = http://localhost:5069
+
+GET {{BronyTV_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

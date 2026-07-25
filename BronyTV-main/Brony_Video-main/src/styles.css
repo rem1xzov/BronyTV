@@ -1,0 +1,43 @@
+:root {
+  --bg-main: #e8f4fc;
+  --bg-soft: #dceef9;
+  --bg-card: #ffffff;
+  --text-main: #143656;
+  --text-muted: #5a7a94;
+}
+
+/* Фикс зоны тапов для мобилок в фуллскрине */
+.player-touch-layer {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 2147483647 !important;
+    pointer-events: auto !important;
+    display: flex;
+}
+
+.player-skip-zone {
+    position: relative;
+    width: 50%;
+    height: 100%;
+    z-index: 2147483647 !important;
+    pointer-events: auto !important;
+}
+
+.player-skip-zone--left {
+    left: 0;
+}
+
+.player-skip-zone--right {
+    right: 0;
+}
+
+/* Стили для режима :fullscreen */
+:-webkit-full-screen .player-touch-layer,
+:-ms-fullscreen .player-touch-layer,
+:fullscreen .player-touch-layer {
+    z-index: 2147483647 !important;
+    pointer-events: auto !important;
+}

@@ -1,0 +1,14 @@
+**/.git
+**/.vs
+**/.idea
+**/bin
+**/obj
+**/*.user
+**/.env
+**/.env.*
+!**/.env.example
+**/node_modules
+**/data
+BronyTV/wwwroot/content/video/*
+# previews: не игнорировать весь каталог — в образе нужен default-season.jpg
+BronyTV/wwwroot/content/previews/s*.jpg
