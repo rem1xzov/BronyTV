@@ -76,6 +76,41 @@ public class ForumService : IForumService
         return (response, null, 201);
     }
 
+    public async Task<(bool Success, string? Error, int StatusCode)> DeleteThreadAsync(
+        Guid threadId,
+        Guid userId,
+        string currentUserRole,
+        CancellationToken cancellationToken = default)
+    {
+        var thread = await _forumRepository.GetThreadByIdAsync(threadId, cancellationToken);
+        if (thread == null)
+        {
+            return (false, "Тема не найдена.", 404);
+        }
+
+        var authorRole = thread.Author?.PlatformRole ?? "user";
+
+        if (currentUserRole == "owner")
+        {
+            await _forumRepository.DeleteThreadAsync(thread, cancellationToken);
+            return (true, null, 204);
+        }
+
+        if (thread.AuthorId == userId)
+        {
+            await _forumRepository.DeleteThreadAsync(thread, cancellationToken);
+            return (true, null, 204);
+        }
+
+        if (currentUserRole == "admin" && authorRole != "owner")
+        {
+            await _forumRepository.DeleteThreadAsync(thread, cancellationToken);
+            return (true, null, 204);
+        }
+
+        return (false, "Недостаточно прав для удаления темы.", 403);
+    }
+
     public async Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
         Guid threadId,
         CancellationToken cancellationToken = default)

@@ -42,6 +42,12 @@ public class ForumRepository : IForumRepository
         return thread;
     }
 
+    public async Task DeleteThreadAsync(ForumThreadEntity thread, CancellationToken cancellationToken = default)
+    {
+        _context.ForumThreads.Remove(thread);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<ForumPostEntity>> GetPostsByThreadIdAsync(
         Guid threadId,
         CancellationToken cancellationToken = default) =>

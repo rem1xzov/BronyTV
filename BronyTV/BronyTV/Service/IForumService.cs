@@ -13,6 +13,12 @@ public interface IForumService
         List<string>? images,
         CancellationToken cancellationToken = default);
 
+    Task<(bool Success, string? Error, int StatusCode)> DeleteThreadAsync(
+        Guid threadId,
+        Guid userId,
+        string currentUserRole,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
         Guid threadId,
         CancellationToken cancellationToken = default);

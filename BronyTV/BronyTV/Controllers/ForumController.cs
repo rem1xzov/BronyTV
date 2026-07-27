@@ -50,6 +50,31 @@ public class ForumController : ControllerBase
         return Ok(response);
     }
 
+    [Authorize(Roles = "User")]
+    [HttpDelete("threads/{threadId:guid}")]
+    public async Task<IActionResult> DeleteThread(Guid threadId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var currentUserRole = User.IsInRole("Owner") ? "owner" : User.IsInRole("Admin") ? "admin" : "user";
+
+        var (success, error, statusCode) = await _forumService.DeleteThreadAsync(
+            threadId,
+            userId,
+            currentUserRole,
+            cancellationToken);
+
+        if (!success)
+        {
+            return StatusCode(statusCode, new { message = error });
+        }
+
+        return NoContent();
+    }
+
     [HttpGet("threads/{threadId:guid}/posts")]
     public async Task<IActionResult> GetPosts(Guid threadId, CancellationToken cancellationToken)
     {
