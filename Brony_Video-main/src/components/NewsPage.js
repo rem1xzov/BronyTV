@@ -43,6 +43,15 @@ function formatDate(value) {
   });
 }
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function CreateNewsModal({ isOpen, onClose, onCreated }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
@@ -99,16 +108,12 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
       let uploadImageUrl = imageUrl.trim() || null;
 
       if (imageFile) {
-        const formData = new FormData();
-        formData.append("file", imageFile);
-        const uploadResponse = await apiFetch("/news/upload-image", {
-          method: "POST",
-          body: formData,
-          credentials: "same-origin"
-        });
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          uploadImageUrl = uploadData.imageUrl;
+        try {
+          uploadImageUrl = await fileToBase64(imageFile);
+        } catch (readError) {
+          setError("Не удалось прочитать файл изображения.");
+          setSubmitting(false);
+          return;
         }
       }
 
