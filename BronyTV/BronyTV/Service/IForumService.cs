@@ -10,6 +10,7 @@ public interface IForumService
         Guid authorId,
         string title,
         string? description,
+        List<string>? images,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
@@ -20,5 +21,6 @@ public interface IForumService
         Guid threadId,
         Guid authorId,
         string content,
+        List<string>? images,
         CancellationToken cancellationToken = default);
 }

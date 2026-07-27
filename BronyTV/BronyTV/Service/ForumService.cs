@@ -1,3 +1,4 @@
+using System.Text.Json;
 using BronyTV.Contract;
 using BronyTV.DbContext.Entity;
 using BronyTV.Repository;
@@ -6,8 +7,6 @@ namespace BronyTV.Service;
 
 public class ForumService : IForumService
 {
-    private const int MaxTitleLength = 150;
-    private const int MaxContentLength = 4000;
     private readonly IForumRepository _forumRepository;
     private readonly IUserRepository _userRepository;
 
@@ -17,141 +16,138 @@ public class ForumService : IForumService
         _userRepository = userRepository;
     }
 
-    public async Task<IReadOnlyList<ForumThreadResponse>> GetThreadsAsync(
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ForumThreadResponse>> GetThreadsAsync(CancellationToken cancellationToken = default)
     {
         var threads = await _forumRepository.GetThreadsAsync(cancellationToken);
-        return threads.Select(MapThread).ToList();
+        return threads.Select(ThreadToResponse).ToList();
     }
 
     public async Task<(ForumThreadResponse? Response, string? Error, int StatusCode)> CreateThreadAsync(
         Guid authorId,
         string title,
         string? description,
+        List<string>? images,
         CancellationToken cancellationToken = default)
     {
-        var author = await _userRepository.GetByIdAsync(authorId, cancellationToken);
-        if (author == null)
+        if (string.IsNullOrWhiteSpace(title))
         {
-            return (null, "Пользователь не найден.", StatusCodes.Status401Unauthorized);
+            return (null, "Заголовок не может быть пустым.", 400);
         }
 
-        if (string.IsNullOrWhiteSpace(author.Username))
+        if (title.Length > 150)
         {
-            return (null, "Сначала задайте юзернейм в личном кабинете.", StatusCodes.Status400BadRequest);
+            return (null, "Заголовок слишком длинный.", 400);
         }
 
-        var trimmedTitle = title.Trim();
-        if (string.IsNullOrEmpty(trimmedTitle))
+        var user = await _userRepository.GetByIdAsync(authorId, cancellationToken);
+        if (user == null)
         {
-            return (null, "Укажите заголовок темы.", StatusCodes.Status400BadRequest);
-        }
-
-        if (trimmedTitle.Length > MaxTitleLength)
-        {
-            return (null, $"Заголовок не может быть длиннее {MaxTitleLength} символов.", StatusCodes.Status400BadRequest);
-        }
-
-        var trimmedDescription = string.IsNullOrWhiteSpace(description) ? null : description.Trim();
-        if (trimmedDescription?.Length > MaxContentLength)
-        {
-            return (null, $"Описание не может быть длиннее {MaxContentLength} символов.", StatusCodes.Status400BadRequest);
+            return (null, "Пользователь не найден.", 404);
         }
 
         var thread = new ForumThreadEntity
         {
             Id = Guid.NewGuid(),
-            Title = trimmedTitle,
-            Description = trimmedDescription,
+            Title = title.Trim(),
+            Description = description?.Trim(),
             AuthorId = authorId,
-            CreatedAtUtc = DateTime.UtcNow
+            Author = user,
+            CreatedAt = DateTime.UtcNow,
+            Images = images != null ? JsonSerializer.Serialize(images) : null
         };
 
         await _forumRepository.AddThreadAsync(thread, cancellationToken);
-        thread.Author = author;
-        return (MapThread(thread), null, StatusCodes.Status200OK);
+        return (ThreadToResponse(thread), null, 201);
     }
 
     public async Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
         Guid threadId,
         CancellationToken cancellationToken = default)
     {
-        if (await _forumRepository.GetThreadByIdAsync(threadId, cancellationToken) == null)
-        {
-            return Array.Empty<ForumPostResponse>();
-        }
-
         var posts = await _forumRepository.GetPostsByThreadIdAsync(threadId, cancellationToken);
-        return posts.Select(MapPost).ToList();
+        return posts.Select(PostToResponse).ToList();
     }
 
     public async Task<(ForumPostResponse? Response, string? Error, int StatusCode)> CreatePostAsync(
         Guid threadId,
         Guid authorId,
         string content,
+        List<string>? images,
         CancellationToken cancellationToken = default)
     {
-        if (await _forumRepository.GetThreadByIdAsync(threadId, cancellationToken) == null)
+        if (string.IsNullOrWhiteSpace(content))
         {
-            return (null, "Тема не найдена.", StatusCodes.Status404NotFound);
+            return (null, "Сообщение не может быть пустым.", 400);
         }
 
-        var author = await _userRepository.GetByIdAsync(authorId, cancellationToken);
-        if (author == null)
+        if (content.Length > 4000)
         {
-            return (null, "Пользователь не найден.", StatusCodes.Status401Unauthorized);
+            return (null, "Сообщение слишком длинное.", 400);
         }
 
-        if (string.IsNullOrWhiteSpace(author.Username))
+        var thread = await _forumRepository.GetThreadByIdAsync(threadId, cancellationToken);
+        if (thread == null)
         {
-            return (null, "Сначала задайте юзернейм в личном кабинете.", StatusCodes.Status400BadRequest);
+            return (null, "Тема не найдена.", 404);
         }
 
-        var trimmed = content.Trim();
-        if (string.IsNullOrEmpty(trimmed))
+        var user = await _userRepository.GetByIdAsync(authorId, cancellationToken);
+        if (user == null)
         {
-            return (null, "Сообщение не может быть пустым.", StatusCodes.Status400BadRequest);
-        }
-
-        if (trimmed.Length > MaxContentLength)
-        {
-            return (null, $"Сообщение не может быть длиннее {MaxContentLength} символов.", StatusCodes.Status400BadRequest);
+            return (null, "Пользователь не найден.", 404);
         }
 
         var post = new ForumPostEntity
         {
             Id = Guid.NewGuid(),
             ThreadId = threadId,
-            Content = trimmed,
+            Content = content.Trim(),
             AuthorId = authorId,
-            CreatedAtUtc = DateTime.UtcNow
+            Author = user,
+            CreatedAt = DateTime.UtcNow,
+            Images = images != null ? JsonSerializer.Serialize(images) : null
         };
 
         await _forumRepository.AddPostAsync(post, cancellationToken);
-        post.Author = author;
-        return (MapPost(post), null, StatusCodes.Status200OK);
+        return (PostToResponse(post), null, 201);
     }
 
-    private static ForumThreadResponse MapThread(ForumThreadEntity thread) =>
-        new()
+    private static ForumThreadResponse ThreadToResponse(ForumThreadEntity thread) =>
+        new ForumThreadResponse
         {
             Id = thread.Id,
-            Title = thread.Title,
+            Title = thread.Title ?? string.Empty,
             Description = thread.Description,
-            CreatedAt = thread.CreatedAtUtc,
-            AuthorId = thread.AuthorId,
-            AuthorUsername = thread.Author?.Username ?? string.Empty,
-            PostCount = thread.Posts?.Count ?? 0
+            AuthorUsername = thread.Author?.Username ?? "unknown",
+            CreatedAt = thread.CreatedAt,
+            PostCount = 0,
+            Images = DeserializeImages(thread.Images)
         };
 
-    private static ForumPostResponse MapPost(ForumPostEntity post) =>
-        new()
+    private static ForumPostResponse PostToResponse(ForumPostEntity post) =>
+        new ForumPostResponse
         {
             Id = post.Id,
-            ThreadId = post.ThreadId,
-            Content = post.Content,
-            CreatedAt = post.CreatedAtUtc,
-            AuthorId = post.AuthorId,
-            AuthorUsername = post.Author?.Username ?? string.Empty
+            Content = post.Content ?? string.Empty,
+            AuthorUsername = post.Author?.Username ?? "unknown",
+            CreatedAt = post.CreatedAt,
+            Images = DeserializeImages(post.Images)
         };
+
+    private static List<string>? DeserializeImages(string? imagesJson)
+    {
+        if (string.IsNullOrWhiteSpace(imagesJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(imagesJson);
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
