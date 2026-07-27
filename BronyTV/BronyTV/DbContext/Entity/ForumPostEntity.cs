@@ -1,5 +1,5 @@
 using System;
-using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace BronyTV.DbContext.Entity;
 
@@ -11,6 +11,8 @@ public class ForumPostEntity
     public Guid AuthorId { get; set; }
     public ForumThreadEntity Thread { get; set; } = null!;
     public UserEntity Author { get; set; } = null!;
+    [Column(TypeName = "timestamp with time zone")]
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    [Column(TypeName = "text")]
     public string? Images { get; set; }
 }
