@@ -60,9 +60,6 @@ public class ForumService : IForumService
             Images = images != null ? JsonSerializer.Serialize(images) : null
         };
 
-        // Обнуляем Author, чтобы EF Core не пытался заново вставить существующего пользователя в Users
-        thread.Author = null!;
-
         await _forumRepository.AddThreadAsync(thread, cancellationToken);
 
         var response = new ForumThreadResponse
@@ -125,9 +122,6 @@ public class ForumService : IForumService
             CreatedAtUtc = DateTime.UtcNow,
             Images = images != null ? JsonSerializer.Serialize(images) : null
         };
-
-        // Обнуляем Author, чтобы EF Core не пытался заново вставить существующего пользователя в Users
-        post.Author = null!;
 
         await _forumRepository.AddPostAsync(post, cancellationToken);
 
