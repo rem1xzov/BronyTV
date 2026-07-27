@@ -56,8 +56,23 @@ public class ForumService : IForumService
             Images = images != null ? JsonSerializer.Serialize(images) : null
         };
 
+        // Предотвращаем вставку существующего пользователя
+        thread.Author = null!;
+
         await _forumRepository.AddThreadAsync(thread, cancellationToken);
-        return (ThreadToResponse(thread), null, 201);
+
+        var response = new ForumThreadResponse
+        {
+            Id = thread.Id,
+            Title = thread.Title,
+            Description = thread.Description,
+            AuthorUsername = user.Username ?? "unknown",
+            CreatedAtUtc = thread.CreatedAtUtc,
+            PostCount = 0,
+            Images = DeserializeImages(thread.Images)
+        };
+
+        return (response, null, 201);
     }
 
     public async Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
@@ -108,8 +123,21 @@ public class ForumService : IForumService
             Images = images != null ? JsonSerializer.Serialize(images) : null
         };
 
+        // Предотвращаем вставку существующего пользователя
+        post.Author = null!;
+
         await _forumRepository.AddPostAsync(post, cancellationToken);
-        return (PostToResponse(post), null, 201);
+
+        var postResponse = new ForumPostResponse
+        {
+            Id = post.Id,
+            Content = post.Content,
+            AuthorUsername = user.Username ?? "unknown",
+            CreatedAtUtc = post.CreatedAtUtc,
+            Images = DeserializeImages(post.Images)
+        };
+
+        return (postResponse, null, 201);
     }
 
     private static ForumThreadResponse ThreadToResponse(ForumThreadEntity thread) =>
@@ -131,23 +159,4 @@ public class ForumService : IForumService
             Content = post.Content ?? string.Empty,
             AuthorUsername = post.Author?.Username ?? "unknown",
             CreatedAtUtc = post.CreatedAtUtc,
-            Images = DeserializeImages(post.Images)
-        };
-
-    private static List<string>? DeserializeImages(string? imagesJson)
-    {
-        if (string.IsNullOrWhiteSpace(imagesJson))
-        {
-            return null;
-        }
-
-        try
-        {
-            return JsonSerializer.Deserialize<List<string>>(imagesJson);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-}
+            Images = Deserialize
