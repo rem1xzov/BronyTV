@@ -15,4 +15,6 @@ public class ForumPostEntity
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     [Column(TypeName = "text")]
     public string? Images { get; set; }
+    [Column(TypeName = "text")]
+    public string? LikedUserIds { get; set; }
 }

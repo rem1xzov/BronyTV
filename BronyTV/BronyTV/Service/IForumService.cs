@@ -23,4 +23,15 @@ public interface IForumService
         string content,
         List<string>? images,
         CancellationToken cancellationToken = default);
+
+    Task<(ForumPostResponse? Response, string? Error, int StatusCode)> ToggleLikeAsync(
+        Guid postId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task<(bool Success, string? Error, int StatusCode)> DeletePostAsync(
+        Guid postId,
+        Guid userId,
+        bool isAdmin,
+        CancellationToken cancellationToken = default);
 }

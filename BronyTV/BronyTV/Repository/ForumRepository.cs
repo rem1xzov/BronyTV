@@ -52,10 +52,26 @@ public class ForumRepository : IForumRepository
             .OrderBy(post => post.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
+    public Task<ForumPostEntity?> GetPostByIdAsync(Guid postId, CancellationToken cancellationToken = default) =>
+        _context.ForumPosts
+            .FirstOrDefaultAsync(post => post.Id == postId, cancellationToken);
+
     public async Task<ForumPostEntity> AddPostAsync(ForumPostEntity post, CancellationToken cancellationToken = default)
     {
         _context.ForumPosts.Add(post);
         await _context.SaveChangesAsync(cancellationToken);
         return post;
+    }
+
+    public async Task UpdatePostAsync(ForumPostEntity post, CancellationToken cancellationToken = default)
+    {
+        _context.ForumPosts.Update(post);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeletePostAsync(ForumPostEntity post, CancellationToken cancellationToken = default)
+    {
+        _context.ForumPosts.Remove(post);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 }

@@ -84,6 +84,52 @@ public class ForumController : ControllerBase
         return Ok(response);
     }
 
+    [Authorize(Roles = "User")]
+    [HttpPost("posts/{postId:guid}/like")]
+    public async Task<IActionResult> ToggleLike(Guid postId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var (response, error, statusCode) = await _forumService.ToggleLikeAsync(
+            postId,
+            userId,
+            cancellationToken);
+
+        if (response == null)
+        {
+            return StatusCode(statusCode, new { message = error });
+        }
+
+        return Ok(response);
+    }
+
+    [Authorize(Roles = "User")]
+    [HttpDelete("posts/{postId:guid}")]
+    public async Task<IActionResult> DeletePost(Guid postId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var isAdmin = User.IsInRole("Admin");
+        var (success, error, statusCode) = await _forumService.DeletePostAsync(
+            postId,
+            userId,
+            isAdmin,
+            cancellationToken);
+
+        if (!success)
+        {
+            return StatusCode(statusCode, new { message = error });
+        }
+
+        return NoContent();
+    }
+
     private bool TryGetUserId(out Guid userId)
     {
         userId = Guid.Empty;

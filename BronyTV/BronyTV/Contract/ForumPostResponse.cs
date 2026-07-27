@@ -10,4 +10,6 @@ public class ForumPostResponse
     public string AuthorUsername { get; set; } = string.Empty;
     public DateTime CreatedAtUtc { get; set; }
     public List<string>? Images { get; set; }
+    public int Likes { get; set; }
+    public bool LikedByMe { get; set; }
 }

@@ -134,10 +134,76 @@ public class ForumService : IForumService
             Content = post.Content,
             AuthorUsername = user.Username ?? "unknown",
             CreatedAtUtc = post.CreatedAtUtc,
-            Images = DeserializeImages(post.Images)
+            Images = DeserializeImages(post.Images),
+            Likes = 0,
+            LikedByMe = false
         };
 
         return (postResponse, null, 201);
+    }
+
+    public async Task<(ForumPostResponse? Response, string? Error, int StatusCode)> ToggleLikeAsync(
+        Guid postId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var post = await _forumRepository.GetPostByIdAsync(postId, cancellationToken);
+        if (post == null)
+        {
+            return (null, "Пост не найден.", 404);
+        }
+
+        var likedIds = DeserializeLikedUserIds(post.LikedUserIds);
+        var currentIdStr = userId.ToString();
+        bool likedByMe;
+
+        if (likedIds.Contains(currentIdStr))
+        {
+            likedIds.Remove(currentIdStr);
+            likedByMe = false;
+        }
+        else
+        {
+            likedIds.Add(currentIdStr);
+            likedByMe = true;
+        }
+
+        post.LikedUserIds = likedIds.Count > 0 ? JsonSerializer.Serialize(likedIds) : null;
+        await _forumRepository.UpdatePostAsync(post, cancellationToken);
+
+        var postResponse = new ForumPostResponse
+        {
+            Id = post.Id,
+            Content = post.Content ?? string.Empty,
+            AuthorUsername = post.Author?.Username ?? "unknown",
+            CreatedAtUtc = post.CreatedAtUtc,
+            Images = DeserializeImages(post.Images),
+            Likes = likedIds.Count,
+            LikedByMe = likedByMe
+        };
+
+        return (postResponse, null, 200);
+    }
+
+    public async Task<(bool Success, string? Error, int StatusCode)> DeletePostAsync(
+        Guid postId,
+        Guid userId,
+        bool isAdmin,
+        CancellationToken cancellationToken = default)
+    {
+        var post = await _forumRepository.GetPostByIdAsync(postId, cancellationToken);
+        if (post == null)
+        {
+            return (false, "Пост не найден.", 404);
+        }
+
+        if (!isAdmin && post.AuthorId != userId)
+        {
+            return (false, "Нет прав для удаления.", 403);
+        }
+
+        await _forumRepository.DeletePostAsync(post, cancellationToken);
+        return (true, null, 204);
     }
 
     private static ForumThreadResponse ThreadToResponse(ForumThreadEntity thread) =>
@@ -152,15 +218,20 @@ public class ForumService : IForumService
             Images = DeserializeImages(thread.Images)
         };
 
-    private static ForumPostResponse PostToResponse(ForumPostEntity post) =>
-        new ForumPostResponse
+    private static ForumPostResponse PostToResponse(ForumPostEntity post)
+    {
+        var likedIds = DeserializeLikedUserIds(post.LikedUserIds);
+        return new ForumPostResponse
         {
             Id = post.Id,
             Content = post.Content ?? string.Empty,
             AuthorUsername = post.Author?.Username ?? "unknown",
             CreatedAtUtc = post.CreatedAtUtc,
-            Images = DeserializeImages(post.Images)
+            Images = DeserializeImages(post.Images),
+            Likes = likedIds.Count,
+            LikedByMe = false
         };
+    }
 
     private static List<string>? DeserializeImages(string? imagesJson)
     {
@@ -176,6 +247,24 @@ public class ForumService : IForumService
         catch
         {
             return null;
+        }
+    }
+
+    private static HashSet<string> DeserializeLikedUserIds(string? likedUserIdsJson)
+    {
+        if (string.IsNullOrWhiteSpace(likedUserIdsJson))
+        {
+            return new HashSet<string>();
+        }
+
+        try
+        {
+            var list = JsonSerializer.Deserialize<List<string>>(likedUserIdsJson);
+            return list != null ? new HashSet<string>(list) : new HashSet<string>();
+        }
+        catch
+        {
+            return new HashSet<string>();
         }
     }
 }
