@@ -259,7 +259,24 @@ function NewsCard({ post, isAdmin, onDelete }) {
           <span className="muted">· {formatDate(post.createdAt)}</span>
         </div>
         {truncatedContent.length > 0 ? (
-          <button type="button" className="news-card-read-more" onClick={toggleExpand}>
+          <button type="button"
+            className="news-card-read-more"
+            onClick={toggleExpand}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '36px',
+              padding: '0 16px',
+              borderRadius: '18px',
+              background: 'linear-gradient(135deg, #ec4899, #a855f7)',
+              color: 'white',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.875rem',
+              fontWeight: 500,
+            }}
+          >
             {expanded ? "Свернуть" : "Читать далее"}
           </button>
         ) : null}

@@ -415,11 +415,13 @@ function ForumThreadView({ threadId }) {
         ) : (
           <ul className="forum-post-list">
             {posts.map((post) => {
-              const canDelete = user && (
-                user.isOwner ||
-                user.username === post.authorUsername ||
-                (user.isPlatformAdmin && post.authorRole !== 'owner')
-              );
+              const currentUsername = user?.username || user?.userName;
+              const currentUserRole = (user?.platformRole || user?.role || '').toLowerCase();
+              const isOwner = currentUserRole === 'owner' || user?.isOwner;
+              const isAdmin = currentUserRole === 'admin' || user?.isPlatformAdmin;
+              const isAuthor = currentUsername && currentUsername === post.authorUsername;
+              const postAuthorRole = (post.authorRole || '').toLowerCase();
+              const canDelete = isOwner || isAuthor || (isAdmin && postAuthorRole !== 'owner');
 
               return (
                 <li key={post.id} className="forum-post-item">
