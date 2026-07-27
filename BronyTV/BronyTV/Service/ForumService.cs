@@ -1,4 +1,9 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using BronyTV.Contract;
 using BronyTV.DbContext.Entity;
 using BronyTV.Repository;
@@ -51,12 +56,11 @@ public class ForumService : IForumService
             Title = title.Trim(),
             Description = description?.Trim(),
             AuthorId = authorId,
-            Author = user,
             CreatedAtUtc = DateTime.UtcNow,
             Images = images != null ? JsonSerializer.Serialize(images) : null
         };
 
-        // Предотвращаем вставку существующего пользователя
+        // Обнуляем Author, чтобы EF Core не пытался заново вставить существующего пользователя в Users
         thread.Author = null!;
 
         await _forumRepository.AddThreadAsync(thread, cancellationToken);
@@ -118,12 +122,11 @@ public class ForumService : IForumService
             ThreadId = threadId,
             Content = content.Trim(),
             AuthorId = authorId,
-            Author = user,
             CreatedAtUtc = DateTime.UtcNow,
             Images = images != null ? JsonSerializer.Serialize(images) : null
         };
 
-        // Предотвращаем вставку существующего пользователя
+        // Обнуляем Author, чтобы EF Core не пытался заново вставить существующего пользователя в Users
         post.Author = null!;
 
         await _forumRepository.AddPostAsync(post, cancellationToken);
@@ -159,4 +162,23 @@ public class ForumService : IForumService
             Content = post.Content ?? string.Empty,
             AuthorUsername = post.Author?.Username ?? "unknown",
             CreatedAtUtc = post.CreatedAtUtc,
-            Images = Deserialize
+            Images = DeserializeImages(post.Images)
+        };
+
+    private static List<string>? DeserializeImages(string? imagesJson)
+    {
+        if (string.IsNullOrWhiteSpace(imagesJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<string>>(imagesJson);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}

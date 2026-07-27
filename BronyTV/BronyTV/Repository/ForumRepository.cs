@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using BronyTV.DbContext;
 using BronyTV.DbContext.Entity;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +37,12 @@ public class ForumRepository : IForumRepository
         ForumThreadEntity thread,
         CancellationToken cancellationToken = default)
     {
+        // Предотвращаем попытку EF Core вставить существующего пользователя заново
+        if (thread.Author != null)
+        {
+            _context.Entry(thread.Author).State = EntityState.Unchanged;
+        }
+
         _context.ForumThreads.Add(thread);
         await _context.SaveChangesAsync(cancellationToken);
         return thread;
@@ -49,6 +60,12 @@ public class ForumRepository : IForumRepository
 
     public async Task<ForumPostEntity> AddPostAsync(ForumPostEntity post, CancellationToken cancellationToken = default)
     {
+        // Предотвращаем попытку EF Core вставить существующего пользователя заново
+        if (post.Author != null)
+        {
+            _context.Entry(post.Author).State = EntityState.Unchanged;
+        }
+
         _context.ForumPosts.Add(post);
         await _context.SaveChangesAsync(cancellationToken);
         return post;
