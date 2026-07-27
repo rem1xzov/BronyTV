@@ -11,6 +11,6 @@ public class ForumPostEntity
     public Guid AuthorId { get; set; }
     public ForumThreadEntity Thread { get; set; } = null!;
     public UserEntity Author { get; set; } = null!;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public List<string>? Images { get; set; } = new();
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public string? Images { get; set; }
 }

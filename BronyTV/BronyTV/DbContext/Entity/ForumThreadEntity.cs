@@ -10,7 +10,7 @@ public class ForumThreadEntity
     public string? Description { get; set; }
     public Guid AuthorId { get; set; }
     public UserEntity Author { get; set; } = null!;
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    public List<string>? Images { get; set; } = new();
+    public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
+    public string? Images { get; set; }
     public ICollection<ForumPostEntity> Posts { get; set; } = new List<ForumPostEntity>();
 }

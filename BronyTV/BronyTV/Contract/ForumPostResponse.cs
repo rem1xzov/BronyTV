@@ -8,6 +8,6 @@ public class ForumPostResponse
     public Guid Id { get; set; }
     public string Content { get; set; } = string.Empty;
     public string AuthorUsername { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
     public List<string>? Images { get; set; }
 }

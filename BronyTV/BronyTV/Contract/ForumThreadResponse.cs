@@ -9,7 +9,7 @@ public class ForumThreadResponse
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public string AuthorUsername { get; set; } = string.Empty;
-    public DateTime CreatedAt { get; set; }
+    public DateTime CreatedAtUtc { get; set; }
     public int PostCount { get; set; }
     public List<string>? Images { get; set; }
 }

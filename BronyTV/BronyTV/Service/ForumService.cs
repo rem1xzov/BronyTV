@@ -52,7 +52,7 @@ public class ForumService : IForumService
             Description = description?.Trim(),
             AuthorId = authorId,
             Author = user,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow,
             Images = images != null ? JsonSerializer.Serialize(images) : null
         };
 
@@ -104,7 +104,7 @@ public class ForumService : IForumService
             Content = content.Trim(),
             AuthorId = authorId,
             Author = user,
-            CreatedAt = DateTime.UtcNow,
+            CreatedAtUtc = DateTime.UtcNow,
             Images = images != null ? JsonSerializer.Serialize(images) : null
         };
 
@@ -119,7 +119,7 @@ public class ForumService : IForumService
             Title = thread.Title ?? string.Empty,
             Description = thread.Description,
             AuthorUsername = thread.Author?.Username ?? "unknown",
-            CreatedAt = thread.CreatedAt,
+            CreatedAtUtc = thread.CreatedAtUtc,
             PostCount = 0,
             Images = DeserializeImages(thread.Images)
         };
@@ -130,7 +130,7 @@ public class ForumService : IForumService
             Id = post.Id,
             Content = post.Content ?? string.Empty,
             AuthorUsername = post.Author?.Username ?? "unknown",
-            CreatedAt = post.CreatedAt,
+            CreatedAtUtc = post.CreatedAtUtc,
             Images = DeserializeImages(post.Images)
         };
 
