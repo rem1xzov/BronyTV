@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, MessageSquare, Plus, Heart } from "lucide-react";
+import { ArrowLeft, MessageSquare, Plus, Heart, Trash2 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch } from "../auth/api";
 
 function normalizeThread(raw) {
@@ -331,13 +332,41 @@ function ForumThreadView({ threadId }) {
   const handleLikePost = async (postId) => {
     try {
       const response = await apiFetch(`/forum/posts/${postId}/like`, { method: "POST" });
-      if (!response.ok) {
-        const raw = await response.json().catch(() => ({}));
-        throw new Error(raw.message || "Не удалось поставить лайк.");
+      if (response.ok) {
+        const updated = await response.json();
+        if (updated && updated.id) {
+          setPosts((prev) =>
+            prev.map((p) =>
+              p.id === postId
+                ? {
+                    ...p,
+                    likes: Number(updated.likes ?? p.likes),
+                    likedByMe: Boolean(updated.likedByMe ?? !p.likedByMe)
+                  }
+                : p
+            )
+          );
+        }
       }
-      await loadThread();
     } catch (likeError) {
       // silently ignore
+    }
+  };
+
+  const handleDeletePost = async (postId) => {
+    if (!window.confirm("Удалить этот пост?")) {
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/forum/posts/${postId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const raw = await response.json().catch(() => ({}));
+        throw new Error(raw.message || "Не удалось удалить пост.");
+      }
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+    } catch (deleteError) {
+      alert(deleteError.message || "Ошибка при удалении поста.");
     }
   };
 
@@ -384,56 +413,74 @@ function ForumThreadView({ threadId }) {
           <p className="muted">Пока нет ответов. Напишите первым!</p>
         ) : (
           <ul className="forum-post-list">
-            {posts.map((post) => (
-              <li key={post.id} className="forum-post-item">
-                <p className="forum-post-author">@{post.authorUsername || "anonymous"}</p>
-                <p className="forum-post-content">{post.content}</p>
-                {post.images && post.images.length > 0 ? (
-                  <div className="forum-post-images">
-                    {post.images.map((src, idx) => (
-                      <img
-                        key={idx}
-                        src={src}
-                        alt={`Post image ${idx + 1}`}
-                        className="forum-post-image"
-                        loading="lazy"
-                        style={{
-                          maxWidth: "100%",
-                          height: "auto",
-                          maxHeight: "400px",
-                          objectFit: "contain",
-                          borderRadius: "8px",
-                          display: "block",
-                          marginTop: "8px"
-                        }}
+            {posts.map((post) => {
+              const canDelete = user && (user.username === post.authorUsername || isPlatformAdmin(user));
+
+              return (
+                <li key={post.id} className="forum-post-item">
+                  <p className="forum-post-author">@{post.authorUsername || "anonymous"}</p>
+                  <p className="forum-post-content">{post.content}</p>
+                  {post.images && post.images.length > 0 ? (
+                    <div className="forum-post-images">
+                      {post.images.map((src, idx) => (
+                        <img
+                          key={idx}
+                          src={src}
+                          alt={`Post image ${idx + 1}`}
+                          className="forum-post-image"
+                          loading="lazy"
+                          style={{
+                            maxWidth: "100%",
+                            height: "auto",
+                            maxHeight: "400px",
+                            objectFit: "contain",
+                            borderRadius: "8px",
+                            display: "block",
+                            marginTop: "8px"
+                          }}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  <time className="muted forum-post-date" dateTime={post.createdAt}>
+                    {formatDate(post.createdAt)}
+                  </time>
+                  <div className="forum-post-actions">
+                    <button
+                      type="button"
+                      className="forum-post-reply-btn primary-btn"
+                      onClick={() => handleReplyToUser(post.authorUsername)}
+                      aria-label="Ответить пользователю"
+                    >
+                      Ответить
+                    </button>
+                    <button
+                      type="button"
+                      className={`forum-post-like-btn primary-btn ${post.likedByMe ? "forum-post-like-btn--active" : ""}`}
+                      onClick={() => handleLikePost(post.id)}
+                      aria-label="Лайк"
+                    >
+                      <Heart
+                        size={14}
+                        fill={post.likedByMe ? "#ec4899" : "none"}
+                        stroke={post.likedByMe ? "#ec4899" : "currentColor"}
                       />
-                    ))}
+                      <span>{post.likes}</span>
+                    </button>
+                    {canDelete && (
+                      <button
+                        type="button"
+                        className="forum-post-delete-btn primary-btn"
+                        onClick={() => handleDeletePost(post.id)}
+                        aria-label="Удалить пост"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
-                ) : null}
-                <time className="muted forum-post-date" dateTime={post.createdAt}>
-                  {formatDate(post.createdAt)}
-                </time>
-                <div className="forum-post-actions">
-                  <button
-                    type="button"
-                    className="forum-post-reply-btn"
-                    onClick={() => handleReplyToUser(post.authorUsername)}
-                    aria-label="Ответить пользователю"
-                  >
-                    Ответить
-                  </button>
-                  <button
-                    type="button"
-                    className="forum-post-like-btn"
-                    onClick={() => handleLikePost(post.id)}
-                    aria-label="Лайк"
-                  >
-                    <Heart size={14} />
-                    <span>{post.likes}</span>
-                  </button>
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -453,7 +500,20 @@ function ForumThreadView({ threadId }) {
             </label>
             <label className="forum-field">
               <span>Прикрепить изображения (до 3)</span>
-              <input type="file" accept="image/*" multiple onChange={handleReplyImageChange} />
+              <div className="forum-file-upload-wrapper">
+                <label htmlFor="forum-file-upload" className="primary-btn forum-file-upload-label">
+                  Выбрать файлы
+                </label>
+                <input
+                  type="file"
+                  id="forum-file-upload"
+                  accept="image/*"
+                  multiple
+                  onChange={handleReplyImageChange}
+                  className="forum-file-input-hidden"
+                  style={{ display: "none" }}
+                />
+              </div>
               {replyPreviewUrls.length > 0 ? (
                 <div className="forum-image-preview-row">
                   {replyPreviewUrls.map((src, idx) => (
