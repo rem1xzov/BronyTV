@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace BronyTV.Contract;
@@ -10,4 +11,6 @@ public class CreateForumThreadRequest
 
     [StringLength(4000)]
     public string? Description { get; set; }
+
+    public List<string>? Images { get; set; }
 }
