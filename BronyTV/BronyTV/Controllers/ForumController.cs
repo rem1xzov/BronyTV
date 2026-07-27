@@ -39,6 +39,7 @@ public class ForumController : ControllerBase
             userId,
             request.Title,
             request.Description,
+            request.Images,
             cancellationToken);
 
         if (response == null)
@@ -72,6 +73,7 @@ public class ForumController : ControllerBase
             threadId,
             userId,
             request.Content,
+            request.Images,
             cancellationToken);
 
         if (response == null)

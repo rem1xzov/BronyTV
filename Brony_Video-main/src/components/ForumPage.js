@@ -20,7 +20,8 @@ function normalizeThread(raw) {
     description: raw.description ?? raw.Description ?? "",
     createdAt: raw.createdAt ?? raw.CreatedAt,
     authorUsername: raw.authorUsername ?? raw.AuthorUsername ?? "",
-    postCount: Number(raw.postCount ?? raw.PostCount ?? 0)
+    postCount: Number(raw.postCount ?? raw.PostCount ?? 0),
+    images: raw.images ?? raw.Images ?? []
   };
 }
 
@@ -38,7 +39,8 @@ function normalizePost(raw) {
     id,
     content: raw.content ?? raw.Content ?? "",
     createdAt: raw.createdAt ?? raw.CreatedAt,
-    authorUsername: raw.authorUsername ?? raw.AuthorUsername ?? ""
+    authorUsername: raw.authorUsername ?? raw.AuthorUsername ?? "",
+    images: raw.images ?? raw.Images ?? []
   };
 }
 
@@ -61,9 +63,20 @@ function formatDate(value) {
   });
 }
 
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
 function CreateThreadModal({ isOpen, onClose, onCreated }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [imageFiles, setImageFiles] = useState([]);
+  const [previewUrls, setPreviewUrls] = useState([]);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -71,6 +84,8 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
     if (!isOpen) {
       setTitle("");
       setDescription("");
+      setImageFiles([]);
+      setPreviewUrls([]);
       setError("");
       setSubmitting(false);
     }
@@ -79,6 +94,22 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
   if (!isOpen) {
     return null;
   }
+
+  const handleImageChange = (event) => {
+    const files = Array.from(event.target.files ?? []);
+    const limited = files.slice(0, 3);
+    setImageFiles(limited);
+
+    const previews = [];
+    limited.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        previews.push(reader.result);
+        setPreviewUrls([...previews]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -97,11 +128,17 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
 
     setSubmitting(true);
     try {
+      let images = [];
+      if (imageFiles.length > 0) {
+        images = await Promise.all(imageFiles.map((file) => fileToBase64(file)));
+      }
+
       const response = await apiFetch("/forum/threads", {
         method: "POST",
         body: JSON.stringify({
           title: trimmedTitle,
-          description: description.trim() || null
+          description: description.trim() || null,
+          images
         })
       });
       const raw = await response.json().catch(() => ({}));
@@ -143,6 +180,17 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
               onChange={(event) => setDescription(event.target.value)}
             />
           </label>
+          <label className="forum-field">
+            <span>Прикрепить изображения (до 3)</span>
+            <input type="file" accept="image/*" multiple onChange={handleImageChange} />
+            {previewUrls.length > 0 ? (
+              <div className="forum-image-preview-row">
+                {previewUrls.map((src, idx) => (
+                  <img key={idx} src={src} alt={`Preview ${idx + 1}`} className="forum-image-preview" />
+                ))}
+              </div>
+            ) : null}
+          </label>
           {error ? (
             <p className="forum-message forum-message--error" role="alert">
               {error}
@@ -170,6 +218,8 @@ function ForumThreadView({ threadId }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [replyText, setReplyText] = useState("");
+  const [replyImages, setReplyImages] = useState([]);
+  const [replyPreviewUrls, setReplyPreviewUrls] = useState([]);
   const [replyError, setReplyError] = useState("");
   const [replying, setReplying] = useState(false);
 
@@ -210,6 +260,22 @@ function ForumThreadView({ threadId }) {
     loadThread();
   }, [loadThread]);
 
+  const handleReplyImageChange = (event) => {
+    const files = Array.from(event.target.files ?? []);
+    const limited = files.slice(0, 3);
+    setReplyImages(limited);
+
+    const previews = [];
+    limited.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        previews.push(reader.result);
+        setReplyPreviewUrls([...previews]);
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handleReply = async (event) => {
     event.preventDefault();
     setReplyError("");
@@ -222,9 +288,14 @@ function ForumThreadView({ threadId }) {
 
     setReplying(true);
     try {
+      let images = [];
+      if (replyImages.length > 0) {
+        images = await Promise.all(replyImages.map((file) => fileToBase64(file)));
+      }
+
       const response = await apiFetch(`/forum/threads/${threadId}/posts`, {
         method: "POST",
-        body: JSON.stringify({ content: trimmed })
+        body: JSON.stringify({ content: trimmed, images })
       });
       const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -232,6 +303,8 @@ function ForumThreadView({ threadId }) {
       }
 
       setReplyText("");
+      setReplyImages([]);
+      setReplyPreviewUrls([]);
       await loadThread();
     } catch (submitError) {
       setReplyError(submitError.message || "Не удалось отправить ответ.");
@@ -265,6 +338,13 @@ function ForumThreadView({ threadId }) {
       <article className="forum-thread-hero">
         <h1>{thread.title}</h1>
         {thread.description ? <p className="forum-thread-description">{thread.description}</p> : null}
+        {thread.images && thread.images.length > 0 ? (
+          <div className="forum-thread-images">
+            {thread.images.map((src, idx) => (
+              <img key={idx} src={src} alt={`Thread image ${idx + 1}`} className="forum-thread-image" loading="lazy" />
+            ))}
+          </div>
+        ) : null}
         <p className="muted forum-thread-meta">
           @{thread.authorUsername || "anonymous"} · {formatDate(thread.createdAt)}
         </p>
@@ -280,6 +360,13 @@ function ForumThreadView({ threadId }) {
               <li key={post.id} className="forum-post-item">
                 <p className="forum-post-author">@{post.authorUsername || "anonymous"}</p>
                 <p className="forum-post-content">{post.content}</p>
+                {post.images && post.images.length > 0 ? (
+                  <div className="forum-post-images">
+                    {post.images.map((src, idx) => (
+                      <img key={idx} src={src} alt={`Post image ${idx + 1}`} className="forum-post-image" loading="lazy" />
+                    ))}
+                  </div>
+                ) : null}
                 <time className="muted forum-post-date" dateTime={post.createdAt}>
                   {formatDate(post.createdAt)}
                 </time>
@@ -301,6 +388,17 @@ function ForumThreadView({ threadId }) {
                 maxLength={4000}
                 disabled={replying}
               />
+            </label>
+            <label className="forum-field">
+              <span>Прикрепить изображения (до 3)</span>
+              <input type="file" accept="image/*" multiple onChange={handleReplyImageChange} />
+              {replyPreviewUrls.length > 0 ? (
+                <div className="forum-image-preview-row">
+                  {replyPreviewUrls.map((src, idx) => (
+                    <img key={idx} src={src} alt={`Reply preview ${idx + 1}`} className="forum-image-preview" />
+                  ))}
+                </div>
+              ) : null}
             </label>
             {replyError ? (
               <p className="forum-message forum-message--error" role="alert">

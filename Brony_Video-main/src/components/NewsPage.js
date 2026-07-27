@@ -52,12 +52,30 @@ function fileToBase64(file) {
   });
 }
 
+function parseImageList(imageUrl) {
+  if (!imageUrl) {
+    return [];
+  }
+
+  try {
+    const parsed = JSON.parse(imageUrl);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((item) => typeof item === "string" && item.length > 0);
+    }
+  } catch {
+    // single image URL (legacy)
+    return [imageUrl];
+  }
+
+  return [imageUrl];
+}
+
 function CreateNewsModal({ isOpen, onClose, onCreated }) {
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [imageUrl, setImageUrl] = useState("");
-  const [imageFile, setImageFile] = useState(null);
-  const [previewUrl, setPreviewUrl] = useState("");
+  const [imageFiles, setImageFiles] = useState([]);
+  const [previewUrls, setPreviewUrls] = useState([]);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -66,8 +84,8 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
       setTitle("");
       setContent("");
       setImageUrl("");
-      setImageFile(null);
-      setPreviewUrl("");
+      setImageFiles([]);
+      setPreviewUrls([]);
       setError("");
       setSubmitting(false);
     }
@@ -78,17 +96,19 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
   }
 
   const handleImageChange = (event) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
+    const files = Array.from(event.target.files ?? []);
+    const limited = files.slice(0, 5);
+    setImageFiles(limited);
 
-    setImageFile(file);
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPreviewUrl(reader.result);
-    };
-    reader.readAsDataURL(file);
+    const previews = [];
+    limited.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        previews.push(reader.result);
+        setPreviewUrls([...previews]);
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   const handleSubmit = async (event) => {
@@ -98,7 +118,7 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
     const trimmedTitle = title.trim();
     const trimmedContent = content.trim();
 
-    if (!trimmedTitle && !trimmedContent && !imageFile && !imageUrl.trim()) {
+    if (!trimmedTitle && !trimmedContent && imageFiles.length === 0 && !imageUrl.trim()) {
       setError("Укажите хотя бы заголовок, текст или изображение.");
       return;
     }
@@ -107,11 +127,12 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
     try {
       let uploadImageUrl = imageUrl.trim() || null;
 
-      if (imageFile) {
+      if (imageFiles.length > 0) {
         try {
-          uploadImageUrl = await fileToBase64(imageFile);
+          const base64Array = await Promise.all(imageFiles.map((file) => fileToBase64(file)));
+          uploadImageUrl = JSON.stringify(base64Array);
         } catch (readError) {
-          setError("Не удалось прочитать файл изображения.");
+          setError("Не удалось прочитать файлы изображений.");
           setSubmitting(false);
           return;
         }
@@ -172,16 +193,20 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
               value={imageUrl}
               onChange={(event) => {
                 setImageUrl(event.target.value);
-                setPreviewUrl("");
+                setPreviewUrls([]);
               }}
               placeholder="URL изображения"
             />
           </label>
           <label className="news-field">
-            <span>Или загрузить файл</span>
-            <input type="file" accept="image/*" onChange={handleImageChange} />
-            {previewUrl ? (
-              <img src={previewUrl} alt="Preview" className="news-image-preview" />
+            <span>Загрузить файлы (до 5)</span>
+            <input type="file" accept="image/*" multiple onChange={handleImageChange} />
+            {previewUrls.length > 0 ? (
+              <div className="news-image-preview-row">
+                {previewUrls.map((src, idx) => (
+                  <img key={idx} src={src} alt={`Preview ${idx + 1}`} className="news-image-preview" />
+                ))}
+              </div>
             ) : null}
           </label>
           {error ? (
@@ -200,6 +225,63 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
         </form>
       </div>
     </div>
+  );
+}
+
+function NewsCard({ post, isAdmin, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
+  const images = parseImageList(post.imageUrl);
+  const previewImage = images.length > 0 ? images[0] : null;
+  const contentToShow = post.content ?? "";
+  const truncatedContent =
+    contentToShow.length > 0
+      ? contentToShow
+      : "";
+
+  const toggleExpand = () => setExpanded((prev) => !prev);
+
+  return (
+    <li className="news-card">
+      {previewImage ? (
+        <img src={previewImage} alt="" className="news-card-image" loading="lazy" />
+      ) : null}
+      <div className="news-card-body">
+        {post.title ? <h2 className="news-card-title">{post.title}</h2> : null}
+        {truncatedContent ? (
+          <p
+            className={`news-card-content ${expanded ? "" : "news-card-content--collapsed"}`}
+          >
+            {truncatedContent}
+          </p>
+        ) : null}
+        <div className="news-card-meta">
+          <span>@{post.authorUsername || "anonymous"}</span>
+          <span className="muted">· {formatDate(post.createdAt)}</span>
+        </div>
+        {truncatedContent.length > 0 ? (
+          <button type="button" className="news-card-read-more" onClick={toggleExpand}>
+            {expanded ? "Свернуть" : "Читать далее"}
+          </button>
+        ) : null}
+        {expanded && images.length > 1 ? (
+          <div className="news-card-gallery">
+            {images.slice(1).map((src, idx) => (
+              <img key={idx} src={src} alt={`Image ${idx + 2}`} className="news-card-gallery-image" loading="lazy" />
+            ))}
+          </div>
+        ) : null}
+        {isAdmin ? (
+          <button
+            type="button"
+            className="news-delete-btn"
+            onClick={() => onDelete(post.id)}
+            aria-label="Удалить новость"
+          >
+            <Trash2 size={14} />
+          </button>
+        ) : null}
+      </div>
+    </li>
   );
 }
 
@@ -283,29 +365,7 @@ export default function NewsPage() {
       ) : (
         <ul className="news-list">
           {posts.map((post) => (
-            <li key={post.id} className="news-card">
-              {post.imageUrl ? (
-                <img src={post.imageUrl} alt="" className="news-card-image" loading="lazy" />
-              ) : null}
-              <div className="news-card-body">
-                {post.title ? <h2 className="news-card-title">{post.title}</h2> : null}
-                {post.content ? <p className="news-card-content">{post.content}</p> : null}
-                <div className="news-card-meta">
-                  <span>@{post.authorUsername || "anonymous"}</span>
-                  <span className="muted">· {formatDate(post.createdAt)}</span>
-                </div>
-                {isAdmin ? (
-                  <button
-                    type="button"
-                    className="news-delete-btn"
-                    onClick={() => handleDelete(post.id)}
-                    aria-label="Удалить новость"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                ) : null}
-              </div>
-            </li>
+            <NewsCard key={post.id} post={post} isAdmin={isAdmin} onDelete={handleDelete} />
           ))}
         </ul>
       )}
