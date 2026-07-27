@@ -419,7 +419,7 @@ function ForumThreadView({ threadId }) {
               const currentUserRole = (user?.platformRole || user?.role || '').toLowerCase();
               const isOwner = currentUserRole === 'owner' || user?.isOwner;
               const isAdmin = currentUserRole === 'admin' || user?.isPlatformAdmin;
-              const isAuthor = currentUsername && currentUsername === post.authorUsername;
+              const isAuthor = Boolean(currentUsername && currentUsername === post.authorUsername);
               const postAuthorRole = (post.authorRole || '').toLowerCase();
               const canDelete = isOwner || isAuthor || (isAdmin && postAuthorRole !== 'owner');
 
