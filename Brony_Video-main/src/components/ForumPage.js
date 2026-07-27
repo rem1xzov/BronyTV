@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, MessageSquare, Plus } from "lucide-react";
+import { ArrowLeft, MessageSquare, Plus, Heart } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { apiFetch } from "../auth/api";
 
@@ -40,7 +40,9 @@ function normalizePost(raw) {
     content: raw.content ?? raw.Content ?? "",
     createdAt: raw.createdAt ?? raw.CreatedAt,
     authorUsername: raw.authorUsername ?? raw.AuthorUsername ?? "",
-    images: raw.images ?? raw.Images ?? []
+    images: raw.images ?? raw.Images ?? [],
+    likes: Number(raw.likes ?? raw.Likes ?? 0),
+    likedByMe: Boolean(raw.likedByMe ?? raw.LikedByMe ?? false)
   };
 }
 
@@ -281,8 +283,11 @@ function ForumThreadView({ threadId }) {
     setReplyError("");
 
     const trimmed = replyText.trim();
-    if (!trimmed) {
-      setReplyError("Введите текст ответа.");
+    const hasText = trimmed.length > 0;
+    const hasImages = replyImages.length > 0;
+
+    if (!hasText && !hasImages) {
+      setReplyError("Введите текст ответа или прикрепите изображение.");
       return;
     }
 
@@ -310,6 +315,29 @@ function ForumThreadView({ threadId }) {
       setReplyError(submitError.message || "Не удалось отправить ответ.");
     } finally {
       setReplying(false);
+    }
+  };
+
+  const handleReplyToUser = (username) => {
+    setReplyText((prev) => {
+      const mention = `@${username}, `;
+      if (prev.includes(mention)) {
+        return prev;
+      }
+      return mention + prev;
+    });
+  };
+
+  const handleLikePost = async (postId) => {
+    try {
+      const response = await apiFetch(`/forum/posts/${postId}/like`, { method: "POST" });
+      if (!response.ok) {
+        const raw = await response.json().catch(() => ({}));
+        throw new Error(raw.message || "Не удалось поставить лайк.");
+      }
+      await loadThread();
+    } catch (likeError) {
+      // silently ignore
     }
   };
 
@@ -363,13 +391,47 @@ function ForumThreadView({ threadId }) {
                 {post.images && post.images.length > 0 ? (
                   <div className="forum-post-images">
                     {post.images.map((src, idx) => (
-                      <img key={idx} src={src} alt={`Post image ${idx + 1}`} className="forum-post-image" loading="lazy" />
+                      <img
+                        key={idx}
+                        src={src}
+                        alt={`Post image ${idx + 1}`}
+                        className="forum-post-image"
+                        loading="lazy"
+                        style={{
+                          maxWidth: "100%",
+                          height: "auto",
+                          maxHeight: "400px",
+                          objectFit: "contain",
+                          borderRadius: "8px",
+                          display: "block",
+                          marginTop: "8px"
+                        }}
+                      />
                     ))}
                   </div>
                 ) : null}
                 <time className="muted forum-post-date" dateTime={post.createdAt}>
                   {formatDate(post.createdAt)}
                 </time>
+                <div className="forum-post-actions">
+                  <button
+                    type="button"
+                    className="forum-post-reply-btn"
+                    onClick={() => handleReplyToUser(post.authorUsername)}
+                    aria-label="Ответить пользователю"
+                  >
+                    Ответить
+                  </button>
+                  <button
+                    type="button"
+                    className="forum-post-like-btn"
+                    onClick={() => handleLikePost(post.id)}
+                    aria-label="Лайк"
+                  >
+                    <Heart size={14} />
+                    <span>{post.likes}</span>
+                  </button>
+                </div>
               </li>
             ))}
           </ul>

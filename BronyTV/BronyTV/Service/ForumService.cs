@@ -91,7 +91,10 @@ public class ForumService : IForumService
         List<string>? images,
         CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(content))
+        var hasContent = !string.IsNullOrWhiteSpace(content);
+        var hasImages = images != null && images.Count > 0;
+
+        if (!hasContent && !hasImages)
         {
             return (null, "Сообщение не может быть пустым.", 400);
         }
@@ -145,7 +148,7 @@ public class ForumService : IForumService
             Description = thread.Description,
             AuthorUsername = thread.Author?.Username ?? "unknown",
             CreatedAtUtc = thread.CreatedAtUtc,
-            PostCount = 0,
+            PostCount = thread.Posts?.Count ?? 0,
             Images = DeserializeImages(thread.Images)
         };
 
