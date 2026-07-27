@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+
 namespace BronyTV.DbContext.Entity;
 
 public class ForumPostEntity
@@ -5,9 +8,9 @@ public class ForumPostEntity
     public Guid Id { get; set; }
     public Guid ThreadId { get; set; }
     public string Content { get; set; } = string.Empty;
-    public DateTime CreatedAtUtc { get; set; }
     public Guid AuthorId { get; set; }
-
     public ForumThreadEntity Thread { get; set; } = null!;
     public UserEntity Author { get; set; } = null!;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public List<string>? Images { get; set; } = new();
 }
