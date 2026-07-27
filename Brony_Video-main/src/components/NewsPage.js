@@ -228,17 +228,12 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
   );
 }
 
-function NewsCard({ post, isAdmin, onDelete }) {
-  const [expanded, setExpanded] = useState(false);
+function NewsCard({ post, isAdmin, onDelete, isExpanded, onToggleExpand }) {
   const images = parseImageList(post.imageUrl);
   const previewImage = images.length > 0 ? images[0] : null;
-  const contentToShow = post.content ?? "";
-  const truncatedContent =
-    contentToShow.length > 0
-      ? contentToShow
-      : "";
-
-  const toggleExpand = () => setExpanded((prev) => !prev);
+  const fullContent = post.content ?? "";
+  const truncatedContent = fullContent.length > 200 ? fullContent.substring(0, 200) + "..." : fullContent;
+  const displayContent = isExpanded ? fullContent : truncatedContent;
 
   return (
     <li className="news-card">
@@ -247,21 +242,19 @@ function NewsCard({ post, isAdmin, onDelete }) {
       ) : null}
       <div className="news-card-body">
         {post.title ? <h2 className="news-card-title">{post.title}</h2> : null}
-        {truncatedContent ? (
-          <p
-            className={`news-card-content ${expanded ? "" : "news-card-content--collapsed"}`}
-          >
-            {truncatedContent}
+        {displayContent ? (
+          <p className="news-card-content">
+            {displayContent}
           </p>
         ) : null}
         <div className="news-card-meta">
           <span>@{post.authorUsername || "anonymous"}</span>
           <span className="muted">· {formatDate(post.createdAt)}</span>
         </div>
-        {truncatedContent.length > 0 ? (
+        {fullContent.length > 0 ? (
           <button type="button"
             className="news-card-read-more"
-            onClick={toggleExpand}
+            onClick={onToggleExpand}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -277,10 +270,10 @@ function NewsCard({ post, isAdmin, onDelete }) {
               fontWeight: 500,
             }}
           >
-            {expanded ? "Свернуть" : "Читать далее"}
+            {isExpanded ? "Свернуть" : "Читать далее"}
           </button>
         ) : null}
-        {expanded && images.length > 1 ? (
+        {isExpanded && images.length > 1 ? (
           <div className="news-card-gallery">
             {images.slice(1).map((src, idx) => (
               <img key={idx} src={src} alt={`Image ${idx + 2}`} className="news-card-gallery-image" loading="lazy" />
@@ -308,6 +301,7 @@ export default function NewsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
+  const [expandedNews, setExpandedNews] = useState({});
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
@@ -351,6 +345,10 @@ export default function NewsPage() {
     }
   };
 
+  const toggleExpand = (newsId) => {
+    setExpandedNews((prev) => ({ ...prev, [newsId]: !prev[newsId] }));
+  };
+
   const isAdmin = user && isPlatformAdmin(user);
 
   return (
@@ -382,7 +380,14 @@ export default function NewsPage() {
       ) : (
         <ul className="news-list">
           {posts.map((post) => (
-            <NewsCard key={post.id} post={post} isAdmin={isAdmin} onDelete={handleDelete} />
+            <NewsCard
+              key={post.id}
+              post={post}
+              isAdmin={isAdmin}
+              onDelete={handleDelete}
+              isExpanded={!!expandedNews[post.id]}
+              onToggleExpand={() => toggleExpand(post.id)}
+            />
           ))}
         </ul>
       )}

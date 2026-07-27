@@ -371,6 +371,23 @@ function ForumThreadView({ threadId }) {
     }
   };
 
+  const handleDeleteThread = async () => {
+    if (!window.confirm("Удалить эту тему?")) {
+      return;
+    }
+
+    try {
+      const response = await apiFetch(`/forum/threads/${threadId}`, { method: "DELETE" });
+      if (!response.ok) {
+        const raw = await response.json().catch(() => ({}));
+        throw new Error(raw.message || "Не удалось удалить тему.");
+      }
+      navigate("/forum");
+    } catch (deleteError) {
+      alert(deleteError.message || "Ошибка при удалении темы.");
+    }
+  };
+
   if (loading) {
     return <p className="muted">Загрузка темы…</p>;
   }
@@ -385,6 +402,12 @@ function ForumThreadView({ threadId }) {
       </div>
     );
   }
+
+  const canDeleteThread = user && (
+    user.isOwner ||
+    user.username === thread.authorUsername ||
+    user.isPlatformAdmin
+  );
 
   return (
     <section className="forum-thread-view">
@@ -406,6 +429,18 @@ function ForumThreadView({ threadId }) {
         <p className="muted forum-thread-meta">
           @{thread.authorUsername || "anonymous"} · {formatDate(thread.createdAt)}
         </p>
+        {canDeleteThread && (
+          <button
+            type="button"
+            className="forum-thread-delete-btn primary-btn"
+            onClick={handleDeleteThread}
+            aria-label="Удалить тему"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px', marginTop: '8px' }}
+          >
+            <Trash2 size={14} />
+            <span style={{ marginLeft: '6px' }}>Удалить тему</span>
+          </button>
+        )}
       </article>
 
       <div className="forum-posts">
