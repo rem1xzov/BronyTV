@@ -115,11 +115,12 @@ public class ForumController : ControllerBase
             return Unauthorized();
         }
 
-        var isAdmin = User.IsInRole("Admin");
+        var currentUserRole = User.IsInRole("Owner") ? "owner" : User.IsInRole("Admin") ? "admin" : "user";
+
         var (success, error, statusCode) = await _forumService.DeletePostAsync(
             postId,
             userId,
-            isAdmin,
+            currentUserRole,
             cancellationToken);
 
         if (!success)

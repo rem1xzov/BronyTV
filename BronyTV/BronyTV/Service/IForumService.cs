@@ -32,6 +32,6 @@ public interface IForumService
     Task<(bool Success, string? Error, int StatusCode)> DeletePostAsync(
         Guid postId,
         Guid userId,
-        bool isAdmin,
+        string currentUserRole,
         CancellationToken cancellationToken = default);
 }

@@ -41,6 +41,7 @@ function normalizePost(raw) {
     content: raw.content ?? raw.Content ?? "",
     createdAt: raw.createdAt ?? raw.CreatedAt,
     authorUsername: raw.authorUsername ?? raw.AuthorUsername ?? "",
+    authorRole: raw.authorRole ?? raw.AuthorRole ?? "user",
     images: raw.images ?? raw.Images ?? [],
     likes: Number(raw.likes ?? raw.Likes ?? 0),
     likedByMe: Boolean(raw.likedByMe ?? raw.LikedByMe ?? false)
@@ -414,7 +415,11 @@ function ForumThreadView({ threadId }) {
         ) : (
           <ul className="forum-post-list">
             {posts.map((post) => {
-              const canDelete = user && (user.username === post.authorUsername || isPlatformAdmin(user));
+              const canDelete = user && (
+                user.isOwner ||
+                user.username === post.authorUsername ||
+                (user.isPlatformAdmin && post.authorRole !== 'owner')
+              );
 
               return (
                 <li key={post.id} className="forum-post-item">
@@ -445,12 +450,13 @@ function ForumThreadView({ threadId }) {
                   <time className="muted forum-post-date" dateTime={post.createdAt}>
                     {formatDate(post.createdAt)}
                   </time>
-                  <div className="forum-post-actions">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
                     <button
                       type="button"
                       className="forum-post-reply-btn primary-btn"
                       onClick={() => handleReplyToUser(post.authorUsername)}
                       aria-label="Ответить пользователю"
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
                     >
                       Ответить
                     </button>
@@ -459,6 +465,7 @@ function ForumThreadView({ threadId }) {
                       className={`forum-post-like-btn primary-btn ${post.likedByMe ? "forum-post-like-btn--active" : ""}`}
                       onClick={() => handleLikePost(post.id)}
                       aria-label="Лайк"
+                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
                     >
                       <Heart
                         size={14}
@@ -473,6 +480,7 @@ function ForumThreadView({ threadId }) {
                         className="forum-post-delete-btn primary-btn"
                         onClick={() => handleDeletePost(post.id)}
                         aria-label="Удалить пост"
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
                       >
                         <Trash2 size={14} />
                       </button>

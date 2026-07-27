@@ -133,6 +133,7 @@ public class ForumService : IForumService
             Id = post.Id,
             Content = post.Content,
             AuthorUsername = user.Username ?? "unknown",
+            AuthorRole = user.PlatformRole ?? "user",
             CreatedAtUtc = post.CreatedAtUtc,
             Images = DeserializeImages(post.Images),
             Likes = 0,
@@ -176,6 +177,7 @@ public class ForumService : IForumService
             Id = post.Id,
             Content = post.Content ?? string.Empty,
             AuthorUsername = post.Author?.Username ?? "unknown",
+            AuthorRole = post.Author?.PlatformRole ?? "user",
             CreatedAtUtc = post.CreatedAtUtc,
             Images = DeserializeImages(post.Images),
             Likes = likedIds.Count,
@@ -188,7 +190,7 @@ public class ForumService : IForumService
     public async Task<(bool Success, string? Error, int StatusCode)> DeletePostAsync(
         Guid postId,
         Guid userId,
-        bool isAdmin,
+        string currentUserRole,
         CancellationToken cancellationToken = default)
     {
         var post = await _forumRepository.GetPostByIdAsync(postId, cancellationToken);
@@ -197,13 +199,30 @@ public class ForumService : IForumService
             return (false, "Пост не найден.", 404);
         }
 
-        if (!isAdmin && post.AuthorId != userId)
+        var authorRole = post.Author?.PlatformRole ?? "user";
+
+        // owner can delete any
+        if (currentUserRole == "owner")
         {
-            return (false, "Нет прав для удаления.", 403);
+            await _forumRepository.DeletePostAsync(post, cancellationToken);
+            return (true, null, 204);
         }
 
-        await _forumRepository.DeletePostAsync(post, cancellationToken);
-        return (true, null, 204);
+        // author can delete own post
+        if (post.AuthorId == userId)
+        {
+            await _forumRepository.DeletePostAsync(post, cancellationToken);
+            return (true, null, 204);
+        }
+
+        // admin can delete posts of users and admins, but not owner's
+        if (currentUserRole == "admin" && authorRole != "owner")
+        {
+            await _forumRepository.DeletePostAsync(post, cancellationToken);
+            return (true, null, 204);
+        }
+
+        return (false, "Недостаточно прав для удаления поста владельца.", 403);
     }
 
     private static ForumThreadResponse ThreadToResponse(ForumThreadEntity thread) =>
@@ -226,6 +245,7 @@ public class ForumService : IForumService
             Id = post.Id,
             Content = post.Content ?? string.Empty,
             AuthorUsername = post.Author?.Username ?? "unknown",
+            AuthorRole = post.Author?.PlatformRole ?? "user",
             CreatedAtUtc = post.CreatedAtUtc,
             Images = DeserializeImages(post.Images),
             Likes = likedIds.Count,

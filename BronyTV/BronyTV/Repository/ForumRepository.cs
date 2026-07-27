@@ -54,6 +54,7 @@ public class ForumRepository : IForumRepository
 
     public Task<ForumPostEntity?> GetPostByIdAsync(Guid postId, CancellationToken cancellationToken = default) =>
         _context.ForumPosts
+            .Include(post => post.Author)
             .FirstOrDefaultAsync(post => post.Id == postId, cancellationToken);
 
     public async Task<ForumPostEntity> AddPostAsync(ForumPostEntity post, CancellationToken cancellationToken = default)
