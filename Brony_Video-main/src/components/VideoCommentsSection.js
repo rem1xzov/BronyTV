@@ -126,7 +126,7 @@ function CommentThread({
         <div className="video-comment-actions">
           <button
             type="button"
-            className={`video-comment-like${comment.isLikedByCurrentUser ? " is-liked" : ""}`}
+            className="video-comment-like"
             onClick={() => onToggleLike(comment)}
             disabled={!user || likingId === comment.id}
             aria-pressed={comment.isLikedByCurrentUser}
