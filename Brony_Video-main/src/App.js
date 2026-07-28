@@ -28,6 +28,7 @@ import ForumPage from "./components/ForumPage";
 import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
 import NewsPage from "./components/NewsPage";
+import logoPng from "./assets/logo.png";
 
 const SEASON_INFO = [
   {
@@ -554,7 +555,23 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
   return (
     <div className="home-layout">
       <section className="panel hero-card">
-        <div className="hero-content">
+        <div className="hero-content" style={{ position: "relative" }}>
+          <img
+            src={logoPng}
+            alt=""
+            aria-hidden="true"
+            style={{
+              position: "absolute",
+              right: 0,
+              top: "50%",
+              transform: "translateY(-50%)",
+              maxHeight: "180px",
+              maxWidth: "180px",
+              opacity: 0.12,
+              pointerEvents: "none",
+              userSelect: "none"
+            }}
+          />
           <h1>{CONSTANTS.APP_NAME}</h1>
           <p className="description">
             BronyTV — это уютный стриминг-сервис для поклонников My Little Pony: Friendship Is Magic с удобной
@@ -565,6 +582,12 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
           <div className="button-row">
             <Link className="primary-btn" to="/season/1">
               Открыть сезоны
+            </Link>
+            <Link className="primary-btn" to="/forum">
+              Открыть форум
+            </Link>
+            <Link className="primary-btn" to="/news">
+              Открыть новости
             </Link>
           </div>
         </div>
