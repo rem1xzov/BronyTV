@@ -3313,8 +3313,8 @@ body[data-theme="dark"] .hero-thumb {
 }
 
 .video-comment-like.is-liked {
-  color: #e11d48;
-  background: rgba(225, 29, 72, 0.12);
+  color: #00BFFF;
+  background: rgba(0, 191, 255, 0.12);
 }
 
 .video-comment-like:hover:not(:disabled),
