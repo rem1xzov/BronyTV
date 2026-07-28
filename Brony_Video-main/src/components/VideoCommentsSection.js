@@ -131,8 +131,13 @@ function CommentThread({
             disabled={!user || likingId === comment.id}
             aria-pressed={comment.isLikedByCurrentUser}
             aria-label={comment.isLikedByCurrentUser ? "Убрать лайк" : "Поставить лайк"}
+            style={comment.isLikedByCurrentUser ? { color: "#00BFFF", borderColor: "#00BFFF" } : undefined}
           >
-            <Heart size={16} fill={comment.isLikedByCurrentUser ? "currentColor" : "none"} />
+            <Heart 
+              size={16} 
+              fill={comment.isLikedByCurrentUser ? "#00BFFF" : "none"} 
+              color={comment.isLikedByCurrentUser ? "#00BFFF" : "currentColor"}
+            />
             <span>{comment.likeCount}</span>
           </button>
 
