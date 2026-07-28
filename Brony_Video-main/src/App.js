@@ -28,7 +28,7 @@ import ForumPage from "./components/ForumPage";
 import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
 import NewsPage from "./components/NewsPage";
-import logoPng from "./assets/logo.png";
+import logoPng from "./assets/logo2.png";
 
 const SEASON_INFO = [
   {
@@ -555,24 +555,15 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
   return (
     <div className="home-layout">
       <section className="panel hero-card">
-        <div className="hero-content" style={{ position: "relative" }}>
-          <img
-            src={logoPng}
-            alt=""
-            aria-hidden="true"
-            style={{
-              position: "absolute",
-              right: 0,
-              top: "50%",
-              transform: "translateY(-50%)",
-              maxHeight: "180px",
-              maxWidth: "180px",
-              opacity: 0.12,
-              pointerEvents: "none",
-              userSelect: "none"
-            }}
-          />
-          <h1>{CONSTANTS.APP_NAME}</h1>
+        <div className="hero-content">
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px" }}>
+            <img
+              src={logoPng}
+              alt="BronyTV"
+              style={{ height: "44px", width: "auto", flexShrink: 0 }}
+            />
+            <h1 style={{ margin: 0 }}>{CONSTANTS.APP_NAME}</h1>
+          </div>
           <p className="description">
             BronyTV — это уютный стриминг-сервис для поклонников My Little Pony: Friendship Is Magic с удобной
             навигацией по сезонам, подборкой лучших эпизодов по рейтингу и быстрым доступом к просмотру. На главной
