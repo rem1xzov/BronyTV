@@ -506,8 +506,8 @@ function ForumThreadView({ threadId }) {
                     >
                       <Heart
                         size={14}
-                        fill={post.likedByMe ? "#ec4899" : "none"}
-                        stroke={post.likedByMe ? "#ec4899" : "currentColor"}
+                        fill={post.likedByMe ? "#00BFFF" : "none"}
+                        stroke={post.likedByMe ? "#00BFFF" : "currentColor"}
                       />
                       <span>{post.likes}</span>
                     </button>
