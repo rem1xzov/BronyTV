@@ -1620,14 +1620,20 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
 
   const toggleShellFullscreen = useCallback(async () => {
     const shellNode = playerShellRef.current;
-    if (!shellNode) {
-      return;
-    }
-
-    const activeElement = document.fullscreenElement || document.webkitFullscreenElement;
-    const isActive = activeElement === shellNode;
+    const videoNode = playerRef.current;
 
     try {
+      // Специальный вызов для iOS Safari (iPhone)
+      if (videoNode && videoNode.webkitEnterFullscreen) {
+        videoNode.webkitEnterFullscreen();
+        return;
+      }
+
+      if (!shellNode) return;
+
+      const activeElement = document.fullscreenElement || document.webkitFullscreenElement;
+      const isActive = activeElement === shellNode;
+
       if (isActive) {
         if (document.exitFullscreen) {
           await document.exitFullscreen();
@@ -1636,6 +1642,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
         }
         return;
       }
+
       if (shellNode.requestFullscreen) {
         await shellNode.requestFullscreen();
       } else if (shellNode.webkitRequestFullscreen) {
@@ -1662,6 +1669,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
               ref={playerRef}
               className="video-player video-large"
               playsInline
+              webkit-playsinline="true"
               preload="metadata"
               controls={false}
               src={videoSrc}
