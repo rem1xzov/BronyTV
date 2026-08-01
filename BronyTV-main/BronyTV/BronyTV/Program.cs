@@ -1,42 +1,106 @@
 using System.Globalization;
+using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
 using BronyTV.DbContext;
 using BronyTV.DbContext.Entity;
+using BronyTV.Infrastructure;
 using BronyTV.Repository;
 using BronyTV.Service;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.CookiePolicy;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var videosStorageRoot = builder.Configuration["VideoStorage:RootPath"]
     ?? Environment.GetEnvironmentVariable("BRONYTV_VIDEOS_ROOT")
     ?? "/app/media";
-const string OpenCorsPolicy = "OpenCorsPolicy";
+const string AllowBronyTvPolicy = "AllowBronyTv";
 
 builder.Services.AddDbContext<DbBronyTV>(options =>
+{
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"),
-        x => x.MigrationsHistoryTable("__EFMigrationsHistory", "public")));
+        x => x.MigrationsHistoryTable("__EFMigrationsHistory", "public"));
+    
+    // Глушим ошибку расхождения C# моделей со снимком snapshot
+    options.ConfigureWarnings(warnings => warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+});
 
 builder.Services.AddScoped<IVideoRepository, VideoRepository>();
 builder.Services.AddScoped<ISeasonRepository, SeasonRepository>();
 builder.Services.AddScoped<IAdminRepository, AdminRepository>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IAdminService, AdminService>();
 builder.Services.AddScoped<ISeasonService, SeasonService>();
 builder.Services.AddScoped<IVideoService, VideoService>();
+builder.Services.AddScoped<IUserAuthService, UserAuthService>();
+builder.Services.AddScoped<ICommentRepository, CommentRepository>();
+builder.Services.AddScoped<ICommentService, CommentService>();
+builder.Services.AddScoped<IAdminUserService, AdminUserService>();
+builder.Services.AddScoped<IForumRepository, ForumRepository>();
+builder.Services.AddScoped<IForumService, ForumService>();
+builder.Services.AddScoped<ISupportRepository, SupportRepository>();
+builder.Services.AddScoped<ISupportService, SupportService>();
+builder.Services.AddScoped<INewsPostRepository, NewsPostRepository>();
+builder.Services.Configure<AdminAccessOptions>(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
+builder.Services.AddSingleton<IAdminAccessService, AdminAccessService>();
 builder.Services.AddControllers();
+
+builder.Services.Configure<CookiePolicyOptions>(options =>
+{
+    options.HttpOnly = HttpOnlyPolicy.Always;
+    options.Secure = CookieSecurePolicy.SameAsRequest;
+    options.MinimumSameSitePolicy = SameSiteMode.Lax;
+});
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
+static string[] BuildAllowedOrigins(IConfiguration configuration)
+{
+    var origins = configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()?.ToList()
+        ?? new List<string> { "http://localhost:8080" };
+
+    var frontendOrigin = configuration["FRONTEND_ORIGIN"]
+        ?? Environment.GetEnvironmentVariable("FRONTEND_ORIGIN");
+    if (!string.IsNullOrWhiteSpace(frontendOrigin))
+    {
+        origins.Add(frontendOrigin.Trim());
+    }
+
+    var extraOrigins = configuration["Cors:ExtraOrigins"]
+        ?? Environment.GetEnvironmentVariable("CORS_EXTRA_ORIGINS");
+    if (!string.IsNullOrWhiteSpace(extraOrigins))
+    {
+        origins.AddRange(extraOrigins.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
+
+    return origins
+        .Where(origin => !string.IsNullOrWhiteSpace(origin))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+}
+
+var allowedOrigins = BuildAllowedOrigins(builder.Configuration);
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy(OpenCorsPolicy, policy =>
+    options.AddPolicy(AllowBronyTvPolicy, policy =>
     {
         policy
-            .AllowAnyOrigin()
+            .WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
+            .AllowCredentials()
             .WithExposedHeaders("Content-Range", "Accept-Ranges");
     });
 });
@@ -52,7 +116,68 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                if (context.Request.Cookies.TryGetValue("bronytv_session", out var cookieToken)
+                    && !string.IsNullOrWhiteSpace(cookieToken))
+                {
+                    context.Token = cookieToken;
+                }
+
+                return Task.CompletedTask;
+            },
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+                if (principal?.Identity?.IsAuthenticated != true || principal.IsInRole("Admin"))
+                {
+                    return;
+                }
+
+                if (principal.Identity is not ClaimsIdentity identity)
+                {
+                    return;
+                }
+
+                var adminAccess = context.HttpContext.RequestServices.GetRequiredService<IAdminAccessService>();
+                var userRepository = context.HttpContext.RequestServices.GetRequiredService<IUserRepository>();
+                UserEntity? user = null;
+
+                if (Guid.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
+                {
+                    user = await userRepository.GetByIdAsync(userId);
+                }
+
+                if (user != null)
+                {
+                    if (adminAccess.IsOwnerUser(user)
+                        || string.Equals(user.PlatformRole, "Owner", StringComparison.Ordinal))
+                    {
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "Owner"));
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                        return;
+                    }
+
+                    if (string.Equals(user.PlatformRole, "Admin", StringComparison.Ordinal))
+                    {
+                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                        return;
+                    }
+                }
+
+                var username = user?.Username ?? principal.FindFirstValue("username");
+                var email = user?.Email ?? principal.FindFirstValue(ClaimTypes.Email);
+                if (adminAccess.IsPrivilegedUser(username, email))
+                {
+                    identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                }
+            }
         };
     });
 
@@ -85,7 +210,7 @@ var startupLogger = loggerFactory.CreateLogger("BronyTV.Startup");
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<DbBronyTV>();
-    await context.Database.MigrateAsync();
+    await DatabaseInitializer.ApplyMigrationsAndEnsureSchemaAsync(context, startupLogger);
 
     Directory.CreateDirectory(Path.Combine(app.Environment.WebRootPath, "content", "video"));
     var previewsDir = Path.Combine(app.Environment.WebRootPath, "content", "previews");
@@ -111,6 +236,35 @@ await using (var scope = app.Services.CreateAsyncScope())
             PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"),
         });
         await context.SaveChangesAsync();
+    }
+
+    const string platformAdminLogin = "rainbowdash";
+    if (!await context.Admins.AnyAsync(admin => admin.Login == platformAdminLogin))
+    {
+        context.Admins.Add(new AdminEntity
+        {
+            Id = Guid.NewGuid(),
+            Login = platformAdminLogin,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("rainbowdash"),
+        });
+        await context.SaveChangesAsync();
+        startupLogger.LogInformation(
+            "Создана запись AdminEntity для {Login} (вход через /api/auth/login или сессия пользователя с этим юзернеймом).",
+            platformAdminLogin);
+    }
+
+    var ownerUsers = await context.Users
+        .Where(user => user.Username != null && user.Username.ToLower() == platformAdminLogin)
+        .ToListAsync();
+    foreach (var ownerUser in ownerUsers)
+    {
+        ownerUser.PlatformRole = "Owner";
+    }
+
+    if (context.ChangeTracker.HasChanges())
+    {
+        await context.SaveChangesAsync();
+        startupLogger.LogInformation("Синхронизированы роли владельца для пользователей {Login}.", platformAdminLogin);
     }
 
     string BuildPosterPath(int seasonNumber)
@@ -182,7 +336,9 @@ app.Lifetime.ApplicationStarted.Register(() =>
 });
 
 // CORS оборачивает статику: ответы /videos и wwwroot получают заголовки для кросс-доменного плеера.
-app.UseCors(OpenCorsPolicy);
+app.UseForwardedHeaders();
+app.UseCookiePolicy();
+app.UseCors(AllowBronyTvPolicy);
 
 // /videos/* отдаёт VideoStreamController (PhysicalFile + enableRangeProcessing) для Safari/iOS.
 
