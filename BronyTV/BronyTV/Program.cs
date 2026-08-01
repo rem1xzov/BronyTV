@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 var videosStorageRoot = builder.Configuration["VideoStorage:RootPath"]
@@ -189,6 +190,18 @@ builder.Services.Configure<FormOptions>(options =>
     options.MultipartBodyLengthLimit = 500 * 1024 * 1024;
 });
 
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddFixedWindowLimiter("fixed", config =>
+    {
+        config.PermitLimit = 100;
+        config.Window = TimeSpan.FromMinutes(1);
+        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        config.QueueLimit = 0;
+    });
+});
+
 var app = builder.Build();
 var loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
 var startupLogger = loggerFactory.CreateLogger("BronyTV.Startup");
@@ -332,6 +345,7 @@ app.UseDefaultFiles();
 app.UseStaticFiles();
 
 app.UseRouting();
+app.UseRateLimiter();
 
 app.UseAuthentication();
 app.UseAuthorization();
