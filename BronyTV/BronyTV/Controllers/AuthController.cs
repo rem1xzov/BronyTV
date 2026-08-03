@@ -180,6 +180,41 @@ public class AuthController : ControllerBase
         return Ok();
     }
 
+    [HttpPost("confirm-email")]
+    public async Task<IActionResult> ConfirmEmail(
+        [FromBody] ConfirmEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        var (success, error) = await _userAuthService.ConfirmEmailAsync(
+            request.Email,
+            request.Token,
+            cancellationToken);
+
+        if (!success)
+        {
+            return BadRequest(new { message = error ?? "Не удалось подтвердить email." });
+        }
+
+        return Ok(new { message = "Email успешно подтверждён." });
+    }
+
+    [HttpPost("resend-email-confirmation")]
+    public async Task<IActionResult> ResendEmailConfirmation(
+        [FromBody] ResendEmailConfirmationRequest request,
+        CancellationToken cancellationToken)
+    {
+        var (success, error) = await _userAuthService.ResendEmailConfirmationAsync(
+            request.Email,
+            cancellationToken);
+
+        if (!success)
+        {
+            return BadRequest(new { message = error ?? "Не удалось отправить письмо." });
+        }
+
+        return Ok(new { message = "Письмо с подтверждением отправлено." });
+    }
+
     private void AppendSessionCookie(DbContext.Entity.UserEntity user)
     {
         var sessionToken = _userAuthService.CreateSessionToken(user);

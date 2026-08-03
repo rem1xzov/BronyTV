@@ -12,4 +12,6 @@ public class UserEntity
     public DateTime RaceSelectedAtUtc { get; set; }
     public bool IsBannedFromCommenting { get; set; }
     public string PlatformRole { get; set; } = "User";
+    public bool IsEmailConfirmed { get; set; }
+    public string? EmailConfirmationToken { get; set; }
 }

@@ -28,6 +28,7 @@ import ForumPage from "./components/ForumPage";
 import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
 import NewsPage from "./components/NewsPage";
+import ConfirmEmail from "./components/ConfirmEmail";
 import logoPng from "./assets/logo2.png";
 
 const SEASON_INFO = [
@@ -2069,6 +2070,7 @@ export default function App() {
         <Route path="/forum" element={<ForumPage />} />
         <Route path="/forum/:threadId" element={<ForumPage />} />
         <Route path="/news" element={<NewsPage />} />
+        <Route path="/confirm-email" element={<ConfirmEmail />} />
         <Route path="/admin" element={<AdminPanelPage />} />
         <Route
           path="/season/:seasonId"

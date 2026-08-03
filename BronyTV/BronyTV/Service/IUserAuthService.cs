@@ -35,4 +35,13 @@ public interface IUserAuthService
         Guid userId,
         string emoji,
         CancellationToken cancellationToken = default);
+
+    Task<(bool Success, string? Error)> ConfirmEmailAsync(
+        string email,
+        string token,
+        CancellationToken cancellationToken = default);
+
+    Task<(bool Success, string? Error)> ResendEmailConfirmationAsync(
+        string email,
+        CancellationToken cancellationToken = default);
 }

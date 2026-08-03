@@ -3424,6 +3424,142 @@ body[data-theme="dark"] .hero-thumb {
   margin: 8px auto 0;
 }
 
+.profile-email-confirm-warning {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(255, 193, 7, 0.10);
+  border: 1px solid rgba(255, 193, 7, 0.4);
+  color: #7a5a00;
+}
+
+.profile-email-confirm-warning--dark {
+  background: rgba(255, 193, 7, 0.12);
+  border-color: rgba(255, 193, 7, 0.45);
+  color: #f5c563;
+}
+
+.profile-email-confirm-warning-icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 193, 7, 0.2);
+}
+
+.profile-email-confirm-warning-text {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-email-confirm-warning-text strong {
+  font-size: 0.9rem;
+}
+
+.profile-email-confirm-warning-text p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
+.profile-email-confirm-btn {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.profile-email-confirm-message {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+body[data-theme="dark"] .profile-email-confirm-warning {
+  background: rgba(255, 193, 7, 0.12);
+  border-color: rgba(255, 193, 7, 0.45);
+  color: #f5c563;
+}
+
+.profile-email-confirm-message--sent {
+  color: #2e7d32;
+}
+
+.profile-email-confirm-message--error {
+  color: #c62828;
+}
+
+.confirm-email-page {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.confirm-email-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 14px;
+  padding: 32px 24px;
+}
+
+.confirm-email-card h2 {
+  margin: 0;
+  font-size: 1.3rem;
+}
+
+.confirm-email-card p {
+  margin: 0;
+  max-width: 380px;
+  line-height: 1.6;
+}
+
+.confirm-email-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(128, 90, 213, 0.12);
+  color: #8e63db;
+}
+
+.confirm-email-icon--success {
+  background: rgba(46, 125, 50, 0.12);
+  color: #2e7d32;
+}
+
+.confirm-email-icon--error {
+  background: rgba(198, 40, 40, 0.12);
+  color: #c62828;
+}
+
+.confirm-email-spinner {
+  animation: confirm-email-spin 1s linear infinite;
+}
+
+@keyframes confirm-email-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.confirm-email-card .button-row {
+  justify-content: center;
+  margin-top: 6px;
+}
+
 .profile-password-toggle {
   width: 100%;
   justify-content: center;
@@ -4856,121 +4992,4 @@ body[data-theme="dark"] .hero-thumb {
     min-height: min(78vh, 720px);
   }
 
-  .admin-support-list-pane--hidden-mobile,
-  .admin-support-chat-pane--hidden-mobile {
-    display: none;
-  }
-
-  .admin-support-back-btn {
-    display: inline-flex;
-  }
-
-  .admin-support-list-pane,
-  .admin-support-chat-pane {
-    border-right: 0;
-    padding: 8px;
-  }
-
-  .admin-support-chat-pane {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .admin-support-chat-messages {
-    flex: 1 1 auto;
-    overflow-y: auto;
-  }
-
-  .admin-support-reply-form {
-    position: sticky;
-    bottom: 0;
-    z-index: 2;
-    background: var(--bg-card);
-    padding-bottom: env(safe-area-inset-bottom, 0);
-  }
-
-  .admin-support-close-btn {
-    width: 100%;
-    margin-left: 0;
-    justify-content: center;
-  }
-
-  .admin-support-reply-btn span {
-    display: none;
-  }
-
-  .admin-support-reply-btn {
-    min-width: 40px;
-    padding: 8px;
-  }
-
-  .news-header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .news-card {
-    flex-direction: column;
-  }
-
-  .news-card-image {
-    max-height: 200px;
-  }
-
-  .news-card-body {
-    padding: 12px;
-    gap: 6px;
-  }
-
-  .news-card-title {
-    font-size: 1rem;
-  }
-
-  .news-card-content {
-    font-size: 0.92rem;
-  }
-
-  .news-card-meta {
-    font-size: 0.78rem;
-    flex-wrap: wrap;
-  }
-
-  .news-delete-btn {
-    top: 6px;
-    right: 6px;
-    padding: 4px 6px;
-    min-width: 36px;
-    min-height: 36px;
-    touch-action: manipulation;
-  }
-
-  .news-modal {
-    padding: 14px;
-    max-height: min(85vh, 600px);
-  }
-
-  .news-create-form {
-    gap: 10px;
-  }
-
-  .news-field input,
-  .news-field textarea {
-    padding: 8px 10px;
-    font-size: 14px;
-    touch-action: manipulation;
-  }
-
-  .news-form-actions {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .news-form-actions .primary-btn,
-  .news-form-actions .secondary-btn {
-    width: 100%;
-    padding: 10px 14px;
-    font-size: 14px;
-    touch-action: manipulation;
-  }
-}
+  .admin-support-list-pane-

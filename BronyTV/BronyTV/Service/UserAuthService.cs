@@ -14,15 +14,18 @@ public class UserAuthService : IUserAuthService
 {
     private readonly IUserRepository _userRepository;
     private readonly IAdminAccessService _adminAccessService;
+    private readonly IEmailService _emailService;
     private readonly IConfiguration _configuration;
 
     public UserAuthService(
         IUserRepository userRepository,
         IAdminAccessService adminAccessService,
+        IEmailService emailService,
         IConfiguration configuration)
     {
         _userRepository = userRepository;
         _adminAccessService = adminAccessService;
+        _emailService = emailService;
         _configuration = configuration;
     }
 
@@ -75,10 +78,26 @@ public class UserAuthService : IUserAuthService
             CreatedAtUtc = now,
             RaceSelectedAtUtc = now,
             IsBannedFromCommenting = false,
-            PlatformRole = _adminAccessService.ResolveInitialRoleForUsername(normalizedUsername)
+            PlatformRole = _adminAccessService.ResolveInitialRoleForUsername(normalizedUsername),
+            IsEmailConfirmed = false,
+            EmailConfirmationToken = Guid.NewGuid().ToString("N")
         };
 
         var created = await _userRepository.CreateAsync(user, cancellationToken);
+
+        // Try to send the confirmation email. Failures are logged but do not block registration.
+        try
+        {
+            await _emailService.SendEmailConfirmationAsync(
+                created.Email,
+                created.EmailConfirmationToken ?? string.Empty,
+                CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            // Best-effort: registration succeeds even if the mail provider is unavailable.
+        }
+
         return (MapUserResponse(created), null);
     }
 
@@ -143,8 +162,82 @@ public class UserAuthService : IUserAuthService
             IsPlatformAdmin = _adminAccessService.IsOwnerUser(user)
                 || PlatformRoles.IsAdminOrOwner(user.PlatformRole)
                 || _adminAccessService.IsPrivilegedUser(user.Username, user.Email),
-            IsBannedFromCommenting = user.IsBannedFromCommenting
+            IsBannedFromCommenting = user.IsBannedFromCommenting,
+            IsEmailConfirmed = user.IsEmailConfirmed
         };
+
+    public async Task<(bool Success, string? Error)> ConfirmEmailAsync(
+        string email,
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrEmpty(normalizedEmail) || string.IsNullOrWhiteSpace(token))
+        {
+            return (false, "Неверная ссылка подтверждения.");
+        }
+
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (user == null)
+        {
+            return (false, "Пользователь не найден.");
+        }
+
+        if (user.IsEmailConfirmed)
+        {
+            return (true, null);
+        }
+
+        if (string.IsNullOrEmpty(user.EmailConfirmationToken)
+            || !string.Equals(user.EmailConfirmationToken, token.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, "Ссылка подтверждения недействительна или устарела. Запросите новое письмо.");
+        }
+
+        user.IsEmailConfirmed = true;
+        user.EmailConfirmationToken = null;
+        await _userRepository.SaveChangesAsync(user, cancellationToken);
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> ResendEmailConfirmationAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrEmpty(normalizedEmail))
+        {
+            return (false, "Укажите корректный email.");
+        }
+
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (user == null)
+        {
+            return (false, "Пользователь не найден.");
+        }
+
+        if (user.IsEmailConfirmed)
+        {
+            return (false, "Email уже подтверждён.");
+        }
+
+        user.EmailConfirmationToken = Guid.NewGuid().ToString("N");
+        await _userRepository.SaveChangesAsync(user, cancellationToken);
+
+        try
+        {
+            await _emailService.SendEmailConfirmationAsync(
+                user.Email,
+                user.EmailConfirmationToken ?? string.Empty,
+                CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            return (false, "Не удалось отправить письмо. Попробуйте позже.");
+        }
+
+        return (true, null);
+    }
 
     public async Task<(AuthUserResponse? Response, string? Error)> UpdateUsernameAsync(
         Guid userId,
@@ -220,6 +313,80 @@ public class UserAuthService : IUserAuthService
         return (MapUserResponse(user), null);
     }
 
+    public async Task<(bool Success, string? Error)> ConfirmEmailAsync(
+        string email,
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrEmpty(normalizedEmail) || string.IsNullOrWhiteSpace(token))
+        {
+            return (false, "Укажите email и токен подтверждения.");
+        }
+
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (user == null)
+        {
+            return (false, "Пользователь с таким email не найден.");
+        }
+
+        if (user.IsEmailConfirmed)
+        {
+            return (true, null);
+        }
+
+        if (string.IsNullOrEmpty(user.EmailConfirmationToken)
+            || !string.Equals(user.EmailConfirmationToken, token.Trim(), StringComparison.Ordinal))
+        {
+            return (false, "Неверный или устаревший токен подтверждения. Запросите письмо повторно.");
+        }
+
+        user.IsEmailConfirmed = true;
+        user.EmailConfirmationToken = null;
+        await _userRepository.SaveChangesAsync(user, cancellationToken);
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> ResendEmailConfirmationAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrEmpty(normalizedEmail))
+        {
+            return (false, "Укажите корректный email.");
+        }
+
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (user == null)
+        {
+            // Do not reveal whether an account exists.
+            return (true, null);
+        }
+
+        if (user.IsEmailConfirmed)
+        {
+            return (false, "Email уже подтверждён.");
+        }
+
+        user.EmailConfirmationToken = Guid.NewGuid().ToString("N");
+        await _userRepository.SaveChangesAsync(user, cancellationToken);
+
+        try
+        {
+            await _emailService.SendEmailConfirmationAsync(
+                user.Email,
+                user.EmailConfirmationToken ?? string.Empty,
+                CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            return (false, "Не удалось отправить письмо. Попробуйте позже.");
+        }
+
+        return (true, null);
+    }
+
     private void AppendRoleClaims(List<Claim> claims, UserEntity user)
     {
         claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.User));
@@ -252,4 +419,5 @@ public class UserAuthService : IUserAuthService
 
     private static string NormalizeEmail(string email) =>
         string.IsNullOrWhiteSpace(email) ? string.Empty : email.Trim().ToLowerInvariant();
+}
 }

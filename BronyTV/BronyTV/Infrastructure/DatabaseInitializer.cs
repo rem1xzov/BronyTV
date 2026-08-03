@@ -50,6 +50,18 @@ public static class DatabaseInitializer
             ADD COLUMN IF NOT EXISTS "AvatarEmoji" character varying(32);
         """;
 
+    private const string EnsureEmailConfirmationColumnsSql = """
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "IsEmailConfirmed" boolean NOT NULL DEFAULT FALSE;
+
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "EmailConfirmationToken" character varying(128);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_EmailConfirmationToken"
+            ON public."Users" ("EmailConfirmationToken")
+            WHERE "EmailConfirmationToken" IS NOT NULL;
+        """;
+
     private const string EnsureCommentsTableSql = """
         CREATE TABLE IF NOT EXISTS public."Comments" (
             "Id" uuid NOT NULL,
@@ -134,6 +146,7 @@ public static class DatabaseInitializer
         await EnsureCommentLikesTableAsync(context, logger, cancellationToken);
         await EnsureUserCommentBanColumnAsync(context, logger, cancellationToken);
         await EnsureUserPlatformRoleColumnAsync(context, logger, cancellationToken);
+        await EnsureEmailConfirmationColumnsAsync(context, logger, cancellationToken);
         await EnsureForumTablesAsync(context, logger, cancellationToken);
         await EnsureSupportTablesAsync(context, logger, cancellationToken);
     }
@@ -226,6 +239,15 @@ public static class DatabaseInitializer
     {
         await context.Database.ExecuteSqlRawAsync(EnsureUserPlatformRoleColumnSql, cancellationToken);
         logger.LogInformation("Verified public.\"Users\".\"PlatformRole\" column.");
+    }
+
+    public static async Task EnsureEmailConfirmationColumnsAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureEmailConfirmationColumnsSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Users\" email confirmation columns and unique index.");
     }
 
     public static async Task EnsureForumTablesAsync(

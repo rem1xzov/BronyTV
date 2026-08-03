@@ -118,6 +118,30 @@ export function AuthProvider({ children }) {
     return payload;
   }, []);
 
+  const confirmEmail = useCallback(async ({ email, token }) => {
+    const response = await apiFetch("/auth/confirm-email", {
+      method: "POST",
+      body: JSON.stringify({ email, token })
+    });
+    const raw = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(raw.message || "Не удалось подтвердить email.");
+    }
+    return raw;
+  }, []);
+
+  const resendEmailConfirmation = useCallback(async (email) => {
+    const response = await apiFetch("/auth/resend-email-confirmation", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    });
+    const raw = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(raw.message || "Не удалось отправить письмо.");
+    }
+    return raw;
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -129,9 +153,23 @@ export function AuthProvider({ children }) {
       refreshUser,
       updateUsername,
       updatePassword,
-      updateAvatarEmoji
+      updateAvatarEmoji,
+      confirmEmail,
+      resendEmailConfirmation
     }),
-    [user, loading, register, login, logout, refreshUser, updateUsername, updatePassword, updateAvatarEmoji]
+    [
+      user,
+      loading,
+      register,
+      login,
+      logout,
+      refreshUser,
+      updateUsername,
+      updatePassword,
+      updateAvatarEmoji,
+      confirmEmail,
+      resendEmailConfirmation
+    ]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -52,5 +52,17 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
             .HasMaxLength(16)
             .HasDefaultValue(Models.PlatformRoles.User)
             .IsRequired();
+
+        builder.Property(user => user.IsEmailConfirmed)
+            .HasDefaultValue(false)
+            .IsRequired();
+
+        builder.Property(user => user.EmailConfirmationToken)
+            .HasMaxLength(128)
+            .IsRequired(false);
+
+        builder.HasIndex(user => user.EmailConfirmationToken)
+            .IsUnique()
+            .HasFilter("\"EmailConfirmationToken\" IS NOT NULL");
     }
 }

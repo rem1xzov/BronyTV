@@ -24,7 +24,7 @@ function ProfileSkeleton() {
 }
 
 export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
-  const { user, refreshUser, logout, updateUsername, updatePassword, updateAvatarEmoji } = useAuth();
+  const { user, refreshUser, logout, updateUsername, updatePassword, updateAvatarEmoji, resendEmailConfirmation } = useAuth();
   const titleId = useId();
   const onCloseRef = useRef(onClose);
   const [profileLoading, setProfileLoading] = useState(false);
@@ -52,6 +52,8 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
   const [emojiSuccess, setEmojiSuccess] = useState("");
   const [supportOpen, setSupportOpen] = useState(false);
   const [emojiSaving, setEmojiSaving] = useState(false);
+  const [resendStatus, setResendStatus] = useState(""); // '', 'sending', 'sent', 'error'
+  const [resendMessage, setResendMessage] = useState("");
 
   onCloseRef.current = onClose;
 
@@ -100,6 +102,8 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
       setEmojiError("");
       setEmojiSuccess("");
       setEmojiSaving(false);
+      setResendStatus("");
+      setResendMessage("");
       setSupportOpen(false);
       return undefined;
     }
@@ -331,6 +335,22 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
     }
   };
 
+  const handleResendConfirmation = async () => {
+    if (!displayUser?.email) {
+      return;
+    }
+    setResendStatus("sending");
+    setResendMessage("");
+    try {
+      await resendEmailConfirmation(displayUser.email);
+      setResendStatus("sent");
+      setResendMessage("Письмо с подтверждением отправлено. Проверьте почту.");
+    } catch (error) {
+      setResendStatus("error");
+      setResendMessage(error.message || "Не удалось отправить письмо. Попробуйте позже.");
+    }
+  };
+
   return createPortal(
     <div className="profile-modal-overlay" onClick={handleBackdropClick} role="presentation">
       <div
@@ -552,6 +572,38 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
               <p className="profile-modal-notice">
                 Ваша раса выбрана при регистрации и не может быть изменена.
               </p>
+
+              {displayUser && displayUser.isEmailConfirmed === false ? (
+                <div className="profile-email-confirm-warning">
+                  <div className="profile-email-confirm-warning-icon" aria-hidden="true">
+                    <AlertCircle size={24} />
+                  </div>
+                  <div className="profile-email-confirm-warning-text">
+                    <strong>Email не подтверждён</strong>
+                    <p>Подтвердите адрес {displayUser.email}, чтобы пользоваться всеми возможностями аккаунта.</p>
+                    <button
+                      type="button"
+                      className="secondary-btn profile-email-confirm-btn"
+                      onClick={handleResendConfirmation}
+                      disabled={resendStatus === "sending"}
+                    >
+                      {resendStatus === "sending"
+                        ? "Отправка…"
+                        : resendStatus === "sent"
+                          ? "Отправлено"
+                          : "Отправить письмо повторно"}
+                    </button>
+                    {resendMessage ? (
+                      <p
+                        className={`profile-email-confirm-message profile-email-confirm-message--${resendStatus}`}
+                        role="status"
+                      >
+                        {resendMessage}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               {showAdminPanel ? (
                 <div className="profile-admin-section">

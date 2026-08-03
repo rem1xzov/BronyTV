@@ -37,6 +37,7 @@ export const normalizeAuthUser = (raw) => {
     platformRole: String(platformRoleRaw || "User"),
     isOwner: Boolean(isOwnerRaw),
     isPlatformAdmin: Boolean(isPlatformAdminRaw),
-    isBannedFromCommenting: Boolean(isBannedFromCommentingRaw)
+    isBannedFromCommenting: Boolean(isBannedFromCommentingRaw),
+    isEmailConfirmed: Boolean(isEmailConfirmedRaw)
   };
 };
