@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Mail;
+using Microsoft.Extensions.Logging;
 
 namespace BronyTV.Infrastructure;
 
@@ -10,48 +11,62 @@ public interface IEmailService
 
 public class EmailService : IEmailService
 {
+    private readonly ILogger<EmailService> _logger;
     private readonly string _smtpHost;
     private readonly int _smtpPort;
     private readonly string _smtpUser;
     private readonly string _smtpPassword;
     private readonly bool _smtpUseSsl;
     private readonly string _fromAddress;
+    private readonly string _senderName;
 
-    public EmailService(IConfiguration configuration)
+    public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
     {
-        _smtpHost = configuration["Email:SmtpHost"]
-            ?? Environment.GetEnvironmentVariable("Email__SmtpHost")
-            ?? "";
-        _smtpPort = int.TryParse(
-            configuration["Email:SmtpPort"]
-            ?? Environment.GetEnvironmentVariable("Email__SmtpPort"),
-            out var port)
-            ? port
-            : 587;
-        _smtpUser = configuration["Email:SmtpUser"]
-            ?? Environment.GetEnvironmentVariable("Email__SmtpUser")
-            ?? "";
-        _smtpPassword = configuration["Email:SmtpPassword"]
-            ?? Environment.GetEnvironmentVariable("Email__SmtpPassword")
-            ?? "";
+        _logger = logger;
+        _smtpHost = ReadSetting(configuration, "Email:SmtpHost") ?? "";
+        _smtpPort = int.TryParse(ReadSetting(configuration, "Email:SmtpPort"), out var port) ? port : 587;
+
+        // Honours both the compose "Email__SmtpUser" set and the Gmail "Email__SmtpUsername"/"Email__SenderEmail" set.
+        _smtpUser = FirstNonEmpty(
+            ReadSetting(configuration, "Email:SmtpUser"),
+            ReadSetting(configuration, "Email:SmtpUsername"),
+            ReadSetting(configuration, "Email:SenderEmail"));
+        _smtpPassword = ReadSetting(configuration, "Email:SmtpPassword") ?? "";
+
+        // Honours both "Email__SmtpUseSsl" and "Email__EnableSsl".
         _smtpUseSsl = bool.TryParse(
-            configuration["Email:SmtpUseSsl"]
-            ?? Environment.GetEnvironmentVariable("Email__SmtpUseSsl"),
+            FirstNonEmpty(
+                ReadSetting(configuration, "Email:SmtpUseSsl"),
+                ReadSetting(configuration, "Email:EnableSsl")),
             out var useSsl)
             ? useSsl
             : true;
-        _fromAddress = configuration["Email:FromAddress"]
-            ?? Environment.GetEnvironmentVariable("Email__FromAddress")
-            ?? (string.IsNullOrEmpty(_smtpUser) ? "no-reply@bronytv.ru" : _smtpUser);
+
+        _fromAddress = FirstNonEmpty(
+            ReadSetting(configuration, "Email:FromAddress"),
+            ReadSetting(configuration, "Email:SenderEmail"));
+        _senderName = FirstNonEmpty(ReadSetting(configuration, "Email:SenderName"), "BronyTV");
+
+        if (string.IsNullOrEmpty(_fromAddress))
+        {
+            _fromAddress = string.IsNullOrEmpty(_smtpUser) ? "no-reply@bronytv.ru" : _smtpUser;
+        }
     }
 
-    public Task SendEmailConfirmationAsync(string email, string confirmationCode, CancellationToken cancellationToken = default)
+    public async Task SendEmailConfirmationAsync(string email, string confirmationCode, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(_smtpHost))
         {
             // SMTP is not configured; skip actual sending so the app still works in dev.
-            return Task.CompletedTask;
+            _logger.LogWarning("[EmailService] SMTP не настроен, письмо на {Email} пропущено", email);
+            return;
         }
+
+        _logger.LogInformation(
+            "[EmailService] Отправка кода на {Email} через {Host}:{Port}...",
+            email,
+            _smtpHost,
+            _smtpPort);
 
         var htmlBody = $"""
             <!DOCTYPE html>
@@ -95,29 +110,42 @@ public class EmailService : IEmailService
             </html>
             """;
 
-        using var smtp = new SmtpClient(_smtpHost, _smtpPort)
-        {
-            Credentials = new NetworkCredential(_smtpUser, _smtpPassword),
-            EnableSsl = _smtpUseSsl,
-            DeliveryMethod = SmtpDeliveryMethod.Network
-        };
-
-        var message = new MailMessage
-        {
-            From = new MailAddress(_fromAddress, "BronyTV"),
-            Subject = "Код подтверждения email на BronyTV",
-            Body = htmlBody,
-            IsBodyHtml = true
-        };
-        message.To.Add(new MailAddress(email));
-
         try
         {
-            return smtp.SendMailAsync(message, cancellationToken);
+            using var smtp = new SmtpClient(_smtpHost, _smtpPort)
+            {
+                Credentials = new NetworkCredential(_smtpUser, _smtpPassword),
+                EnableSsl = _smtpUseSsl,
+                DeliveryMethod = SmtpDeliveryMethod.Network
+            };
+
+            using var message = new MailMessage
+            {
+                From = new MailAddress(_fromAddress, _senderName),
+                Subject = "Код подтверждения email на BronyTV",
+                Body = htmlBody,
+                IsBodyHtml = true
+            };
+            message.To.Add(new MailAddress(email));
+
+            await smtp.SendMailAsync(message, cancellationToken);
+
+            _logger.LogInformation("[EmailService] Письмо успешно отправлено на {Email}", email);
         }
-        finally
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            message.Dispose();
+            _logger.LogError(ex, "[EmailService] ОШИБКА отправки письма на {Email}: {Message}", email, ex.Message);
+            throw;
         }
     }
+
+    private static string? ReadSetting(IConfiguration configuration, string key)
+    {
+        var envKey = key.Replace(":", "__");
+        return configuration[key]
+            ?? Environment.GetEnvironmentVariable(envKey);
+    }
+
+    private static string FirstNonEmpty(params string?[] values) =>
+        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? "";
 }

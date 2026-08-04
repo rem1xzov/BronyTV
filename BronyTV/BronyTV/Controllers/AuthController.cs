@@ -79,9 +79,13 @@ public class AuthController : ControllerBase
         // A confirmed email is required before the account may be used.
         if (!user.IsEmailConfirmed)
         {
+            // Generate a fresh code and send it so the user can confirm right away.
+            await _userAuthService.ResendEmailConfirmationAsync(user.Email, cancellationToken);
+
+            // Tell the client that a code has been sent and confirmation is required.
             return Conflict(new
             {
-                message = "Email ещё не подтверждён. Введите код из письма, чтобы войти.",
+                message = "Email ещё не подтверждён. Код из нового письма отправлен на почту. Введите его, чтобы войти.",
                 email = user.Email,
                 requiresEmailConfirmation = true
             });
