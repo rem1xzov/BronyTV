@@ -252,6 +252,10 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
                     ? "Отправляем…"
                     : "Отправить код повторно"}
               </button>
+
+              <p className="auth-modal-confirm-hint auth-modal-confirm-hint--muted">
+                Код отправлен на ваш email. Если письмо не приходит в течение минуты, обязательно проверьте папку «Спам».
+              </p>
             </form>
           </div>
         ) : (

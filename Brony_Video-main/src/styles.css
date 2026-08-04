@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   /* Светлая тема: палитра розовый/пурпурный как на логотипе MLP, но фон остаётся светлым */
   --bg-main: #fff1fb;
   --bg-surface: #f7e7ff;
@@ -2262,6 +2262,14 @@ body[data-theme="dark"] .hero-thumb {
 .auth-modal-resend:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.auth-modal-confirm-hint {
+  margin: 12px 0 0;
+  width: 100%;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-muted);
 }
 
 @media (max-width: 768px) {
