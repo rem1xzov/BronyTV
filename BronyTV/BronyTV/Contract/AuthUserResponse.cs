@@ -1,4 +1,4 @@
-namespace BronyTV.Contract;
+﻿namespace BronyTV.Contract;
 
 public class AuthUserResponse
 {
@@ -11,4 +11,5 @@ public class AuthUserResponse
     public bool IsOwner { get; set; }
     public bool IsPlatformAdmin { get; set; }
     public bool IsBannedFromCommenting { get; set; }
+    public bool IsEmailConfirmed { get; set; }
 }
