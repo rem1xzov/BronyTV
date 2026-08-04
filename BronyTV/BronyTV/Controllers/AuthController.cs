@@ -73,10 +73,24 @@ public class AuthController : ControllerBase
         var user = await _userAuthService.AuthenticateAsync(request.Email, request.Password, cancellationToken);
         if (user == null)
         {
+            // The account is not in the database yet. It may be a pending (unconfirmed)
+            // registration that is only held in the in-memory cache — in that case issue
+            // a fresh code and redirect the user into the confirmation screen.
+            if (await _userAuthService.TryResendPendingConfirmationAsync(request.Email, cancellationToken))
+            {
+                return Conflict(new
+                {
+                    message = "Регистрация ещё не завершена: нужен код подтверждения. Новый код отправлен на почту.",
+                    email = request.Email?.Trim().ToLowerInvariant(),
+                    requiresEmailConfirmation = true
+                });
+            }
+
             return Unauthorized(new { message = "Неверный email или пароль." });
         }
 
-        // A confirmed email is required before the account may be used.
+        // A confirmed email is required before the account may be used. This branch only
+        // fires for legacy unconfirmed rows (the new flow never creates such rows).
         if (!user.IsEmailConfirmed)
         {
             // Generate a fresh code and send it so the user can confirm right away.

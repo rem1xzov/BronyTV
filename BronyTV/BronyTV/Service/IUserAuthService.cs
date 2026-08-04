@@ -44,4 +44,13 @@ public interface IUserAuthService
     Task<(bool Success, string? Error)> ResendEmailConfirmationAsync(
         string email,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// When a sign-in attempt is made for an email that has a pending (unconfirmed)
+    /// registration cached, a fresh code is issued and sent, returning true.
+    /// Returns false when there is no pending registration for the email.
+    /// </summary>
+    Task<bool> TryResendPendingConfirmationAsync(
+        string email,
+        CancellationToken cancellationToken = default);
 }

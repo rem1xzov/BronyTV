@@ -50,6 +50,8 @@ builder.Services.AddScoped<INewsPostRepository, NewsPostRepository>();
 builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.Configure<AdminAccessOptions>(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
 builder.Services.AddSingleton<IAdminAccessService, AdminAccessService>();
+builder.Services.AddMemoryCache();
+builder.Services.AddHostedService<ConfirmationCleanupHostedService>();
 builder.Services.AddControllers();
 
 builder.Services.Configure<CookiePolicyOptions>(options =>

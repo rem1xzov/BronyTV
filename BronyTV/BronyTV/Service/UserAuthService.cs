@@ -6,27 +6,31 @@ using BronyTV.DbContext.Entity;
 using BronyTV.Infrastructure;
 using BronyTV.Models;
 using BronyTV.Repository;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.IdentityModel.Tokens;
 
 namespace BronyTV.Service;
 
 public class UserAuthService : IUserAuthService
 {
-    private readonly IUserRepository _userRepository;
+        private readonly IUserRepository _userRepository;
     private readonly IAdminAccessService _adminAccessService;
     private readonly IEmailService _emailService;
     private readonly IConfiguration _configuration;
+    private readonly IMemoryCache _cache;
 
     public UserAuthService(
         IUserRepository userRepository,
         IAdminAccessService adminAccessService,
         IEmailService emailService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IMemoryCache cache)
     {
         _userRepository = userRepository;
         _adminAccessService = adminAccessService;
         _emailService = emailService;
         _configuration = configuration;
+        _cache = cache;
     }
 
     public async Task<(AuthUserResponse? Response, string? Error)> RegisterAsync(
@@ -57,7 +61,7 @@ public class UserAuthService : IUserAuthService
             return (null, usernameError);
         }
 
-        if (await _userRepository.EmailExistsAsync(normalizedEmail, cancellationToken))
+                if (await _userRepository.EmailExistsAsync(normalizedEmail, cancellationToken))
         {
             return (null, "Пользователь с таким email уже зарегистрирован.");
         }
@@ -67,38 +71,43 @@ public class UserAuthService : IUserAuthService
             return (null, "Этот юзернейм уже занят");
         }
 
-        var now = DateTime.UtcNow;
-        var user = new UserEntity
+        // Do NOT write to the Users table yet. Only an in-memory pending record is kept so
+        // that fake/unconfirmed registrations never clutter the database.
+        var code = CreateEmailConfirmationCode();
+        var pending = new PendingRegistration
         {
-            Id = Guid.NewGuid(),
             Email = normalizedEmail,
-                        Username = normalizedUsername,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
+            Username = normalizedUsername,
             Race = normalizedRace,
-            CreatedAtUtc = now,
-            RaceSelectedAtUtc = now,
-            IsBannedFromCommenting = false,
-            PlatformRole = _adminAccessService.ResolveInitialRoleForUsername(normalizedUsername),
-            IsEmailConfirmed = false,
-            EmailConfirmationToken = CreateEmailConfirmationCode()
+            Code = code,
+            ExpiresUtc = DateTime.UtcNow.AddMinutes(PendingLifetimeMinutes)
         };
 
-        var created = await _userRepository.CreateAsync(user, cancellationToken);
+        _cache.Set(PendingKey(normalizedEmail), pending, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpiration = pending.ExpiresUtc
+        });
 
-        // Try to send the confirmation email. Failures are logged but do not block registration.
+        // Try to send the confirmation email. Failures are logged (inside EmailService)
+        // but do not block registration.
         try
         {
-            await _emailService.SendEmailConfirmationAsync(
-                created.Email,
-                created.EmailConfirmationToken ?? string.Empty,
-                CancellationToken.None);
+            await _emailService.SendEmailConfirmationAsync(normalizedEmail, code, CancellationToken.None);
         }
         catch (Exception)
         {
             // Best-effort: registration succeeds even if the mail provider is unavailable.
         }
 
-        return (MapUserResponse(created), null);
+        return (new AuthUserResponse
+        {
+            Email = normalizedEmail,
+            Username = normalizedUsername,
+            Race = normalizedRace,
+            PlatformRole = "User",
+            IsEmailConfirmed = false
+        }, null);
     }
 
     public async Task<UserEntity?> AuthenticateAsync(
@@ -177,26 +186,63 @@ public class UserAuthService : IUserAuthService
             return (false, "Неверный код подтверждения.");
         }
 
-        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
-        if (user == null)
-        {
-            return (false, "Пользователь не найден.");
-        }
-
-        if (user.IsEmailConfirmed)
+                // Already an active (confirmed) user? Nothing else to do.
+        var existing = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (existing != null && existing.IsEmailConfirmed)
         {
             return (true, null);
         }
 
-        if (string.IsNullOrEmpty(user.EmailConfirmationToken)
-            || !string.Equals(user.EmailConfirmationToken, token.Trim(), StringComparison.OrdinalIgnoreCase))
+        // Resolve the pending (unconfirmed) registration from the in-memory cache.
+        var pending = _cache.Get<PendingRegistration>(PendingKey(normalizedEmail));
+        if (pending == null)
+        {
+            return (false, "Код недействителен или истёк. Запросите новый код или зарегистрируйтесь заново.");
+        }
+
+        if (pending.ExpiresUtc < DateTime.UtcNow)
+        {
+            _cache.Remove(PendingKey(normalizedEmail));
+            return (false, "Время действия кода истекло. Зарегистрируйтесь заново.");
+        }
+
+        if (!string.Equals(pending.Code, token.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             return (false, "Код подтверждения недействителен или устарел. Запросите новое письмо.");
         }
 
-        user.IsEmailConfirmed = true;
-        user.EmailConfirmationToken = null;
-        await _userRepository.SaveChangesAsync(user, cancellationToken);
+        // Re-check uniqueness in case the email/username was taken while waiting for confirmation.
+        if (await _userRepository.EmailExistsAsync(normalizedEmail, cancellationToken))
+        {
+            return (false, "Этот email уже занят другим пользователем.");
+        }
+
+        var username = pending.Username ?? string.Empty;
+        if (!string.IsNullOrEmpty(username)
+            && await _userRepository.UsernameExistsAsync(username, cancellationToken))
+        {
+            return (false, "Этот юзернейм уже занят. Зарегистрируйтесь заново с другим.");
+        }
+
+        // Confirmation is valid — now actually create the real user in the database.
+        var now = DateTime.UtcNow;
+        var user = new UserEntity
+        {
+            Id = Guid.NewGuid(),
+            Email = normalizedEmail,
+            Username = pending.Username,
+            PasswordHash = pending.PasswordHash,
+            Race = pending.Race,
+            CreatedAtUtc = now,
+            RaceSelectedAtUtc = now,
+            IsBannedFromCommenting = false,
+            PlatformRole = _adminAccessService.ResolveInitialRoleForUsername(username),
+            IsEmailConfirmed = true,
+            EmailConfirmationToken = null
+        };
+
+        await _userRepository.CreateAsync(user, cancellationToken);
+        _cache.Remove(PendingKey(normalizedEmail));
         return (true, null);
     }
 
@@ -210,33 +256,71 @@ public class UserAuthService : IUserAuthService
             return (false, "Укажите корректный email.");
         }
 
-        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
-                if (user == null)
+                var pending = _cache.Get<PendingRegistration>(PendingKey(normalizedEmail));
+        if (pending == null)
         {
-            return (false, "Пользователь не найден.");
+            return (false, "Активная регистрация для этого email не найдена. Зарегистрируйтесь заново.");
         }
 
-        if (user.IsEmailConfirmed)
+        // If the email was confirmed meanwhile in the DB, do not regenerate.
+        var existing = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (existing != null && existing.IsEmailConfirmed)
         {
             return (false, "Email уже подтверждён.");
         }
 
-        user.EmailConfirmationToken = CreateEmailConfirmationCode();
-        await _userRepository.SaveChangesAsync(user, cancellationToken);
+        pending.Code = CreateEmailConfirmationCode();
+        pending.ExpiresUtc = DateTime.UtcNow.AddMinutes(PendingLifetimeMinutes);
+        _cache.Set(PendingKey(normalizedEmail), pending, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpiration = pending.ExpiresUtc
+        });
 
         try
         {
-            await _emailService.SendEmailConfirmationAsync(
-                user.Email,
-                user.EmailConfirmationToken ?? string.Empty,
-                CancellationToken.None);
+            await _emailService.SendEmailConfirmationAsync(normalizedEmail, pending.Code, CancellationToken.None);
         }
         catch (Exception)
         {
             return (false, "Не удалось отправить письмо. Попробуйте позже.");
         }
 
-        return (true, null);
+                return (true, null);
+    }
+
+    public Task<bool> TryResendPendingConfirmationAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        var pending = _cache.Get<PendingRegistration>(PendingKey(normalizedEmail));
+        if (pending == null)
+        {
+            return Task.FromResult(false);
+        }
+
+        pending.Code = CreateEmailConfirmationCode();
+        pending.ExpiresUtc = DateTime.UtcNow.AddMinutes(PendingLifetimeMinutes);
+        _cache.Set(PendingKey(normalizedEmail), pending, new MemoryCacheEntryOptions
+        {
+            AbsoluteExpiration = pending.ExpiresUtc
+        });
+
+        // Fire-and-forget send; SignIn only needs to know a code was issued so it can
+        // return 409 "requiresEmailConfirmation" and switch the UI to the code screen.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _emailService.SendEmailConfirmationAsync(normalizedEmail, pending.Code, CancellationToken.None);
+            }
+            catch (Exception)
+            {
+                // Best-effort: failures are already logged inside EmailService.
+            }
+        });
+
+        return Task.FromResult(true);
     }
 
     public async Task<(AuthUserResponse? Response, string? Error)> UpdateUsernameAsync(
@@ -343,9 +427,23 @@ public class UserAuthService : IUserAuthService
         }
     }
 
-    private static string CreateEmailConfirmationCode() =>
+        private static string CreateEmailConfirmationCode() =>
         Random.Shared.Next(100000, 1000000).ToString("D6");
 
     private static string NormalizeEmail(string email) =>
         string.IsNullOrWhiteSpace(email) ? string.Empty : email.Trim().ToLowerInvariant();
+
+    private const int PendingLifetimeMinutes = 15;
+
+    private static string PendingKey(string email) => $"pending-registration:{email}";
+
+    private sealed class PendingRegistration
+    {
+        public string Email { get; set; } = string.Empty;
+        public string PasswordHash { get; set; } = string.Empty;
+        public string? Username { get; set; }
+        public string Race { get; set; } = string.Empty;
+        public string Code { get; set; } = string.Empty;
+        public DateTime ExpiresUtc { get; set; }
+    }
 }

@@ -51,9 +51,9 @@ public class UserRepository : IUserRepository
         var emailQuery = $"%{normalized}%";
         return await _context.Users
             .AsNoTracking()
-            .Where(user =>
-                (user.Username != null && EF.Functions.ILike(user.Username, emailQuery))
-                || EF.Functions.ILike(user.Email, emailQuery))
+            .Where(user => user.IsEmailConfirmed &&
+                ((user.Username != null && EF.Functions.ILike(user.Username, emailQuery))
+                || EF.Functions.ILike(user.Email, emailQuery)))
             .OrderBy(user => user.Username ?? user.Email)
             .Take(20)
             .ToListAsync(cancellationToken);
@@ -68,7 +68,10 @@ public class UserRepository : IUserRepository
         var safePageSize = Math.Clamp(pageSize, 1, 100);
         var skip = (safePage - 1) * safePageSize;
 
-        var query = _context.Users.AsNoTracking().OrderByDescending(user => user.CreatedAtUtc);
+        var query = _context.Users
+            .AsNoTracking()
+            .Where(user => user.IsEmailConfirmed)
+            .OrderByDescending(user => user.CreatedAtUtc);
         var total = await query.CountAsync(cancellationToken);
         var items = await query.Skip(skip).Take(safePageSize).ToListAsync(cancellationToken);
         return (items, total);
