@@ -313,80 +313,6 @@ public class UserAuthService : IUserAuthService
         return (MapUserResponse(user), null);
     }
 
-    public async Task<(bool Success, string? Error)> ConfirmEmailAsync(
-        string email,
-        string token,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedEmail = NormalizeEmail(email);
-        if (string.IsNullOrEmpty(normalizedEmail) || string.IsNullOrWhiteSpace(token))
-        {
-            return (false, "Укажите email и токен подтверждения.");
-        }
-
-        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
-        if (user == null)
-        {
-            return (false, "Пользователь с таким email не найден.");
-        }
-
-        if (user.IsEmailConfirmed)
-        {
-            return (true, null);
-        }
-
-        if (string.IsNullOrEmpty(user.EmailConfirmationToken)
-            || !string.Equals(user.EmailConfirmationToken, token.Trim(), StringComparison.Ordinal))
-        {
-            return (false, "Неверный или устаревший токен подтверждения. Запросите письмо повторно.");
-        }
-
-        user.IsEmailConfirmed = true;
-        user.EmailConfirmationToken = null;
-        await _userRepository.SaveChangesAsync(user, cancellationToken);
-        return (true, null);
-    }
-
-    public async Task<(bool Success, string? Error)> ResendEmailConfirmationAsync(
-        string email,
-        CancellationToken cancellationToken = default)
-    {
-        var normalizedEmail = NormalizeEmail(email);
-        if (string.IsNullOrEmpty(normalizedEmail))
-        {
-            return (false, "Укажите корректный email.");
-        }
-
-        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
-        if (user == null)
-        {
-            // Do not reveal whether an account exists.
-            return (true, null);
-        }
-
-        if (user.IsEmailConfirmed)
-        {
-            return (false, "Email уже подтверждён.");
-        }
-
-        user.EmailConfirmationToken = Guid.NewGuid().ToString("N");
-        await _userRepository.SaveChangesAsync(user, cancellationToken);
-
-        try
-        {
-            await _emailService.SendEmailConfirmationAsync(
-                user.Email,
-                user.EmailConfirmationToken ?? string.Empty,
-                CancellationToken.None);
-        }
-        catch (Exception)
-        {
-            return (false, "Не удалось отправить письмо. Попробуйте позже.");
-        }
-
-        return (true, null);
-    }
-
     private void AppendRoleClaims(List<Claim> claims, UserEntity user)
     {
         claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.User));
@@ -419,5 +345,4 @@ public class UserAuthService : IUserAuthService
 
     private static string NormalizeEmail(string email) =>
         string.IsNullOrWhiteSpace(email) ? string.Empty : email.Trim().ToLowerInvariant();
-}
 }
