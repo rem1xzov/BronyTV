@@ -4992,4 +4992,29 @@ body[data-theme="dark"] .profile-email-confirm-warning {
     min-height: min(78vh, 720px);
   }
 
-  .admin-support-list-pane-
+  .admin-support-list-pane,
+  .admin-support-chat-pane {
+    border-right: 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+
+  .admin-support-list-pane {
+    padding: 10px;
+  }
+
+  .admin-support-chat-pane {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 10px;
+  }
+
+  .admin-support-back-btn {
+    display: inline-flex;
+  }
+
+  .admin-support-chat-pane {
+    border-bottom: 0;
+  }
+}
