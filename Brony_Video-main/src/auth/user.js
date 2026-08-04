@@ -12,6 +12,8 @@ export const normalizeAuthUser = (raw) => {
   const isPlatformAdminRaw = raw.isPlatformAdmin ?? raw.IsPlatformAdmin ?? false;
   const isBannedFromCommentingRaw =
     raw.isBannedFromCommenting ?? raw.IsBannedFromCommenting ?? false;
+  const isEmailConfirmedRaw =
+    raw.isEmailConfirmed ?? raw.IsEmailConfirmed ?? false;
   const id = raw.id ?? raw.Id;
 
   if (!email && !id) {
