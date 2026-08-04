@@ -1,12 +1,12 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { LogIn, UserPlus, X } from "lucide-react";
+import { LogIn, MailCheck, UserPlus, X } from "lucide-react";
 import { RACE_OPTIONS, useAuth } from "../auth/AuthContext";
 import { getRaceLabel } from "../auth/race";
 import { validateUsername } from "../auth/username";
 
 export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
-  const { login, register } = useAuth();
+  const { login, register, confirmEmail, resendEmailConfirmation } = useAuth();
   const titleId = useId();
   const firstFieldRef = useRef(null);
   const [email, setEmail] = useState("");
@@ -16,6 +16,14 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmEmailAddress, setConfirmEmailAddress] = useState("");
+  const [confirmCode, setConfirmCode] = useState("");
+  const [confirmError, setConfirmError] = useState("");
+  const [confirmSuccess, setConfirmSuccess] = useState("");
+  const [confirmSubmitting, setConfirmSubmitting] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendSending, setResendSending] = useState(false);
 
   const isSignup = mode === "signup";
 
@@ -30,6 +38,14 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
     setError("");
     setSuccess("");
     setSubmitting(false);
+    setConfirmOpen(false);
+    setConfirmEmailAddress("");
+    setConfirmCode("");
+    setConfirmError("");
+    setConfirmSuccess("");
+    setConfirmSubmitting(false);
+    setResendCooldown(0);
+    setResendSending(false);
 
     const timer = window.setTimeout(() => {
       firstFieldRef.current?.focus();
@@ -51,6 +67,15 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
     };
   }, [isOpen, mode, onClose]);
 
+  // Auto-resend cooldown (60 seconds) for the 6-digit confirmation code.
+  useEffect(() => {
+    if (!confirmOpen || resendCooldown <= 0) {
+      return undefined;
+    }
+    const id = window.setTimeout(() => setResendCooldown((value) => value - 1), 1000);
+    return () => window.clearTimeout(id);
+  }, [confirmOpen, resendCooldown]);
+
   if (!isOpen) {
     return null;
   }
@@ -60,6 +85,15 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
     setSubmitting(true);
     setError("");
     setSuccess("");
+
+    const handleEnterConfirmation = (confirmationEmail) => {
+      setConfirmEmailAddress(confirmationEmail);
+      setConfirmCode("");
+      setConfirmError("");
+      setConfirmSuccess("");
+      setResendCooldown(60);
+      setConfirmOpen(true);
+    };
 
     try {
       if (isSignup) {
@@ -74,7 +108,11 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
           return;
         }
 
-        await register({ email, password, race, username: usernameValidation.value });
+        const result = await register({ email, password, race, username: usernameValidation.value });
+        if (result?.requiresEmailConfirmation) {
+          handleEnterConfirmation(result.email || email);
+          return;
+        }
         setSuccess(`Добро пожаловать, @${usernameValidation.value}! Ваша раса: ${getRaceLabel(race)}.`);
       } else {
         await login({ email, password });
@@ -84,9 +122,53 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
         onClose();
       }, 700);
     } catch (submitError) {
+      if (submitError?.requiresEmailConfirmation) {
+        handleEnterConfirmation(submitError.email || email);
+        return;
+      }
       setError(submitError.message || "Ошибка авторизации.");
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handleConfirmCode = async (event) => {
+    event.preventDefault();
+    const code = confirmCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      setConfirmError("Введите 6-значный код из письма.");
+      return;
+    }
+    setConfirmSubmitting(true);
+    setConfirmError("");
+    setConfirmSuccess("");
+    try {
+      await confirmEmail({ email: confirmEmailAddress, token: code });
+      setConfirmSuccess("Email подтверждён! Вы вошли в аккаунт.");
+      window.setTimeout(() => {
+        onClose();
+      }, 700);
+    } catch (confirmCallError) {
+      setConfirmError(confirmCallError.message || "Не удалось подтвердить код. Попробуйте ещё раз.");
+    } finally {
+      setConfirmSubmitting(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    if (resendSending || resendCooldown > 0) {
+      return;
+    }
+    setResendSending(true);
+    setConfirmError("");
+    try {
+      await resendEmailConfirmation(confirmEmailAddress);
+      setResendCooldown(60);
+      setConfirmSuccess("Новый код отправлен. Проверьте почту.");
+    } catch (resendError) {
+      setConfirmError(resendError.message || "Не удалось отправить код. Попробуйте позже.");
+    } finally {
+      setResendSending(false);
     }
   };
 
@@ -109,6 +191,71 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
           <X size={20} />
         </button>
 
+        {confirmOpen ? (
+          <div className="auth-modal-confirm">
+            <div className="auth-modal-icon" aria-hidden="true">
+              <MailCheck size={28} />
+            </div>
+            <h2 id={titleId}>Подтверждение email</h2>
+            <p className="auth-modal-subtitle">
+              Мы отправили 6-значный код на вашу почту{" "}
+              <span className="auth-modal-confirm-email">{confirmEmailAddress}</span>. Введите его, чтобы
+              завершить регистрацию и войти в аккаунт.
+            </p>
+
+            <form className="auth-modal-form" onSubmit={handleConfirmCode}>
+              <label className="auth-modal-field">
+                <span>6-значный код</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  required
+                  minLength={6}
+                  maxLength={6}
+                  value={confirmCode}
+                  onChange={(event) => {
+                    setConfirmCode(event.target.value.replace(/\D/g, ""));
+                    setConfirmError("");
+                    setConfirmSuccess("");
+                  }}
+                  placeholder="••••••"
+                  autoFocus
+                />
+              </label>
+
+              {confirmError ? (
+                <div className="auth-modal-message auth-modal-message--error" role="alert">
+                  {confirmError}
+                </div>
+              ) : null}
+
+              {confirmSuccess ? (
+                <div className="auth-modal-message auth-modal-message--success" role="status">
+                  {confirmSuccess}
+                </div>
+              ) : null}
+
+              <button type="submit" className="primary-btn auth-modal-submit" disabled={confirmSubmitting}>
+                {confirmSubmitting ? "Проверяем…" : "Подтвердить"}
+              </button>
+
+              <button
+                type="button"
+                className="auth-modal-link auth-modal-resend"
+                onClick={handleResendCode}
+                disabled={resendSending || resendCooldown > 0}
+              >
+                {resendCooldown > 0
+                  ? `Отправить код повторно (${resendCooldown} с)`
+                  : resendSending
+                    ? "Отправляем…"
+                    : "Отправить код повторно"}
+              </button>
+            </form>
+          </div>
+        ) : (
+        <>
         <div className="auth-modal-header">
           <div className="auth-modal-icon" aria-hidden="true">
             {isSignup ? <UserPlus size={28} /> : <LogIn size={28} />}
@@ -230,6 +377,8 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
             </>
           )}
         </p>
+        </>
+        )}
       </div>
     </div>,
     document.body

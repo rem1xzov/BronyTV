@@ -56,14 +56,15 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = error ?? "Не удалось зарегистрироваться." });
         }
 
-        var user = await _userRepository.GetByEmailAsync(response.Email, cancellationToken);
-        if (user == null)
+        // Account is created but email must be confirmed first. The user is NOT
+        // authenticated yet and will be pushed to the code-confirmation flow.
+        return Ok(new
         {
-            return StatusCode(StatusCodes.Status500InternalServerError);
-        }
-
-        AppendSessionCookie(user);
-        return Ok(response);
+            email = response.Email,
+            username = response.Username,
+            race = response.Race,
+            requiresEmailConfirmation = true
+        });
     }
 
     [HttpPost("signin")]
@@ -73,6 +74,17 @@ public class AuthController : ControllerBase
         if (user == null)
         {
             return Unauthorized(new { message = "Неверный email или пароль." });
+        }
+
+        // A confirmed email is required before the account may be used.
+        if (!user.IsEmailConfirmed)
+        {
+            return Conflict(new
+            {
+                message = "Email ещё не подтверждён. Введите код из письма, чтобы войти.",
+                email = user.Email,
+                requiresEmailConfirmation = true
+            });
         }
 
         AppendSessionCookie(user);
@@ -195,7 +207,17 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = error ?? "Не удалось подтвердить email." });
         }
 
-        return Ok(new { message = "Email успешно подтверждён." });
+        // Confirmation succeeds, so the account may now be activated:
+        // establish a session and return the full user payload.
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (user == null)
+        {
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
+
+        AppendSessionCookie(user);
+        return Ok(_userAuthService.MapUserResponse(user));
     }
 
     [HttpPost("resend-email-confirmation")]

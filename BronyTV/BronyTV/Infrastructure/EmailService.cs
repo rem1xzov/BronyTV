@@ -16,7 +16,6 @@ public class EmailService : IEmailService
     private readonly string _smtpPassword;
     private readonly bool _smtpUseSsl;
     private readonly string _fromAddress;
-    private readonly string _frontendOrigin;
 
     public EmailService(IConfiguration configuration)
     {
@@ -44,12 +43,9 @@ public class EmailService : IEmailService
         _fromAddress = configuration["Email:FromAddress"]
             ?? Environment.GetEnvironmentVariable("Email__FromAddress")
             ?? (string.IsNullOrEmpty(_smtpUser) ? "no-reply@bronytv.ru" : _smtpUser);
-        _frontendOrigin = configuration["FRONTEND_ORIGIN"]
-            ?? Environment.GetEnvironmentVariable("FRONTEND_ORIGIN")
-            ?? "http://localhost:8080";
     }
 
-    public Task SendEmailConfirmationAsync(string email, string confirmationToken, CancellationToken cancellationToken = default)
+    public Task SendEmailConfirmationAsync(string email, string confirmationCode, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(_smtpHost))
         {
@@ -57,7 +53,6 @@ public class EmailService : IEmailService
             return Task.CompletedTask;
         }
 
-        var confirmUrl = BuildConfirmationUrl(email, confirmationToken);
         var htmlBody = $"""
             <!DOCTYPE html>
             <html lang="ru">
@@ -75,18 +70,15 @@ public class EmailService : IEmailService
                       </tr>
                       <tr>
                         <td style="padding:32px 28px;color:#3d3d3d;">
-                          <h2 style="margin:0 0 12px;font-size:18px;">Подтвердите адрес электронной почты</h2>
+                          <h2 style="margin:0 0 12px;font-size:18px;">Код подтверждения</h2>
                           <p style="margin:0 0 16px;font-size:14px;line-height:1.6;">
-                            Здравствуйте! Добро пожаловать на BronyTV. Для завершения регистрации подтвердите, пожалуйста, ваш email:
+                            Здравствуйте! Добро пожаловать на BronyTV. Введите этот 6-значный код в форме подтверждения, чтобы завершить регистрацию:
                           </p>
-                          <p style="margin:0;text-align:center;">
-                            <a href="{confirmUrl}" style="display:inline-block;background-color:#8e63db;color:#ffffff;text-decoration:none;font-weight:bold;padding:14px 32px;border-radius:999px;font-size:15px;">
-                              Подтвердить email
-                            </a>
+                          <p style="margin:0 0 8px;text-align:center;letter-spacing:8px;font-size:34px;font-weight:bold;color:#8e63db;">
+                            {confirmationCode}
                           </p>
                           <p style="margin:20px 0 0;font-size:13px;color:#8a8a8a;line-height:1.5;">
-                            Если кнопка не работает, скопируйте ссылку в адресную строку браузера:<br>
-                            <a href="{confirmUrl}" style="color:#8e63db;word-break:break-all;">{confirmUrl}</a>
+                            Код действует ограниченное время и может быть использован только один раз. Если вы не запрашивали этот код, просто проигнорируйте данное письмо.
                           </p>
                         </td>
                       </tr>
@@ -113,7 +105,7 @@ public class EmailService : IEmailService
         var message = new MailMessage
         {
             From = new MailAddress(_fromAddress, "BronyTV"),
-            Subject = "Подтверждение email на BronyTV",
+            Subject = "Код подтверждения email на BronyTV",
             Body = htmlBody,
             IsBodyHtml = true
         };
@@ -128,7 +120,4 @@ public class EmailService : IEmailService
             message.Dispose();
         }
     }
-
-    private string BuildConfirmationUrl(string email, string confirmationToken) =>
-        $"{_frontendOrigin.TrimEnd('/')}/#/confirm-email?token={Uri.EscapeDataString(confirmationToken)}&email={Uri.EscapeDataString(email)}";
 }

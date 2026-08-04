@@ -54,6 +54,13 @@ export function AuthProvider({ children }) {
     if (!response.ok) {
       throw new Error(raw.message || "Не удалось зарегистрироваться.");
     }
+    const requiresConfirmation = Boolean(
+      raw.requiresEmailConfirmation ?? raw.RequiresEmailConfirmation
+    );
+    if (requiresConfirmation) {
+      // Account created, but the email must be confirmed with a 6-digit code.
+      return { email: raw.email ?? email, requiresEmailConfirmation: true };
+    }
     const payload = normalizeAuthUser(raw);
     setUser(payload);
     return payload;
@@ -66,6 +73,14 @@ export function AuthProvider({ children }) {
     });
     const raw = await response.json().catch(() => ({}));
     if (!response.ok) {
+      if (raw.requiresEmailConfirmation) {
+        const confirmationError = new Error(
+          raw.message || "Email ещё не подтверждён. Введите код из письма."
+        );
+        confirmationError.requiresEmailConfirmation = true;
+        confirmationError.email = raw.email ?? email;
+        throw confirmationError;
+      }
       throw new Error(raw.message || "Неверный email или пароль.");
     }
     const payload = normalizeAuthUser(raw);
@@ -127,7 +142,12 @@ export function AuthProvider({ children }) {
     if (!response.ok) {
       throw new Error(raw.message || "Не удалось подтвердить email.");
     }
-    return raw;
+    // A successful confirmation activates the account and returns the user.
+    const payload = normalizeAuthUser(raw);
+    if (payload) {
+      setUser(payload);
+    }
+    return payload ?? raw;
   }, []);
 
   const resendEmailConfirmation = useCallback(async (email) => {

@@ -72,7 +72,7 @@ public class UserAuthService : IUserAuthService
         {
             Id = Guid.NewGuid(),
             Email = normalizedEmail,
-            Username = normalizedUsername,
+                        Username = normalizedUsername,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             Race = normalizedRace,
             CreatedAtUtc = now,
@@ -80,7 +80,7 @@ public class UserAuthService : IUserAuthService
             IsBannedFromCommenting = false,
             PlatformRole = _adminAccessService.ResolveInitialRoleForUsername(normalizedUsername),
             IsEmailConfirmed = false,
-            EmailConfirmationToken = Guid.NewGuid().ToString("N")
+            EmailConfirmationToken = CreateEmailConfirmationCode()
         };
 
         var created = await _userRepository.CreateAsync(user, cancellationToken);
@@ -174,7 +174,7 @@ public class UserAuthService : IUserAuthService
         var normalizedEmail = NormalizeEmail(email);
         if (string.IsNullOrEmpty(normalizedEmail) || string.IsNullOrWhiteSpace(token))
         {
-            return (false, "Неверная ссылка подтверждения.");
+            return (false, "Неверный код подтверждения.");
         }
 
         var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
@@ -191,7 +191,7 @@ public class UserAuthService : IUserAuthService
         if (string.IsNullOrEmpty(user.EmailConfirmationToken)
             || !string.Equals(user.EmailConfirmationToken, token.Trim(), StringComparison.OrdinalIgnoreCase))
         {
-            return (false, "Ссылка подтверждения недействительна или устарела. Запросите новое письмо.");
+            return (false, "Код подтверждения недействителен или устарел. Запросите новое письмо.");
         }
 
         user.IsEmailConfirmed = true;
@@ -211,7 +211,7 @@ public class UserAuthService : IUserAuthService
         }
 
         var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
-        if (user == null)
+                if (user == null)
         {
             return (false, "Пользователь не найден.");
         }
@@ -221,7 +221,7 @@ public class UserAuthService : IUserAuthService
             return (false, "Email уже подтверждён.");
         }
 
-        user.EmailConfirmationToken = Guid.NewGuid().ToString("N");
+        user.EmailConfirmationToken = CreateEmailConfirmationCode();
         await _userRepository.SaveChangesAsync(user, cancellationToken);
 
         try
@@ -337,11 +337,14 @@ public class UserAuthService : IUserAuthService
             return;
         }
 
-        if (_adminAccessService.IsPrivilegedUser(user.Username, user.Email))
+                        if (_adminAccessService.IsPrivilegedUser(user.Username, user.Email))
         {
             claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.Admin));
         }
     }
+
+    private static string CreateEmailConfirmationCode() =>
+        Random.Shared.Next(100000, 1000000).ToString("D6");
 
     private static string NormalizeEmail(string email) =>
         string.IsNullOrWhiteSpace(email) ? string.Empty : email.Trim().ToLowerInvariant();

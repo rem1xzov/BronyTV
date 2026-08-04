@@ -2222,6 +2222,48 @@ body[data-theme="dark"] .hero-thumb {
   color: var(--accent);
 }
 
+.auth-modal-confirm {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+
+.auth-modal-confirm-email {
+  color: var(--accent-strong);
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.auth-modal-confirm .auth-modal-form {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.auth-modal-resend {
+  align-self: center;
+  background: none;
+  border: 0;
+  padding: 0;
+  color: var(--accent-strong);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-modal-resend:hover:not(:disabled) {
+  color: var(--accent);
+}
+
+.auth-modal-resend:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 @media (max-width: 768px) {
   .auth-modal-overlay {
     padding: 16px;
