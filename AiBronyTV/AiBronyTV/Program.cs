@@ -14,7 +14,8 @@ if (string.IsNullOrWhiteSpace(deepSeekApiKey))
 {
     throw new InvalidOperationException("DEEPSEEK_API_KEY is not configured.");
 }
-var modelId = Environment.GetEnvironmentVariable("DEEPSEEK_MODEL") ?? "deepseek-chat";
+var rawModel = Environment.GetEnvironmentVariable("DEEPSEEK_MODEL");
+var modelId = string.IsNullOrWhiteSpace(rawModel) ? "deepseek-chat" : rawModel.Trim();
 var endpoint = Environment.GetEnvironmentVariable("DEEPSEEK_ENDPOINT") ?? "https://api.deepseek.com/v1";
 
 // Database: use PostgreSQL when POSTGRES_HOST is set, otherwise in-memory (local demo only).
