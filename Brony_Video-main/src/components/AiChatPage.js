@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Bot, ChevronRight, PanelLeftClose, PanelLeftOpen, Send, Star } from "lucide-react";
+import { ArrowLeft, Bot, ChevronRight, PanelLeftClose, PanelLeftOpen, Send, Star, Trash2 } from "lucide-react";
 
 // Метаданные персонажей-ботов. id совпадает с characterId в микросервисе AiBronyTV,
 // avatar — имя файла в public/assets/avatars.
@@ -264,6 +264,20 @@ function AiChatPage() {
 
   const toggleCollapse = useCallback(() => setSidebarCollapsed((v) => !v), []);
 
+  const clearHistory = useCallback(() => {
+    if (!activeBotId) return;
+    try {
+      const raw = localStorage.getItem(MESSAGES_KEY);
+      const byChar = raw ? JSON.parse(raw) : {};
+      delete byChar[activeBotId];
+      localStorage.setItem(MESSAGES_KEY, JSON.stringify(byChar));
+    } catch {
+      /* ignore storage failures */
+    }
+    setMessages([]);
+    setError("");
+  }, [activeBotId]);
+
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || !activeBotId || streaming) return;
@@ -407,17 +421,6 @@ function AiChatPage() {
             <p className="muted">Поболтай с любимыми пони. У каждого персонажа свой характер и настроение.</p>
           </div>
         </div>
-        {isDesktopView() && (
-          <button
-            type="button"
-            className="ai-collapse-btn ai-toggle-list-btn"
-            onClick={toggleCollapse}
-            aria-label={sidebarCollapsed ? "Открыть список персонажей" : "Скрыть список персонажей"}
-            title={sidebarCollapsed ? "Открыть список персонажей" : "Скрыть список персонажей"}
-          >
-            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-          </button>
-        )}
       </div>
 
       <div
@@ -458,21 +461,45 @@ function AiChatPage() {
         {showChatPane && activeBot && (
           <div className="ai-chat-pane">
             <div className="ai-chat-head">
-              {isMobileView() && (
+              <div className="ai-chat-head-main">
+                {isMobileView() && (
+                  <button
+                    type="button"
+                    className="ai-back-btn"
+                    onClick={goBackToList}
+                    aria-label="Назад к списку"
+                  >
+                    <ArrowLeft size={18} />
+                    <span>Список</span>
+                  </button>
+                )}
+                <BotAvatar bot={activeBot} size={44} />
+                <div className="ai-chat-head-info">
+                  <span className="ai-chat-head-name">{activeBot.name}</span>
+                  <span className="ai-chat-head-status">онлайн · менеджер настроения</span>
+                </div>
+              </div>
+              <div className="ai-chat-head-actions">
+                {isDesktopView() && (
+                  <button
+                    type="button"
+                    className="ai-chat-head-action"
+                    onClick={toggleCollapse}
+                    aria-label={sidebarCollapsed ? "Открыть список персонажей" : "Скрыть список персонажей"}
+                    title={sidebarCollapsed ? "Открыть список персонажей" : "Скрыть список персонажей"}
+                  >
+                    {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+                  </button>
+                )}
                 <button
                   type="button"
-                  className="ai-back-btn"
-                  onClick={goBackToList}
-                  aria-label="Назад к списку"
+                  className="ai-chat-head-action"
+                  onClick={clearHistory}
+                  aria-label="Очистить историю"
+                  title="Очистить историю"
                 >
-                  <ArrowLeft size={18} />
-                  <span>Список</span>
+                  <Trash2 size={18} />
                 </button>
-              )}
-              <BotAvatar bot={activeBot} size={44} />
-              <div className="ai-chat-head-info">
-                <span className="ai-chat-head-name">{activeBot.name}</span>
-                <span className="ai-chat-head-status">онлайн · менеджер настроения</span>
               </div>
             </div>
 
@@ -519,9 +546,7 @@ function AiChatPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder={
-                  streaming ? "Рэйнбоу думает…" : `Напиши ${activeBot.name}… (Enter — отправить)`
-                }
+                placeholder="Сообщение..."
                 disabled={streaming}
                 rows={1}
                 maxLength={2000}

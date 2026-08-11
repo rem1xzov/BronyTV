@@ -5305,10 +5305,45 @@ body[data-theme="dark"] .profile-email-confirm-warning {
 .ai-chat-head {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--border-soft);
   flex-shrink: 0;
+}
+
+.ai-chat-head-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ai-chat-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ai-chat-head-action {
+  border: 1px solid var(--border-soft);
+  background: var(--bg-card);
+  color: var(--text-muted);
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.ai-chat-head-action:hover {
+  background: var(--accent-soft);
+  color: var(--text-main);
 }
 
 .ai-chat-head-info {
