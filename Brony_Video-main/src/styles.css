@@ -5616,6 +5616,17 @@ body[data-theme="dark"] .profile-email-confirm-warning {
     height: calc(100dvh - 64px);
     min-height: 0;
     padding: 0;
+    border-radius: 0;
+    border: 0;
+  }
+
+  /* In an active dialog the page heading hides so the chat fills the screen. */
+  .ai-chat-page--chat {
+    height: 100dvh;
+  }
+
+  .ai-chat-page--chat .ai-chat-header {
+    display: none;
   }
 
   .ai-messenger,
@@ -5637,10 +5648,171 @@ body[data-theme="dark"] .profile-email-confirm-warning {
     width: 100%;
     height: 100%;
     min-height: 0;
-    border-radius: 18px;
+    border-radius: 0;
+    border: 0;
+  }
+
+  .ai-chat-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px;
+    flex-shrink: 0;
+  }
+
+  .ai-chat-head-main {
+    gap: 10px;
+    min-width: 0;
+  }
+
+  .ai-chat-head-actions {
+    gap: 6px;
+  }
+
+  .ai-back-btn {
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+  }
+
+  .ai-composer {
+    padding: 12px 16px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom, 12px));
+  }
+
+  .ai-composer-input {
+    min-height: 44px;
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+
+  .ai-composer-send {
+    width: 44px;
+    height: 44px;
   }
 
   .ai-toggle-list-btn {
     display: none;
+  }
+}
+/* --- AI chat: styled delete confirmation --- */
+.ai-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: rgba(12, 8, 16, 0.62);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.ai-confirm-modal {
+  position: relative;
+  width: min(100%, 400px);
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 22px;
+  padding: 28px 24px 22px;
+  box-shadow: var(--shadow-soft);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 8px;
+}
+
+.ai-confirm-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.ai-confirm-close:hover {
+  background: var(--accent-soft);
+  color: var(--text-main);
+}
+
+.ai-confirm-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  margin-bottom: 4px;
+}
+
+.ai-confirm-modal h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.ai-confirm-modal p {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.ai-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  width: 100%;
+  margin-top: 14px;
+}
+
+.ai-confirm-btn {
+  flex: 1 1 120px;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-soft);
+  color: var(--text-main);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.ai-confirm-btn--cancel:hover {
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-soft));
+}
+
+.ai-confirm-btn--danger {
+  background: #dc2626;
+  border-color: transparent;
+  color: #fff;
+}
+
+.ai-confirm-btn--danger:hover {
+  background: #b91c1c;
+}
+
+@media (max-width: 960px) {
+  .ai-confirm-modal {
+    max-width: 100%;
   }
 }

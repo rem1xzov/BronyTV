@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, Bot, ChevronRight, PanelLeftClose, PanelLeftOpen, Send, Star, Trash2 } from "lucide-react";
+import { ArrowLeft, Bot, Check, ChevronRight, PanelLeftClose, PanelLeftOpen, Send, Star, Trash2, X } from "lucide-react";
 
 // Метаданные персонажей-ботов. id совпадает с characterId в микросервисе AiBronyTV,
 // avatar — имя файла в public/assets/avatars.
@@ -221,6 +221,7 @@ function AiChatPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [chatView, setChatView] = useState(false); // mobile: list vs chat
   const [error, setError] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
   const scrollRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -264,7 +265,7 @@ function AiChatPage() {
 
   const toggleCollapse = useCallback(() => setSidebarCollapsed((v) => !v), []);
 
-  const clearHistory = useCallback(() => {
+  const doClearHistory = useCallback(() => {
     if (!activeBotId) return;
     try {
       const raw = localStorage.getItem(MESSAGES_KEY);
@@ -277,6 +278,13 @@ function AiChatPage() {
     setMessages([]);
     setError("");
   }, [activeBotId]);
+
+  const confirmClearHistory = useCallback(() => {
+    if (!activeBotId) return;
+    setConfirmClear(true);
+  }, [activeBotId]);
+
+  const cancelClearHistory = useCallback(() => setConfirmClear(false), []);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -410,7 +418,7 @@ function AiChatPage() {
   const isCollapsed = sidebarCollapsed && isDesktopView();
 
   return (
-    <section className="ai-chat-page panel">
+    <section className={`ai-chat-page panel${isMobileView() && showChatPane ? " ai-chat-page--chat" : ""}`}>
       <div className="ai-chat-header">
         <div className="ai-chat-title">
           <span className="ai-chat-title-icon">
@@ -470,7 +478,6 @@ function AiChatPage() {
                     aria-label="Назад к списку"
                   >
                     <ArrowLeft size={18} />
-                    <span>Список</span>
                   </button>
                 )}
                 <BotAvatar bot={activeBot} size={44} />
@@ -494,7 +501,7 @@ function AiChatPage() {
                 <button
                   type="button"
                   className="ai-chat-head-action"
-                  onClick={clearHistory}
+                  onClick={confirmClearHistory}
                   aria-label="Очистить историю"
                   title="Очистить историю"
                 >
@@ -589,6 +596,48 @@ function AiChatPage() {
           </div>
         )}
       </div>
+
+      {confirmClear && (
+        <div className="ai-confirm-overlay" onClick={cancelClearHistory}>
+          <div className="ai-confirm-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="ai-confirm-close"
+              onClick={cancelClearHistory}
+              aria-label="Закрыть"
+              title="Закрыть"
+            >
+              <X size={18} />
+            </button>
+            <div className="ai-confirm-icon">
+              <Trash2 size={22} />
+            </div>
+            <h3>Вы точно хотите удалить чат?</h3>
+            <p className="muted">История переписки с этим персонажем будет очищена безвозвратно.</p>
+            <div className="ai-confirm-actions">
+              <button
+                type="button"
+                className="ai-confirm-btn ai-confirm-btn--cancel"
+                onClick={cancelClearHistory}
+              >
+                <X size={16} />
+                Отмена
+              </button>
+              <button
+                type="button"
+                className="ai-confirm-btn ai-confirm-btn--danger"
+                onClick={() => {
+                  doClearHistory();
+                  setConfirmClear(false);
+                }}
+              >
+                <Check size={16} />
+                Удалить
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
