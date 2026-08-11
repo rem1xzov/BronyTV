@@ -38,7 +38,7 @@ services:
       - BRONYTV_VIDEOS_ROOT=/app/media
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:-G8qTp}
       - Jwt__Key=${JWT_KEY:-SuperSecretBronyTVKey_ChangeMeInProduction!}
-            - Jwt__Issuer=BronyTV
+      - Jwt__Issuer=BronyTV
       - Jwt__Audience=BronyTV
       - Jwt__SessionDays=7
       - Email__SmtpHost=${EMAIL_SMTP_HOST:-}
@@ -66,7 +66,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0:8080
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
       - DEEPSEEK_ENDPOINT=${DEEPSEEK_ENDPOINT:-https://api.deepseek.com/v1}
     restart: unless-stopped

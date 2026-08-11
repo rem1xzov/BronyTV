@@ -393,8 +393,10 @@ function AiChatPage() {
   const showChatPane = (isDesktopView() || chatView) && activeBotId;
   const showListPane = isDesktopView() || !chatView;
 
+  const isCollapsed = sidebarCollapsed && isDesktopView();
+
   return (
-    <section className="panel ai-chat-panel">
+    <section className="ai-chat-page panel">
       <div className="ai-chat-header">
         <div className="ai-chat-title">
           <span className="ai-chat-title-icon">
@@ -405,28 +407,28 @@ function AiChatPage() {
             <p className="muted">Поболтай с любимыми пони. У каждого персонажа свой характер и настроение.</p>
           </div>
         </div>
+        {isDesktopView() && (
+          <button
+            type="button"
+            className="ai-collapse-btn ai-toggle-list-btn"
+            onClick={toggleCollapse}
+            aria-label={sidebarCollapsed ? "Открыть список персонажей" : "Скрыть список персонажей"}
+            title={sidebarCollapsed ? "Открыть список персонажей" : "Скрыть список персонажей"}
+          >
+            {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+          </button>
+        )}
       </div>
 
       <div
-        className={`ai-messenger ${sidebarCollapsed && isDesktopView() ? "ai-messenger--collapsed" : ""} ${
+        className={`ai-messenger ${isCollapsed ? "ai-messenger--collapsed" : ""} ${
           isMobileView() ? "ai-messenger--mobile" : ""
         }`}
       >
         {showListPane && (
-          <div className="ai-bot-list-pane">
+          <div className={`ai-bot-list-pane${isCollapsed ? " is-collapsed" : ""}`}>
             <div className="ai-bot-list-head">
               <span className="ai-bot-list-title">Персонажи</span>
-              {isDesktopView() && (
-                <button
-                  type="button"
-                  className="ai-collapse-btn"
-                  onClick={toggleCollapse}
-                  aria-label={sidebarCollapsed ? "Развернуть список" : "Свернуть список"}
-                  title={sidebarCollapsed ? "Развернуть список" : "Свернуть список"}
-                >
-                  {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
-                </button>
-              )}
             </div>
 
             <div className="ai-bot-list">
