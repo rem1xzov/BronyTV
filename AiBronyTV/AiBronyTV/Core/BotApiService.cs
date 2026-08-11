@@ -7,7 +7,7 @@ using AiBronyTV.Service;
 
 namespace AiBronyTV.Core;
 
-public class BotApiService
+public partial class BotApiService
 {
     private readonly Kernel _kernel;
     private readonly AppDbContext _db;
@@ -22,6 +22,8 @@ public class BotApiService
         string sessionId, 
         string characterId, 
         string userInput,
+        string? userName = null,
+        string? role = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(userInput))
@@ -56,7 +58,7 @@ public class BotApiService
                 // 2. Блок лимитов: просим ИИ послать юзера на Boosty в своем стиле
         if (limitEntry.Count >= 50)
         {
-            var boostyHistory = new ChatHistory(CharacterFactory.GetSystemPrompt(characterId));
+            var boostyHistory = new ChatHistory(BuildSystemPrompt(characterId, userName, role));
             boostyHistory.AddUserMessage(
                 "СИСТЕМНОЕ СООБЩЕНИЕ (ИГНОРИРУЙ ПРОШЛЫЙ ДИАЛОГ): " +
                 "У пользователя закончился дневной лимит в 50 сообщений. " +
@@ -103,7 +105,7 @@ public class BotApiService
             
         historyFromDb.Reverse();
 
-        var chatHistory = new ChatHistory(CharacterFactory.GetSystemPrompt(characterId));
+        var chatHistory = new ChatHistory(BuildSystemPrompt(characterId, userName, role));
         foreach (var msg in historyFromDb)
         {
             if (msg.Role == "user") chatHistory.AddUserMessage(msg.Content);

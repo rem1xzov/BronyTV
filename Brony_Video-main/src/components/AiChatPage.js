@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+
 import { ArrowLeft, Bot, Check, ChevronRight, PanelLeftClose, PanelLeftOpen, Send, Star, Trash2, X } from "lucide-react";
+import { useAuth } from "../auth/AuthContext";
 
 // Метаданные персонажей-ботов. id совпадает с characterId в микросервисе AiBronyTV,
 // avatar — имя файла в public/assets/avatars.
@@ -213,6 +215,7 @@ function LimitBanner({ message }) {
 }
 
 function AiChatPage() {
+  const { user } = useAuth();
   const [bots] = useState(BOT_CATALOG);
   const [activeBotId, setActiveBotId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -299,6 +302,17 @@ function AiChatPage() {
     setInput("");
     setError("");
 
+    // Контекст пользователя для бота: @username и роль на сайте.
+    const rawUsername = (user?.username || "").trim();
+    const userName = rawUsername ? `@${rawUsername}` : "";
+    const platformRole = String(user?.platformRole || "User");
+    let role = platformRole;
+    if (user?.isOwner || platformRole === "Owner") {
+      role = "Owner";
+    } else if (user?.isPlatformAdmin || platformRole === "Admin") {
+      role = "Admin";
+    }
+
     // Немного метаданных сессии для статистики (не критично).
     const meta = loadSessionMeta();
     meta[activeBotId] = { lastUsed: Date.now(), updatedAt: Date.now() };
@@ -309,7 +323,7 @@ function AiChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ sessionId, characterId: activeBotId, message: text })
+        body: JSON.stringify({ sessionId, characterId: activeBotId, message: text, userName, role })
       });
 
       if (!res.ok) {
@@ -397,7 +411,7 @@ function AiChatPage() {
         setMessages((prev) => prev.filter((m) => m.id !== assistantMsg.id));
       }
     }
-  }, [activeBotId, input, messages, streaming]);
+  }, [activeBotId, input, messages, streaming, user]);
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -416,6 +430,20 @@ function AiChatPage() {
   const showListPane = isDesktopView() || !chatView;
 
   const isCollapsed = sidebarCollapsed && isDesktopView();
+
+  const mobileDialogOpen = isMobileView() && showChatPane;
+
+  // Жёсткая фиксация: пока открыт полноэкранный мобильный диалог — блокируем прокрутку body,
+  // чтобы страница не ездила за чатом, а скроллились только сообщения внутри чата.
+  useEffect(() => {
+    const body = document.body;
+    if (mobileDialogOpen) {
+      body.classList.add("no-scroll");
+    } else {
+      body.classList.remove("no-scroll");
+    }
+    return () => body.classList.remove("no-scroll");
+  }, [mobileDialogOpen]);
 
   return (
     <section className={`ai-chat-page panel${isMobileView() && showChatPane ? " ai-chat-page--chat" : ""}`}>

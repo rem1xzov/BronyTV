@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -69,7 +69,12 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
 
     try
     {
-        var stream = botService.SendMessageStreamAsync(request.SessionId, request.CharacterId, request.Message);
+        var stream = botService.SendMessageStreamAsync(
+            request.SessionId,
+            request.CharacterId,
+            request.Message,
+            request.UserName,
+            request.Role);
         
                 await foreach (var chunk in stream)
         {
@@ -110,4 +115,4 @@ app.MapGet("/api/bots", () => Results.Json(bots));
 
 app.Run();
 
-public record ChatRequest(string SessionId, string CharacterId, string Message);
+public record ChatRequest(string SessionId, string CharacterId, string Message, string? UserName = null, string? Role = null);
