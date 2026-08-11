@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Bot,
   Check,
   ChevronRight,
   Download,
@@ -28,6 +29,7 @@ import ForumPage from "./components/ForumPage";
 import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
 import NewsPage from "./components/NewsPage";
+import AiChatPage from "./components/AiChatPage";
 import logoPng from "./assets/logo2.png";
 
 const SEASON_INFO = [
@@ -377,6 +379,9 @@ const getPageFromPath = (path) => {
   if (path.startsWith("/news")) {
     return "news";
   }
+  if (path.startsWith("/bots")) {
+    return "bots";
+  }
   if (path.startsWith("/season")) {
     return "season";
   }
@@ -534,6 +539,10 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
       <Link to="/news" className={`nav-pill ${currentPage === "news" ? "active" : ""}`}>
         <Newspaper size={16} />
         <span>Новости</span>
+      </Link>
+      <Link to="/bots" className={`nav-pill ${currentPage === "bots" ? "active" : ""}`}>
+        <Bot size={16} />
+        <span>ИИ Боты</span>
       </Link>
       {Array.from({ length: CONSTANTS.TOTAL_SEASONS }, (_, index) => index + 1).map((season) => (
         <Link
@@ -2069,6 +2078,7 @@ export default function App() {
         <Route path="/forum" element={<ForumPage />} />
         <Route path="/forum/:threadId" element={<ForumPage />} />
         <Route path="/news" element={<NewsPage />} />
+        <Route path="/bots" element={<AiChatPage />} />
         <Route path="/admin" element={<AdminPanelPage />} />
         <Route
           path="/season/:seasonId"

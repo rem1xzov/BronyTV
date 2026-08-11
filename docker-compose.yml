@@ -38,25 +38,37 @@ services:
       - BRONYTV_VIDEOS_ROOT=/app/media
       - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:-G8qTp}
       - Jwt__Key=${JWT_KEY:-SuperSecretBronyTVKey_ChangeMeInProduction!}
-      - Jwt__Issuer=BronyTV
+            - Jwt__Issuer=BronyTV
       - Jwt__Audience=BronyTV
       - Jwt__SessionDays=7
       - Email__SmtpHost=${EMAIL_SMTP_HOST:-}
       - Email__SmtpPort=${EMAIL_SMTP_PORT:-587}
       - Email__SmtpUser=${EMAIL_SMTP_USER:-}
+      - Email__SmtpUsername=${EMAIL_SMTP_USER:-}
       - Email__SmtpPassword=${EMAIL_SMTP_PASSWORD:-}
       - Email__SmtpUseSsl=${EMAIL_SMTP_USE_SSL:-true}
+      - Email__EnableSsl=${EMAIL_SMTP_USE_SSL:-true}
       - Email__FromAddress=${EMAIL_FROM_ADDRESS:-no-reply@bronytv.ru}
+      - Email__SenderEmail=${EMAIL_FROM_ADDRESS:-no-reply@bronytv.ru}
+      - Email__SenderName=${EMAIL_SENDER_NAME:-BronyTV}
       - Cors__AllowedOrigins__0=${FRONTEND_ORIGIN:-https://bronytv.ru}
       - Cors__AllowedOrigins__1=http://localhost:8080
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-https://bronytv.ru}
-      - Email__SmtpHost=smtp.gmail.com
-      - Email__SmtpPort=587
-      - Email__SenderEmail=b.bronytv@gmail.com
-      - Email__SenderName=BronyTV
-      - Email__SmtpUsername=b.bronytv@gmail.com
-      - Email__SmtpPassword=wubu jcxv qnln yqqz
-      - Email__EnableSsl=true
+    restart: unless-stopped
+    networks:
+      - brony-net
+
+  aibronytv:
+    build:
+      context: .
+      dockerfile: AiBronyTV/Dockerfile
+    container_name: aibronytv
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://0.0.0.0:8080
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
+      - DEEPSEEK_ENDPOINT=${DEEPSEEK_ENDPOINT:-https://api.deepseek.com/v1}
     restart: unless-stopped
     networks:
       - brony-net
