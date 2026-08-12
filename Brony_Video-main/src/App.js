@@ -727,7 +727,15 @@ function SeasonPage({
         </div>
       </div>
       <div className="episode-list episode-grid scrollable">
-        {episodes.map((episode) => (
+        {episodes
+          // HOTFIX: these episodes physically do not exist in the database (they break the player),
+          // so hide them entirely — they must not appear in the DOM.
+          .filter(
+            (episode) =>
+              !(safeSeason === 1 && episode.id === 26) && // Season 1, episode 26 does not exist
+              !(safeSeason === 3 && episode.id >= 14 && episode.id <= 26) // Season 3, episodes 14-26 do not exist
+          )
+          .map((episode) => (
           <div className="episode-card" key={`s${safeSeason}-e${episode.id}`}>
             <EpisodePlaceholderIcon episodeNumber={episode.id} />
             <div className="episode-main">
