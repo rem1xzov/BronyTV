@@ -54,13 +54,8 @@ export function AuthProvider({ children }) {
     if (!response.ok) {
       throw new Error(raw.message || "Не удалось зарегистрироваться.");
     }
-    const requiresConfirmation = Boolean(
-      raw.requiresEmailConfirmation ?? raw.RequiresEmailConfirmation
-    );
-    if (requiresConfirmation) {
-      // Account created, but the email must be confirmed with a 6-digit code.
-      return { email: raw.email ?? email, requiresEmailConfirmation: true };
-    }
+    // HOTFIX: обязательная верификация почты отключена — регистрация сразу успешна,
+    // сессия создаётся бэкендом, пользователь сразу авторизован. Код подтверждения не нужен.
     const payload = normalizeAuthUser(raw);
     setUser(payload);
     return payload;

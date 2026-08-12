@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using BronyTV.Contract;
 using BronyTV.Infrastructure;
 using BronyTV.Repository;
@@ -56,15 +56,16 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = error ?? "Не удалось зарегистрироваться." });
         }
 
-        // Account is created but email must be confirmed first. The user is NOT
-        // authenticated yet and will be pushed to the code-confirmation flow.
-        return Ok(new
+        // HOTFIX: регистрация сразу подтверждена — создаём сессию и пускаем пользователя дальше.
+        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (user == null)
         {
-            email = response.Email,
-            username = response.Username,
-            race = response.Race,
-            requiresEmailConfirmation = true
-        });
+            return StatusCode(StatusCodes.Status500InternalServerError);
+        }
+
+        AppendSessionCookie(user);
+        return Ok(_userAuthService.MapUserResponse(user));
     }
 
     [HttpPost("signin")]

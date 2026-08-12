@@ -1,4 +1,4 @@
-using System.IdentityModel.Tokens.Jwt;
+﻿using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using BronyTV.Contract;
@@ -71,43 +71,27 @@ public class UserAuthService : IUserAuthService
             return (null, "Этот юзернейм уже занят");
         }
 
-        // Do NOT write to the Users table yet. Only an in-memory pending record is kept so
-        // that fake/unconfirmed registrations never clutter the database.
-        var code = CreateEmailConfirmationCode();
-        var pending = new PendingRegistration
+        // HOTFIX: обязательная верификация почты отключена. Пользователь создаётся сразу
+        // как подтверждённый (IsEmailConfirmed = true), письмо с кодом не отправляется.
+        var now = DateTime.UtcNow;
+        var user = new UserEntity
         {
+            Id = Guid.NewGuid(),
             Email = normalizedEmail,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             Username = normalizedUsername,
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             Race = normalizedRace,
-            Code = code,
-            ExpiresUtc = DateTime.UtcNow.AddMinutes(PendingLifetimeMinutes)
+            CreatedAtUtc = now,
+            RaceSelectedAtUtc = now,
+            IsBannedFromCommenting = false,
+            PlatformRole = _adminAccessService.ResolveInitialRoleForUsername(normalizedUsername),
+            IsEmailConfirmed = true,
+            EmailConfirmationToken = null
         };
 
-        _cache.Set(PendingKey(normalizedEmail), pending, new MemoryCacheEntryOptions
-        {
-            AbsoluteExpiration = pending.ExpiresUtc
-        });
+        await _userRepository.CreateAsync(user, cancellationToken);
 
-        // Try to send the confirmation email. Failures are logged (inside EmailService)
-        // but do not block registration.
-        try
-        {
-            await _emailService.SendEmailConfirmationAsync(normalizedEmail, code, CancellationToken.None);
-        }
-        catch (Exception)
-        {
-            // Best-effort: registration succeeds even if the mail provider is unavailable.
-        }
-
-        return (new AuthUserResponse
-        {
-            Email = normalizedEmail,
-            Username = normalizedUsername,
-            Race = normalizedRace,
-            PlatformRole = "User",
-            IsEmailConfirmed = false
-        }, null);
+        return (MapUserResponse(user), null);
     }
 
     public async Task<UserEntity?> AuthenticateAsync(

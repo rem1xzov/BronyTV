@@ -108,11 +108,8 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
           return;
         }
 
-        const result = await register({ email, password, race, username: usernameValidation.value });
-        if (result?.requiresEmailConfirmation) {
-          handleEnterConfirmation(result.email || email);
-          return;
-        }
+        // HOTFIX: верификация почты отключена — после регистрации не показываем экран ввода кода.
+        await register({ email, password, race, username: usernameValidation.value });
         setSuccess(`Добро пожаловать, @${usernameValidation.value}! Ваша раса: ${getRaceLabel(race)}.`);
       } else {
         await login({ email, password });
@@ -122,10 +119,6 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
         onClose();
       }, 700);
     } catch (submitError) {
-      if (submitError?.requiresEmailConfirmation) {
-        handleEnterConfirmation(submitError.email || email);
-        return;
-      }
       setError(submitError.message || "Ошибка авторизации.");
     } finally {
       setSubmitting(false);
