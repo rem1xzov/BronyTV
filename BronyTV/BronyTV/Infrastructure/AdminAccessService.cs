@@ -6,17 +6,15 @@ namespace BronyTV.Infrastructure;
 
 public class AdminAccessService : IAdminAccessService
 {
-    private readonly HashSet<string> _privilegedUsernames;
     private readonly HashSet<string> _privilegedEmails;
-    private readonly HashSet<string> _ownerUsernames;
+    private readonly HashSet<string> _ownerEmails;
     private readonly HashSet<Guid> _ownerUserIds;
 
     public AdminAccessService(IOptions<AdminAccessOptions> options)
     {
         var settings = options.Value;
-        _privilegedUsernames = BuildSet(settings.PrivilegedUsernames);
         _privilegedEmails = BuildSet(settings.PrivilegedEmails);
-        _ownerUsernames = BuildSet(settings.OwnerUsernames);
+        _ownerEmails = BuildSet(settings.OwnerEmails);
         _ownerUserIds = settings.OwnerUserIds?
             .Where(id => Guid.TryParse(id, out _))
             .Select(Guid.Parse)
@@ -25,54 +23,43 @@ public class AdminAccessService : IAdminAccessService
 
     public bool IsPrivilegedUser(string? username, string? email)
     {
-        if (!string.IsNullOrWhiteSpace(username)
-            && (_privilegedUsernames.Contains(username.Trim().ToLowerInvariant())
-                || _ownerUsernames.Contains(username.Trim().ToLowerInvariant())))
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(email)
-            && _privilegedEmails.Contains(email.Trim().ToLowerInvariant()))
-        {
-            return true;
-        }
-
-        return false;
+        // Usernames are deliberately ignored: they are public registration input and
+        // must never be enough to obtain administrator privileges.
+        return !string.IsNullOrWhiteSpace(email)
+            && (_privilegedEmails.Contains(Normalize(email))
+                || _ownerEmails.Contains(Normalize(email)));
     }
 
     public bool IsOwnerUser(UserEntity user)
     {
-        if (PlatformRoles.IsOwner(user.PlatformRole))
+        if (PlatformRoles.IsOwner(user.PlatformRole) || _ownerUserIds.Contains(user.Id))
         {
             return true;
         }
 
-        if (_ownerUserIds.Contains(user.Id))
-        {
-            return true;
-        }
-
-        if (!string.IsNullOrWhiteSpace(user.Username)
-            && _ownerUsernames.Contains(user.Username.Trim().ToLowerInvariant()))
-        {
-            return true;
-        }
-
-        return false;
+        return !string.IsNullOrWhiteSpace(user.Email)
+            && _ownerEmails.Contains(Normalize(user.Email));
     }
 
     public bool IsProtectedOwner(UserEntity user) => IsOwnerUser(user);
 
-    public string ResolveInitialRoleForUsername(string normalizedUsername) =>
-        _ownerUsernames.Contains(normalizedUsername)
-            ? PlatformRoles.Owner
-            : PlatformRoles.User;
+    public string ResolveInitialRole(string normalizedEmail)
+    {
+        var email = Normalize(normalizedEmail);
+        if (_ownerEmails.Contains(email))
+        {
+            return PlatformRoles.Owner;
+        }
+
+        return _privilegedEmails.Contains(email) ? PlatformRoles.Admin : PlatformRoles.User;
+    }
+
+    private static string Normalize(string value) => value.Trim().ToLowerInvariant();
 
     private static HashSet<string> BuildSet(IEnumerable<string>? values) =>
         values?
             .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value.Trim().ToLowerInvariant())
+            .Select(Normalize)
             .ToHashSet(StringComparer.Ordinal)
         ?? new HashSet<string>(StringComparer.Ordinal);
 }

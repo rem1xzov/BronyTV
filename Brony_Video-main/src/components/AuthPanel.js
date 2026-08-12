@@ -41,9 +41,18 @@ export default function AuthPanel() {
         setProfileOpen(true);
       }
     };
+    const handleOpenAuth = (event) => {
+      const requestedMode = event?.detail?.mode === "signup" ? "signup" : "signin";
+      setAuthModalMode(requestedMode);
+      setAuthModalOpen(true);
+    };
 
     window.addEventListener("bronytv:open-profile", handleOpenProfile);
-    return () => window.removeEventListener("bronytv:open-profile", handleOpenProfile);
+    window.addEventListener("bronytv:open-auth", handleOpenAuth);
+    return () => {
+      window.removeEventListener("bronytv:open-profile", handleOpenProfile);
+      window.removeEventListener("bronytv:open-auth", handleOpenAuth);
+    };
   }, [user]);
 
   if (loading) {

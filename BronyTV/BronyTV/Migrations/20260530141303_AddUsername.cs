@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,35 +10,40 @@ namespace BronyTV.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AddColumn<string>(
-                name: "Username",
-                schema: "public",
-                table: "Users",
-                type: "character varying(15)",
-                maxLength: 15,
-                nullable: true);
+            // This historical migration predates InitialEmailAuth in the original
+            // repository, so Users does not exist on a completely fresh database.
+            // Keep the migration ID for deployed databases, but make it safe on both
+            // fresh and pre-existing schemas. DatabaseInitializer adds the column after
+            // all migrations when the table is created by InitialEmailAuth later.
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF to_regclass('public."Users"') IS NOT NULL THEN
+                        ALTER TABLE public."Users"
+                            ADD COLUMN IF NOT EXISTS "Username" character varying(15);
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Users_Username",
-                schema: "public",
-                table: "Users",
-                column: "Username",
-                unique: true,
-                filter: "\"Username\" IS NOT NULL");
+                        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_Username"
+                            ON public."Users" ("Username")
+                            WHERE "Username" IS NOT NULL;
+                    END IF;
+                END $$;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropIndex(
-                name: "IX_Users_Username",
-                schema: "public",
-                table: "Users");
+            migrationBuilder.Sql("""
+                DROP INDEX IF EXISTS public."IX_Users_Username";
 
-            migrationBuilder.DropColumn(
-                name: "Username",
-                schema: "public",
-                table: "Users");
+                DO $$
+                BEGIN
+                    IF to_regclass('public."Users"') IS NOT NULL THEN
+                        ALTER TABLE public."Users"
+                            DROP COLUMN IF EXISTS "Username";
+                    END IF;
+                END $$;
+                """);
         }
     }
 }

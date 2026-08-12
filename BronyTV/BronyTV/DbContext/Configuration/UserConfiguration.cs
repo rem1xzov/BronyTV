@@ -61,6 +61,16 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
             .HasMaxLength(128)
             .IsRequired(false);
 
+        builder.Property(user => user.EmailConfirmationExpiresAtUtc)
+            .IsRequired(false);
+
+        builder.Property(user => user.EmailConfirmationLastSentAtUtc)
+            .IsRequired(false);
+
+        builder.Property(user => user.EmailConfirmationFailedAttempts)
+            .HasDefaultValue(0)
+            .IsRequired();
+
         builder.HasIndex(user => user.EmailConfirmationToken)
             .IsUnique()
             .HasFilter("\"EmailConfirmationToken\" IS NOT NULL");

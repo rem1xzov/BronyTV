@@ -13,5 +13,9 @@ public class UserEntity
     public bool IsBannedFromCommenting { get; set; }
     public string PlatformRole { get; set; } = "User";
     public bool IsEmailConfirmed { get; set; }
+    // Stores a BCrypt hash of the one-time email code, never the code itself.
     public string? EmailConfirmationToken { get; set; }
+    public DateTime? EmailConfirmationExpiresAtUtc { get; set; }
+    public DateTime? EmailConfirmationLastSentAtUtc { get; set; }
+    public int EmailConfirmationFailedAttempts { get; set; }
 }

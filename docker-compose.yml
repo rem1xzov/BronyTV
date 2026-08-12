@@ -4,7 +4,7 @@ services:
     container_name: brony-db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-G8qTp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: BronyTV
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -36,20 +36,25 @@ services:
       - ASPNETCORE_URLS=http://0.0.0.0:5000
       - VideoStorage__RootPath=/app/media
       - BRONYTV_VIDEOS_ROOT=/app/media
-      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:-G8qTp}
-      - Jwt__Key=${JWT_KEY:-SuperSecretBronyTVKey_ChangeMeInProduction!}
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=BronyTV;Username=postgres;Password=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - Jwt__Key=${JWT_KEY:?Set JWT_KEY in .env}
       - Jwt__Issuer=BronyTV
       - Jwt__Audience=BronyTV
       - Jwt__SessionDays=7
-      - Email__SmtpHost=${EMAIL_SMTP_HOST:-}
+      - Admin__BootstrapLogin=${ADMIN_BOOTSTRAP_LOGIN:-}
+      - Admin__BootstrapPassword=${ADMIN_BOOTSTRAP_PASSWORD:-}
+      - Admin__PrivilegedEmails__0=${ADMIN_EMAIL:-}
+      - Admin__OwnerEmails__0=${OWNER_EMAIL:-}
+      - Email__SmtpHost=${EMAIL_SMTP_HOST:-smtp.gmail.com}
       - Email__SmtpPort=${EMAIL_SMTP_PORT:-587}
-      - Email__SmtpUser=${EMAIL_SMTP_USER:-}
-      - Email__SmtpUsername=${EMAIL_SMTP_USER:-}
-      - Email__SmtpPassword=${EMAIL_SMTP_PASSWORD:-}
+      - Email__SmtpUser=${EMAIL_SMTP_USER:?Set EMAIL_SMTP_USER in .env}
+      - Email__SmtpUsername=${EMAIL_SMTP_USER:?Set EMAIL_SMTP_USER in .env}
+      - Email__SmtpPassword=${EMAIL_SMTP_PASSWORD:?Set EMAIL_SMTP_PASSWORD in .env}
+      # MailKit uses explicit STARTTLS when this value is true.
       - Email__SmtpUseSsl=${EMAIL_SMTP_USE_SSL:-true}
       - Email__EnableSsl=${EMAIL_SMTP_USE_SSL:-true}
-      - Email__FromAddress=${EMAIL_FROM_ADDRESS:-no-reply@bronytv.ru}
-      - Email__SenderEmail=${EMAIL_FROM_ADDRESS:-no-reply@bronytv.ru}
+      - Email__FromAddress=${EMAIL_FROM_ADDRESS:?Set EMAIL_FROM_ADDRESS in .env}
+      - Email__SenderEmail=${EMAIL_FROM_ADDRESS:?Set EMAIL_FROM_ADDRESS in .env}
       - Email__SenderName=${EMAIL_SENDER_NAME:-BronyTV}
       - Cors__AllowedOrigins__0=${FRONTEND_ORIGIN:-https://bronytv.ru}
       - Cors__AllowedOrigins__1=http://localhost:8080
@@ -63,12 +68,23 @@ services:
       context: .
       dockerfile: AiBronyTV/Dockerfile
     container_name: aibronytv
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://0.0.0.0:8080
-      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - POSTGRES_HOST=db
+      - POSTGRES_DB=BronyTV
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:?Set DEEPSEEK_API_KEY in .env}
       - DEEPSEEK_MODEL=${DEEPSEEK_MODEL:-deepseek-chat}
       - DEEPSEEK_ENDPOINT=${DEEPSEEK_ENDPOINT:-https://api.deepseek.com/v1}
+      # Must match brony-backend so the AI service can validate the HttpOnly session cookie.
+      - Jwt__Key=${JWT_KEY:?Set JWT_KEY in .env}
+      - Jwt__Issuer=BronyTV
+      - Jwt__Audience=BronyTV
     restart: unless-stopped
     networks:
       - brony-net

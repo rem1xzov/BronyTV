@@ -10,5 +10,7 @@ public class ConfirmEmailRequest
     public string Email { get; set; } = string.Empty;
 
     [Required]
+    [StringLength(6, MinimumLength = 6)]
+    [RegularExpression(@"^\d{6}$")]
     public string Token { get; set; } = string.Empty;
 }

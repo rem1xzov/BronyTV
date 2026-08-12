@@ -21,6 +21,13 @@ var videosStorageRoot = builder.Configuration["VideoStorage:RootPath"]
     ?? Environment.GetEnvironmentVariable("BRONYTV_VIDEOS_ROOT")
     ?? "/app/media";
 const string AllowBronyTvPolicy = "AllowBronyTv";
+var jwtSigningKey = builder.Configuration["Jwt:Key"];
+if (string.IsNullOrWhiteSpace(jwtSigningKey)
+    || jwtSigningKey.Length < 32
+    || jwtSigningKey.StartsWith("CONFIGURE_", StringComparison.Ordinal))
+{
+    throw new InvalidOperationException("Jwt:Key must be configured with at least 32 random characters.");
+}
 
 builder.Services.AddDbContext<DbBronyTV>(options =>
 {
@@ -119,7 +126,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey)),
             ClockSkew = TimeSpan.FromMinutes(1)
         };
 
@@ -138,13 +145,15 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
             OnTokenValidated = async context =>
             {
                 var principal = context.Principal;
-                if (principal?.Identity?.IsAuthenticated != true || principal.IsInRole("Admin"))
+                if (principal?.Identity?.IsAuthenticated != true || !principal.IsInRole("User"))
                 {
+                    // Legacy administrator tokens are not backed by UserEntity.
                     return;
                 }
 
                 if (principal.Identity is not ClaimsIdentity identity)
                 {
+                    context.Fail("Invalid user identity.");
                     return;
                 }
 
@@ -157,26 +166,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJw
                     user = await userRepository.GetByIdAsync(userId);
                 }
 
-                if (user != null)
+                // Deleted and unconfirmed accounts cannot keep using an old JWT.
+                if (user == null || !user.IsEmailConfirmed)
                 {
-                    if (adminAccess.IsOwnerUser(user)
-                        || string.Equals(user.PlatformRole, "Owner", StringComparison.Ordinal))
-                    {
-                        identity.AddClaim(new Claim(ClaimTypes.Role, "Owner"));
-                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
-                        return;
-                    }
-
-                    if (string.Equals(user.PlatformRole, "Admin", StringComparison.Ordinal))
-                    {
-                        identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
-                        return;
-                    }
+                    context.Fail("User account is not active.");
+                    return;
                 }
 
-                var username = user?.Username ?? principal.FindFirstValue("username");
-                var email = user?.Email ?? principal.FindFirstValue(ClaimTypes.Email);
-                if (adminAccess.IsPrivilegedUser(username, email))
+                if (adminAccess.IsOwnerUser(user)
+                    || string.Equals(user.PlatformRole, "Owner", StringComparison.Ordinal))
+                {
+                    identity.AddClaim(new Claim(ClaimTypes.Role, "Owner"));
+                    identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
+                    return;
+                }
+
+                if (string.Equals(user.PlatformRole, "Admin", StringComparison.Ordinal)
+                    || adminAccess.IsPrivilegedUser(user.Username, user.Email))
                 {
                     identity.AddClaim(new Claim(ClaimTypes.Role, "Admin"));
                 }
@@ -197,13 +203,30 @@ builder.Services.Configure<FormOptions>(options =>
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddFixedWindowLimiter("fixed", config =>
-    {
-        config.PermitLimit = 100;
-        config.Window = TimeSpan.FromMinutes(1);
-        config.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        config.QueueLimit = 0;
-    });
+
+    options.AddPolicy("auth", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromMinutes(1),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+
+    options.AddPolicy("email", httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10,
+                Window = TimeSpan.FromMinutes(10),
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
 });
 
 var app = builder.Build();
@@ -230,44 +253,29 @@ await using (var scope = app.Services.CreateAsyncScope())
         startupLogger.LogInformation("Создан placeholder превью сезона: {Path}", defaultPosterPath);
     }
 
+    // The legacy admin login is optional. Never seed publicly known credentials.
+    // Normal administration is performed through a verified user with Admin/Owner role.
     if (!await context.Admins.AnyAsync())
     {
-        context.Admins.Add(new AdminEntity
+        var bootstrapLogin = builder.Configuration["Admin:BootstrapLogin"];
+        var bootstrapPassword = builder.Configuration["Admin:BootstrapPassword"];
+        if (!string.IsNullOrWhiteSpace(bootstrapLogin)
+            && !string.IsNullOrWhiteSpace(bootstrapPassword)
+            && bootstrapPassword.Length >= 12)
         {
-            Id = Guid.NewGuid(),
-            Login = "admin",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("admin"),
-        });
-        await context.SaveChangesAsync();
-    }
-
-    const string platformAdminLogin = "rainbowdash";
-    if (!await context.Admins.AnyAsync(admin => admin.Login == platformAdminLogin))
-    {
-        context.Admins.Add(new AdminEntity
+            context.Admins.Add(new AdminEntity
+            {
+                Id = Guid.NewGuid(),
+                Login = bootstrapLogin.Trim(),
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(bootstrapPassword)
+            });
+            await context.SaveChangesAsync();
+            startupLogger.LogInformation("Создан legacy-администратор из безопасной конфигурации.");
+        }
+        else
         {
-            Id = Guid.NewGuid(),
-            Login = platformAdminLogin,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("rainbowdash"),
-        });
-        await context.SaveChangesAsync();
-        startupLogger.LogInformation(
-            "Создана запись AdminEntity для {Login} (вход через /api/auth/login или сессия пользователя с этим юзернеймом).",
-            platformAdminLogin);
-    }
-
-    var ownerUsers = await context.Users
-        .Where(user => user.Username != null && user.Username.ToLower() == platformAdminLogin)
-        .ToListAsync();
-    foreach (var ownerUser in ownerUsers)
-    {
-        ownerUser.PlatformRole = "Owner";
-    }
-
-    if (context.ChangeTracker.HasChanges())
-    {
-        await context.SaveChangesAsync();
-        startupLogger.LogInformation("Синхронизированы роли владельца для пользователей {Login}.", platformAdminLogin);
+            startupLogger.LogInformation("Legacy-администратор не создавался; bootstrap-учётные данные не заданы.");
+        }
     }
 
     string BuildPosterPath(int seasonNumber)

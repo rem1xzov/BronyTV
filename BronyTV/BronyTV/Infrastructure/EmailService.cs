@@ -1,6 +1,6 @@
-using System.Net;
-using System.Net.Mail;
+using MailKit.Security;
 using Microsoft.Extensions.Logging;
+using MimeKit;
 
 namespace BronyTV.Infrastructure;
 
@@ -25,15 +25,11 @@ public class EmailService : IEmailService
         _logger = logger;
         _smtpHost = ReadSetting(configuration, "Email:SmtpHost") ?? "";
         _smtpPort = int.TryParse(ReadSetting(configuration, "Email:SmtpPort"), out var port) ? port : 587;
-
-        // Honours both the compose "Email__SmtpUser" set and the Gmail "Email__SmtpUsername"/"Email__SenderEmail" set.
         _smtpUser = FirstNonEmpty(
             ReadSetting(configuration, "Email:SmtpUser"),
             ReadSetting(configuration, "Email:SmtpUsername"),
             ReadSetting(configuration, "Email:SenderEmail"));
         _smtpPassword = ReadSetting(configuration, "Email:SmtpPassword") ?? "";
-
-        // Honours both "Email__SmtpUseSsl" and "Email__EnableSsl".
         _smtpUseSsl = bool.TryParse(
             FirstNonEmpty(
                 ReadSetting(configuration, "Email:SmtpUseSsl"),
@@ -41,7 +37,6 @@ public class EmailService : IEmailService
             out var useSsl)
             ? useSsl
             : true;
-
         _fromAddress = FirstNonEmpty(
             ReadSetting(configuration, "Email:FromAddress"),
             ReadSetting(configuration, "Email:SenderEmail"));
@@ -53,13 +48,17 @@ public class EmailService : IEmailService
         }
     }
 
-    public async Task SendEmailConfirmationAsync(string email, string confirmationCode, CancellationToken cancellationToken = default)
+    public async Task SendEmailConfirmationAsync(
+        string email,
+        string confirmationCode,
+        CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrEmpty(_smtpHost))
+        if (string.IsNullOrWhiteSpace(_smtpHost)
+            || string.IsNullOrWhiteSpace(_smtpUser)
+            || string.IsNullOrWhiteSpace(_smtpPassword))
         {
-            // SMTP is not configured; skip actual sending so the app still works in dev.
-            _logger.LogWarning("[EmailService] SMTP не настроен, письмо на {Email} пропущено", email);
-            return;
+            _logger.LogError("[EmailService] SMTP не настроен: письмо с обязательным кодом не может быть отправлено.");
+            throw new InvalidOperationException("SMTP is not fully configured.");
         }
 
         _logger.LogInformation(
@@ -110,25 +109,27 @@ public class EmailService : IEmailService
             </html>
             """;
 
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(_senderName, _fromAddress));
+        message.To.Add(MailboxAddress.Parse(email));
+        message.Subject = "Код подтверждения email на BronyTV";
+        message.Body = new BodyBuilder
+        {
+            TextBody = $"Код подтверждения BronyTV: {confirmationCode}. Код действует ограниченное время.",
+            HtmlBody = htmlBody
+        }.ToMessageBody();
+
         try
         {
-            using var smtp = new SmtpClient(_smtpHost, _smtpPort)
+            using var smtp = new MailKit.Net.Smtp.SmtpClient
             {
-                Credentials = new NetworkCredential(_smtpUser, _smtpPassword),
-                EnableSsl = _smtpUseSsl,
-                DeliveryMethod = SmtpDeliveryMethod.Network
+                Timeout = 30_000
             };
-
-            using var message = new MailMessage
-            {
-                From = new MailAddress(_fromAddress, _senderName),
-                Subject = "Код подтверждения email на BronyTV",
-                Body = htmlBody,
-                IsBodyHtml = true
-            };
-            message.To.Add(new MailAddress(email));
-
-            await smtp.SendMailAsync(message, cancellationToken);
+            var socketOptions = _smtpUseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None;
+            await smtp.ConnectAsync(_smtpHost, _smtpPort, socketOptions, cancellationToken);
+            await smtp.AuthenticateAsync(_smtpUser, _smtpPassword, cancellationToken);
+            await smtp.SendAsync(message, cancellationToken);
+            await smtp.DisconnectAsync(true, cancellationToken);
 
             _logger.LogInformation("[EmailService] Письмо успешно отправлено на {Email}", email);
         }
@@ -147,5 +148,5 @@ public class EmailService : IEmailService
     }
 
     private static string FirstNonEmpty(params string?[] values) =>
-        values.FirstOrDefault(v => !string.IsNullOrWhiteSpace(v)) ?? "";
+        values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)) ?? "";
 }

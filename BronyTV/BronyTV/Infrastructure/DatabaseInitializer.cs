@@ -57,6 +57,15 @@ public static class DatabaseInitializer
         ALTER TABLE public."Users"
             ADD COLUMN IF NOT EXISTS "EmailConfirmationToken" character varying(128);
 
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "EmailConfirmationExpiresAtUtc" timestamp with time zone;
+
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "EmailConfirmationLastSentAtUtc" timestamp with time zone;
+
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "EmailConfirmationFailedAttempts" integer NOT NULL DEFAULT 0;
+
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_EmailConfirmationToken"
             ON public."Users" ("EmailConfirmationToken")
             WHERE "EmailConfirmationToken" IS NOT NULL;
@@ -148,6 +157,7 @@ public static class DatabaseInitializer
         await EnsureUserPlatformRoleColumnAsync(context, logger, cancellationToken);
         await EnsureEmailConfirmationColumnsAsync(context, logger, cancellationToken);
         await EnsureForumTablesAsync(context, logger, cancellationToken);
+        await EnsureNewsPostsTableAsync(context, logger, cancellationToken);
         await EnsureSupportTablesAsync(context, logger, cancellationToken);
     }
 
@@ -189,6 +199,30 @@ public static class DatabaseInitializer
 
         CREATE INDEX IF NOT EXISTS "IX_ForumPosts_CreatedAtUtc"
             ON public."ForumPosts" ("CreatedAtUtc");
+
+        ALTER TABLE public."ForumThreads"
+            ADD COLUMN IF NOT EXISTS "Images" text;
+
+        ALTER TABLE public."ForumPosts"
+            ADD COLUMN IF NOT EXISTS "Images" text;
+
+        ALTER TABLE public."ForumPosts"
+            ADD COLUMN IF NOT EXISTS "LikedUserIds" text;
+        """;
+
+    private const string EnsureNewsPostsTableSql = """
+        CREATE TABLE IF NOT EXISTS public."NewsPosts" (
+            "Id" uuid NOT NULL,
+            "Title" character varying(200),
+            "Content" character varying(10000),
+            "ImageUrl" character varying(500),
+            "AuthorUsername" character varying(100) NOT NULL,
+            "CreatedAt" timestamp with time zone NOT NULL,
+            CONSTRAINT "PK_NewsPosts" PRIMARY KEY ("Id")
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_NewsPosts_CreatedAt"
+            ON public."NewsPosts" ("CreatedAt");
         """;
 
     private const string EnsureSupportTablesSql = """
@@ -257,6 +291,15 @@ public static class DatabaseInitializer
     {
         await context.Database.ExecuteSqlRawAsync(EnsureForumTablesSql, cancellationToken);
         logger.LogInformation("Verified public forum tables exist (CREATE TABLE IF NOT EXISTS).");
+    }
+
+    public static async Task EnsureNewsPostsTableAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureNewsPostsTableSql, cancellationToken);
+        logger.LogInformation("Verified public.\"NewsPosts\" table exists.");
     }
 
     public static async Task EnsureSupportTablesAsync(

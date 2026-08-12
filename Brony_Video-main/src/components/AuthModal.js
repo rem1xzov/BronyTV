@@ -2,7 +2,6 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LogIn, MailCheck, UserPlus, X } from "lucide-react";
 import { RACE_OPTIONS, useAuth } from "../auth/AuthContext";
-import { getRaceLabel } from "../auth/race";
 import { validateUsername } from "../auth/username";
 
 export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
@@ -108,9 +107,14 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
           return;
         }
 
-        // HOTFIX: верификация почты отключена — после регистрации не показываем экран ввода кода.
-        await register({ email, password, race, username: usernameValidation.value });
-        setSuccess(`Добро пожаловать, @${usernameValidation.value}! Ваша раса: ${getRaceLabel(race)}.`);
+        const registration = await register({
+          email,
+          password,
+          race,
+          username: usernameValidation.value
+        });
+        handleEnterConfirmation(registration?.email || email.trim().toLowerCase());
+        return;
       } else {
         await login({ email, password });
         setSuccess("Вы успешно вошли в аккаунт.");
@@ -119,6 +123,10 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
         onClose();
       }, 700);
     } catch (submitError) {
+      if (submitError.requiresEmailConfirmation) {
+        handleEnterConfirmation(submitError.email || email.trim().toLowerCase());
+        return;
+      }
       setError(submitError.message || "Ошибка авторизации.");
     } finally {
       setSubmitting(false);

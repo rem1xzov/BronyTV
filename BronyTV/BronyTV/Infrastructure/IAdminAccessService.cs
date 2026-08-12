@@ -10,5 +10,5 @@ public interface IAdminAccessService
 
     bool IsProtectedOwner(UserEntity user);
 
-    string ResolveInitialRoleForUsername(string normalizedUsername);
+    string ResolveInitialRole(string normalizedEmail);
 }

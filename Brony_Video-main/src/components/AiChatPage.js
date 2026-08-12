@@ -1,6 +1,20 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
-import { ArrowLeft, Bot, Check, ChevronRight, PanelLeftClose, PanelLeftOpen, Send, Star, Trash2, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Bot,
+  Check,
+  ChevronRight,
+  LockKeyhole,
+  LogIn,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Send,
+  Star,
+  Trash2,
+  UserPlus,
+  X
+} from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 
 // Метаданные персонажей-ботов. id совпадает с characterId в микросервисе AiBronyTV,
@@ -215,7 +229,7 @@ function LimitBanner({ message }) {
 }
 
 function AiChatPage() {
-  const { user } = useAuth();
+  const { user, loading, refreshUser } = useAuth();
   const [bots] = useState(BOT_CATALOG);
   const [activeBotId, setActiveBotId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -292,6 +306,10 @@ function AiChatPage() {
   const handleSend = useCallback(async () => {
     const text = input.trim();
     if (!text || !activeBotId || streaming) return;
+    if (!user || !user.isEmailConfirmed) {
+      window.dispatchEvent(new CustomEvent("bronytv:open-auth", { detail: { mode: "signin" } }));
+      return;
+    }
 
     const sessionId = ensureSession();
     const userMsg = { id: nextId(), role: "user", text, limit: false };
@@ -301,41 +319,40 @@ function AiChatPage() {
     setMessages(nextMessages);
     setInput("");
     setError("");
-
-    // Контекст пользователя для бота: @username и роль на сайте.
-    const rawUsername = (user?.username || "").trim();
-    const userName = rawUsername ? `@${rawUsername}` : "";
-    const platformRole = String(user?.platformRole || "User");
-    let role = platformRole;
-    if (user?.isOwner || platformRole === "Owner") {
-      role = "Owner";
-    } else if (user?.isPlatformAdmin || platformRole === "Admin") {
-      role = "Admin";
-    }
+    setStreaming(true);
 
     // Немного метаданных сессии для статистики (не критично).
     const meta = loadSessionMeta();
     meta[activeBotId] = { lastUsed: Date.now(), updatedAt: Date.now() };
     saveSessionMeta(meta);
 
+    const controller = new AbortController();
+    streamRef.current = controller;
+
     try {
       const res = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ sessionId, characterId: activeBotId, message: text, userName, role })
+        signal: controller.signal,
+        body: JSON.stringify({ sessionId, characterId: activeBotId, message: text })
       });
 
+      if (res.status === 401 || res.status === 403) {
+        await refreshUser();
+        throw new Error("Сессия истекла. Войдите в аккаунт снова.");
+      }
+      if (res.status === 429) {
+        throw new Error("Слишком много запросов. Подождите минуту и попробуйте снова.");
+      }
       if (!res.ok) {
-        throw new Error(`Сервер ответил: ${res.status}`);
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.message || `Сервер ответил: ${res.status}`);
       }
 
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       const alive = { value: true };
-
-      const controller = new AbortController();
-      streamRef.current = controller;
 
       let acc = "";
       let finished = false;
@@ -379,17 +396,21 @@ function AiChatPage() {
             finished = true;
             break;
           }
+          let parsed;
           try {
-            const parsed = JSON.parse(data);
-            if (parsed && typeof parsed.text === "string") {
-              if (parsed.limit === true) {
-                finalizeAssistant(parsed.text, true);
-              } else {
-                pushChunk(parsed.text);
-              }
-            }
+            parsed = JSON.parse(data);
           } catch {
-            /* ignore malformed frames */
+            continue;
+          }
+          if (parsed && typeof parsed.error === "string") {
+            throw new Error(parsed.error);
+          }
+          if (parsed && typeof parsed.text === "string") {
+            if (parsed.limit === true) {
+              finalizeAssistant(parsed.text, true);
+            } else {
+              pushChunk(parsed.text);
+            }
           }
         }
         if (finished) break;
@@ -407,11 +428,11 @@ function AiChatPage() {
       streamRef.current = null;
       setStreaming(false);
       if (err.name !== "AbortError") {
-        setError("Не удалось получить ответ. Попробуйте ещё раз.");
+        setError(err.message || "Не удалось получить ответ. Попробуйте ещё раз.");
         setMessages((prev) => prev.filter((m) => m.id !== assistantMsg.id));
       }
     }
-  }, [activeBotId, input, messages, streaming, user]);
+  }, [activeBotId, input, messages, refreshUser, streaming, user]);
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -444,6 +465,50 @@ function AiChatPage() {
     }
     return () => body.classList.remove("no-scroll");
   }, [mobileDialogOpen]);
+
+  if (loading) {
+    return (
+      <section className="ai-chat-page ai-auth-gate panel" aria-busy="true">
+        <div className="ai-auth-gate-icon">
+          <Bot size={34} />
+        </div>
+        <h2>Проверяем сессию…</h2>
+        <p className="muted">Подождите немного.</p>
+      </section>
+    );
+  }
+
+  if (!user || !user.isEmailConfirmed) {
+    const openAuth = (mode) =>
+      window.dispatchEvent(new CustomEvent("bronytv:open-auth", { detail: { mode } }));
+
+    return (
+      <section className="ai-chat-page ai-auth-gate panel">
+        <div className="ai-auth-gate-icon">
+          <LockKeyhole size={34} />
+        </div>
+        <div>
+          <h2>Войдите, чтобы общаться с ИИ-ботами</h2>
+          <p className="muted">
+            Доступ к персонажам открыт только пользователям с подтверждённым email.
+          </p>
+        </div>
+        <div className="ai-auth-gate-actions">
+          <button type="button" className="primary-btn" onClick={() => openAuth("signin")}>
+            <LogIn size={17} />
+            Войти
+          </button>
+          <button type="button" className="secondary-btn" onClick={() => openAuth("signup")}>
+            <UserPlus size={17} />
+            Зарегистрироваться
+          </button>
+        </div>
+        <p className="ai-auth-gate-note">
+          При регистрации мы отправим на вашу почту одноразовый 6-значный код.
+        </p>
+      </section>
+    );
+  }
 
   return (
     <section className={`ai-chat-page panel${isMobileView() && showChatPane ? " ai-chat-page--chat" : ""}`}>

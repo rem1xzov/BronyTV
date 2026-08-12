@@ -4,10 +4,9 @@ using Microsoft.EntityFrameworkCore;
 namespace BronyTV.Infrastructure;
 
 /// <summary>
-/// Periodically removes stale unconfirmed user records from the database.
-/// With the pending-cache registration flow no unconfirmed rows are normally created,
-/// but legacy rows and any edge cases are cleaned up after 24 hours so they never
-/// accumulate and never appear in the admin panel.
+/// Periodically removes registrations whose email was not confirmed within 24 hours.
+/// Pending records are persisted so confirmation survives application restarts, while
+/// this worker prevents abandoned registrations from accumulating indefinitely.
 /// </summary>
 public class ConfirmationCleanupHostedService : BackgroundService
 {

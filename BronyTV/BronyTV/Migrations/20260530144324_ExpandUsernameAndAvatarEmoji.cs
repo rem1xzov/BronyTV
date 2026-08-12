@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -10,46 +10,41 @@ namespace BronyTV.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.AlterColumn<string>(
-                name: "Username",
-                schema: "public",
-                table: "Users",
-                type: "character varying(25)",
-                maxLength: 25,
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "character varying(15)",
-                oldMaxLength: 15,
-                oldNullable: true);
+            // See AddUsername: on a fresh database Users is created by the following
+            // InitialEmailAuth migration. The post-migration schema initializer then
+            // applies these columns idempotently.
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF to_regclass('public."Users"') IS NOT NULL THEN
+                        ALTER TABLE public."Users"
+                            ADD COLUMN IF NOT EXISTS "Username" character varying(25);
 
-            migrationBuilder.AddColumn<string>(
-                name: "AvatarEmoji",
-                schema: "public",
-                table: "Users",
-                type: "character varying(32)",
-                maxLength: 32,
-                nullable: true);
+                        ALTER TABLE public."Users"
+                            ALTER COLUMN "Username" TYPE character varying(25);
+
+                        ALTER TABLE public."Users"
+                            ADD COLUMN IF NOT EXISTS "AvatarEmoji" character varying(32);
+                    END IF;
+                END $$;
+                """);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "AvatarEmoji",
-                schema: "public",
-                table: "Users");
+            migrationBuilder.Sql("""
+                DO $$
+                BEGIN
+                    IF to_regclass('public."Users"') IS NOT NULL THEN
+                        ALTER TABLE public."Users"
+                            DROP COLUMN IF EXISTS "AvatarEmoji";
 
-            migrationBuilder.AlterColumn<string>(
-                name: "Username",
-                schema: "public",
-                table: "Users",
-                type: "character varying(15)",
-                maxLength: 15,
-                nullable: true,
-                oldClrType: typeof(string),
-                oldType: "character varying(25)",
-                oldMaxLength: 25,
-                oldNullable: true);
+                        ALTER TABLE public."Users"
+                            ALTER COLUMN "Username" TYPE character varying(15);
+                    END IF;
+                END $$;
+                """);
         }
     }
 }

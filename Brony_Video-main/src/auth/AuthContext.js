@@ -54,11 +54,9 @@ export function AuthProvider({ children }) {
     if (!response.ok) {
       throw new Error(raw.message || "Не удалось зарегистрироваться.");
     }
-    // HOTFIX: обязательная верификация почты отключена — регистрация сразу успешна,
-    // сессия создаётся бэкендом, пользователь сразу авторизован. Код подтверждения не нужен.
-    const payload = normalizeAuthUser(raw);
-    setUser(payload);
-    return payload;
+    // Registration creates only a pending account. A session is issued after the
+    // six-digit code from the email has been verified.
+    return raw;
   }, []);
 
   const login = useCallback(async ({ email, password }) => {

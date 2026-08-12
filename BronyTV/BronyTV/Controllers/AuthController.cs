@@ -1,10 +1,11 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using BronyTV.Contract;
 using BronyTV.Infrastructure;
 using BronyTV.Repository;
 using BronyTV.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BronyTV.Controllers;
 
@@ -30,6 +31,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> AdminLogin([FromBody] LoginRequest request)
     {
         var token = await _adminService.LoginAsync(request.Username, request.Password);
@@ -42,6 +44,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
+    [EnableRateLimiting("email")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
         var (response, error) = await _userAuthService.RegisterAsync(
@@ -56,51 +59,31 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = error ?? "Не удалось зарегистрироваться." });
         }
 
-        // HOTFIX: регистрация сразу подтверждена — создаём сессию и пускаем пользователя дальше.
-        var normalizedEmail = request.Email.Trim().ToLowerInvariant();
-        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
-        if (user == null)
-        {
-            return StatusCode(StatusCodes.Status500InternalServerError);
-        }
-
-        AppendSessionCookie(user);
-        return Ok(_userAuthService.MapUserResponse(user));
+        // No session is issued until the six-digit code has been verified.
+        return Accepted(response);
     }
 
     [HttpPost("signin")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> SignIn([FromBody] UserLoginRequest request, CancellationToken cancellationToken)
     {
         var user = await _userAuthService.AuthenticateAsync(request.Email, request.Password, cancellationToken);
         if (user == null)
         {
-            // The account is not in the database yet. It may be a pending (unconfirmed)
-            // registration that is only held in the in-memory cache — in that case issue
-            // a fresh code and redirect the user into the confirmation screen.
-            if (await _userAuthService.TryResendPendingConfirmationAsync(request.Email, cancellationToken))
-            {
-                return Conflict(new
-                {
-                    message = "Регистрация ещё не завершена: нужен код подтверждения. Новый код отправлен на почту.",
-                    email = request.Email?.Trim().ToLowerInvariant(),
-                    requiresEmailConfirmation = true
-                });
-            }
-
             return Unauthorized(new { message = "Неверный email или пароль." });
         }
 
-        // A confirmed email is required before the account may be used. This branch only
-        // fires for legacy unconfirmed rows (the new flow never creates such rows).
         if (!user.IsEmailConfirmed)
         {
-            // Generate a fresh code and send it so the user can confirm right away.
-            await _userAuthService.ResendEmailConfirmationAsync(user.Email, cancellationToken);
+            var (sent, resendError) = await _userAuthService.ResendEmailConfirmationAsync(
+                user.Email,
+                cancellationToken);
 
-            // Tell the client that a code has been sent and confirmation is required.
             return Conflict(new
             {
-                message = "Email ещё не подтверждён. Код из нового письма отправлен на почту. Введите его, чтобы войти.",
+                message = sent
+                    ? "Email ещё не подтверждён. Новый код отправлен на почту."
+                    : resendError ?? "Email ещё не подтверждён. Введите ранее полученный код или запросите новый.",
                 email = user.Email,
                 requiresEmailConfirmation = true
             });
@@ -120,7 +103,7 @@ public class AuthController : ControllerBase
         }
 
         var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
-        if (user == null)
+        if (user == null || !user.IsEmailConfirmed)
         {
             return Unauthorized();
         }
@@ -212,6 +195,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("confirm-email")]
+    [EnableRateLimiting("auth")]
     public async Task<IActionResult> ConfirmEmail(
         [FromBody] ConfirmEmailRequest request,
         CancellationToken cancellationToken)
@@ -240,6 +224,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("resend-email-confirmation")]
+    [EnableRateLimiting("email")]
     public async Task<IActionResult> ResendEmailConfirmation(
         [FromBody] ResendEmailConfirmationRequest request,
         CancellationToken cancellationToken)
