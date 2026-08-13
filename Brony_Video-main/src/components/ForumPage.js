@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, MessageSquare, Plus, Heart, Trash2 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { useI18n } from "../i18n";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch } from "../auth/api";
 
@@ -77,6 +78,7 @@ function fileToBase64(file) {
 }
 
 function CreateThreadModal({ isOpen, onClose, onCreated }) {
+  const { t } = useI18n();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [imageFiles, setImageFiles] = useState([]);
@@ -119,14 +121,14 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
     event.preventDefault();
     setError("");
 
-    const trimmedTitle = title.trim();
+        const trimmedTitle = title.trim();
     if (!trimmedTitle) {
-      setError("Укажите заголовок темы.");
+      setError(t("forum.titleRequired"));
       return;
     }
 
     if (trimmedTitle.length > 150) {
-      setError("Заголовок не может быть длиннее 150 символов.");
+      setError(t("forum.titleTooLong"));
       return;
     }
 
@@ -145,16 +147,16 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
           images
         })
       });
-      const raw = await response.json().catch(() => ({}));
+            const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(raw.message || "Не удалось создать тему.");
+        throw new Error(raw.message || t("forum.createFailed"));
       }
 
       const thread = normalizeThread(raw);
       onCreated(thread);
       onClose();
     } catch (submitError) {
-      setError(submitError.message || "Не удалось создать тему.");
+      setError(submitError.message || t("forum.createFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -162,11 +164,11 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
 
   return (
     <div className="forum-modal-overlay" onClick={onClose} role="presentation">
-      <div className="forum-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
-        <h2>Создать тему</h2>
+            <div className="forum-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+        <h2>{t("forum.titleCreate")}</h2>
         <form className="forum-create-form" onSubmit={handleSubmit}>
           <label className="forum-field">
-            <span>Заголовок (до 150 символов)</span>
+            <span>{t("forum.fieldTitle")}</span>
             <input
               type="text"
               value={title}
@@ -176,7 +178,7 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
             />
           </label>
           <label className="forum-field">
-            <span>Описание (необязательно)</span>
+            <span>{t("forum.fieldDescription")}</span>
             <textarea
               value={description}
               rows={4}
@@ -185,7 +187,7 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
             />
           </label>
           <label className="forum-field">
-            <span>Прикрепить изображения (до 3)</span>
+            <span>{t("forum.fieldImages")}</span>
             <input type="file" accept="image/*" multiple onChange={handleImageChange} />
             {previewUrls.length > 0 ? (
               <div className="forum-image-preview-row">
@@ -202,10 +204,10 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
           ) : null}
           <div className="forum-form-actions">
             <button type="submit" className="primary-btn" disabled={submitting}>
-              {submitting ? "Создание…" : "Опубликовать"}
+              {submitting ? t("forum.creating") : t("forum.publish")}
             </button>
             <button type="button" className="secondary-btn" onClick={onClose} disabled={submitting}>
-              Отмена
+              {t("forum.cancel")}
             </button>
           </div>
         </form>
@@ -217,6 +219,7 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
 function ForumThreadView({ threadId }) {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useI18n();
   const [thread, setThread] = useState(null);
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -236,8 +239,8 @@ function ForumThreadView({ threadId }) {
         apiFetch(`/forum/threads/${threadId}/posts`)
       ]);
 
-      if (!threadsResponse.ok || !postsResponse.ok) {
-        throw new Error("Не удалось загрузить тему.");
+            if (!threadsResponse.ok || !postsResponse.ok) {
+        throw new Error(t("forum.loadThreadError"));
       }
 
       const threadsPayload = await threadsResponse.json();
@@ -247,14 +250,14 @@ function ForumThreadView({ threadId }) {
         .filter(Boolean);
       const found = threads.find((item) => String(item.id) === String(threadId)) ?? null;
 
-      if (!found) {
-        throw new Error("Тема не найдена.");
+            if (!found) {
+        throw new Error(t("forum.errorTitleNotFound"));
       }
 
       setThread(found);
       setPosts((Array.isArray(postsPayload) ? postsPayload : []).map(normalizePost).filter(Boolean));
     } catch (loadError) {
-      setError(loadError.message || "Не удалось загрузить тему.");
+      setError(loadError.message || t("forum.loadThreadError"));
     } finally {
       setLoading(false);
     }
@@ -280,7 +283,7 @@ function ForumThreadView({ threadId }) {
     });
   };
 
-  const handleReply = async (event) => {
+    const handleReply = async (event) => {
     event.preventDefault();
     setReplyError("");
 
@@ -289,7 +292,7 @@ function ForumThreadView({ threadId }) {
     const hasImages = replyImages.length > 0;
 
     if (!hasText && !hasImages) {
-      setReplyError("Введите текст ответа или прикрепите изображение.");
+      setReplyError(t("forum.replyEmpty"));
       return;
     }
 
@@ -304,9 +307,9 @@ function ForumThreadView({ threadId }) {
         method: "POST",
         body: JSON.stringify({ content: trimmed, images })
       });
-      const raw = await response.json().catch(() => ({}));
+            const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(raw.message || "Не удалось отправить ответ.");
+        throw new Error(raw.message || t("forum.replyFailed"));
       }
 
       setReplyText("");
@@ -314,7 +317,7 @@ function ForumThreadView({ threadId }) {
       setReplyPreviewUrls([]);
       await loadThread();
     } catch (submitError) {
-      setReplyError(submitError.message || "Не удалось отправить ответ.");
+      setReplyError(submitError.message || t("forum.replyFailed"));
     } finally {
       setReplying(false);
     }
@@ -354,8 +357,8 @@ function ForumThreadView({ threadId }) {
     }
   };
 
-  const handleDeletePost = async (postId) => {
-    if (!window.confirm("Удалить этот пост?")) {
+    const handleDeletePost = async (postId) => {
+    if (!window.confirm(t("forum.deletePostConfirm"))) {
       return;
     }
 
@@ -371,8 +374,8 @@ function ForumThreadView({ threadId }) {
     }
   };
 
-  const handleDeleteThread = async () => {
-    if (!window.confirm("Удалить эту тему?")) {
+    const handleDeleteThread = async () => {
+    if (!window.confirm(t("forum.deleteThreadConfirm"))) {
       return;
     }
 
@@ -388,16 +391,16 @@ function ForumThreadView({ threadId }) {
     }
   };
 
-  if (loading) {
-    return <p className="muted">Загрузка темы…</p>;
+    if (loading) {
+    return <p className="muted">{t("forum.loadingThread")}</p>;
   }
 
   if (error || !thread) {
     return (
       <div className="forum-error-state">
-        <p className="forum-message forum-message--error">{error || "Тема не найдена."}</p>
+        <p className="forum-message forum-message--error">{error || t("forum.errorTitleNotFound")}</p>
         <Link className="secondary-btn" to="/forum">
-          Назад к форуму
+          {t("forum.backToForum")}
         </Link>
       </div>
     );
@@ -411,9 +414,9 @@ function ForumThreadView({ threadId }) {
 
   return (
     <section className="forum-thread-view">
-      <button type="button" className="secondary-btn forum-back-btn" onClick={() => navigate("/forum")}>
+            <button type="button" className="secondary-btn forum-back-btn" onClick={() => navigate("/forum")}>
         <ArrowLeft size={16} />
-        <span>К списку тем</span>
+        <span>{t("forum.backToList")}</span>
       </button>
 
       <article className="forum-thread-hero">
@@ -437,16 +440,16 @@ function ForumThreadView({ threadId }) {
             aria-label="Удалить тему"
             style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px', marginTop: '8px' }}
           >
-            <Trash2 size={14} />
-            <span style={{ marginLeft: '6px' }}>Удалить тему</span>
+                        <Trash2 size={14} />
+            <span style={{ marginLeft: '6px' }}>{t("forum.deleteThread")}</span>
           </button>
         )}
       </article>
 
-      <div className="forum-posts">
-        <h2>Ответы ({posts.length})</h2>
+            <div className="forum-posts">
+        <h2>{t("forum.answers", { count: posts.length })}</h2>
         {posts.length === 0 ? (
-          <p className="muted">Пока нет ответов. Напишите первым!</p>
+          <p className="muted">{t("forum.emptyPosts")}</p>
         ) : (
           <ul className="forum-post-list">
             {posts.map((post) => {
@@ -495,7 +498,7 @@ function ForumThreadView({ threadId }) {
                       aria-label="Ответить пользователю"
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
                     >
-                      Ответить
+                                            {t("forum.replyTo")}
                     </button>
                     <button
                       type="button"
@@ -530,11 +533,11 @@ function ForumThreadView({ threadId }) {
         )}
       </div>
 
-      {user ? (
+            {user ? (
         user.username ? (
           <form className="forum-reply-form" onSubmit={handleReply}>
             <label className="forum-field">
-              <span>Ваш ответ</span>
+              <span>{t("forum.replyLabel")}</span>
               <textarea
                 value={replyText}
                 onChange={(event) => setReplyText(event.target.value)}
@@ -544,10 +547,10 @@ function ForumThreadView({ threadId }) {
               />
             </label>
             <label className="forum-field">
-              <span>Прикрепить изображения (до 3)</span>
+              <span>{t("forum.fieldImages")}</span>
               <div className="forum-file-upload-wrapper">
                 <label htmlFor="forum-file-upload" className="primary-btn forum-file-upload-label">
-                  Выбрать файлы
+                  {t("forum.chooseFiles")}
                 </label>
                 <input
                   type="file"
@@ -572,15 +575,15 @@ function ForumThreadView({ threadId }) {
                 {replyError}
               </p>
             ) : null}
-            <button type="submit" className="primary-btn" disabled={replying}>
-              {replying ? "Отправка…" : "Отправить ответ"}
+                        <button type="submit" className="primary-btn" disabled={replying}>
+              {replying ? t("forum.sending") : t("forum.sendReply")}
             </button>
           </form>
         ) : (
-          <p className="muted">Задайте юзернейм в личном кабинете, чтобы отвечать в теме.</p>
+          <p className="muted">{t("forum.noUsername")}</p>
         )
       ) : (
-        <p className="muted">Войдите в аккаунт, чтобы ответить в теме.</p>
+        <p className="muted">{t("forum.loginToReply")}</p>
       )}
     </section>
   );
@@ -589,6 +592,7 @@ function ForumThreadView({ threadId }) {
 export default function ForumPage() {
   const { threadId } = useParams();
   const { user } = useAuth();
+  const { t } = useI18n();
   const [threads, setThreads] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -598,14 +602,14 @@ export default function ForumPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await apiFetch("/forum/threads");
+            const response = await apiFetch("/forum/threads");
       if (!response.ok) {
-        throw new Error("Не удалось загрузить темы форума.");
+        throw new Error(t("forum.loadError"));
       }
       const payload = await response.json();
       setThreads((Array.isArray(payload) ? payload : []).map(normalizeThread).filter(Boolean));
     } catch (loadError) {
-      setError(loadError.message || "Не удалось загрузить темы форума.");
+      setError(loadError.message || t("forum.loadError"));
     } finally {
       setLoading(false);
     }
@@ -627,32 +631,32 @@ export default function ForumPage() {
 
   return (
     <section className="panel forum-panel">
-      <header className="forum-header">
+            <header className="forum-header">
         <div>
           <h1>
             <MessageSquare size={24} aria-hidden="true" />
-            <span>Форум BronyTV</span>
+            <span>{t("forum.title")}</span>
           </h1>
-          <p className="muted">Обсуждайте серии, теории и всё о пони.</p>
+          <p className="muted">{t("forum.subtitle")}</p>
         </div>
         {user ? (
           <button type="button" className="primary-btn" onClick={() => setCreateOpen(true)}>
             <Plus size={16} />
-            <span>Создать тему</span>
+            <span>{t("forum.createThread")}</span>
           </button>
         ) : (
-          <p className="muted forum-login-hint">Войдите, чтобы создавать темы.</p>
+          <p className="muted forum-login-hint">{t("forum.loginHint")}</p>
         )}
       </header>
 
       {loading ? (
-        <p className="muted">Загрузка тем…</p>
+        <p className="muted">{t("forum.loadingThreads")}</p>
       ) : error ? (
         <p className="forum-message forum-message--error" role="alert">
           {error}
         </p>
       ) : threads.length === 0 ? (
-        <p className="muted">Тем пока нет. Создайте первую!</p>
+        <p className="muted">{t("forum.emptyThreads")}</p>
       ) : (
         <ul className="forum-thread-list">
           {threads.map((thread) => (
@@ -660,9 +664,9 @@ export default function ForumPage() {
               <Link className="forum-thread-card" to={`/forum/${thread.id}`}>
                 <h2>{thread.title}</h2>
                 {thread.description ? <p className="forum-thread-card-desc">{thread.description}</p> : null}
-                <p className="muted forum-thread-card-meta">
-                  @{thread.authorUsername || "anonymous"} · {formatDate(thread.createdAt)} · ответов:{" "}
-                  {thread.postCount}
+                                <p className="muted forum-thread-card-meta">
+                  @{thread.authorUsername || "anonymous"} · {formatDate(thread.createdAt)} ·{" "}
+                  {t("forum.responses", { count: thread.postCount })}
                 </p>
               </Link>
             </li>

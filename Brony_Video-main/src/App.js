@@ -15,16 +15,19 @@ import {
   Pause,
   Play,
   PlayCircle,
+  Shield,
   SkipForward,
   Star,
   Sun,
   Tv,
   Volume1,
   Volume2,
-  VolumeX
+  VolumeX,
+  X
 } from "lucide-react";
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiFetch, apiUrl } from "./auth/api";
+import { useI18n } from "./i18n";
 import ForumPage from "./components/ForumPage";
 import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
@@ -518,7 +521,85 @@ function EpisodePlaceholderIcon({ episodeNumber }) {
   );
 }
 
+function VpnModal({ isOpen, onClose }) {
+  const { t } = useI18n();
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) {
+    return null;
+  }
+
+  return createPortal(
+    <div className="vpn-modal-overlay" onClick={onClose} role="presentation">
+      <div
+        className="vpn-modal"
+        role="dialog"
+        aria-modal="true"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <button type="button" className="vpn-modal-close" onClick={onClose} aria-label={t("vpn.close")}>
+          <X size={20} />
+        </button>
+        <div className="vpn-modal-icon" aria-hidden="true">
+          <Shield size={30} />
+        </div>
+        <h2>{t("vpn.modalTitle")}</h2>
+        <p className="vpn-modal-text">{t("vpn.text")}</p>
+        <div className="vpn-modal-actions">
+          <button type="button" className="primary-btn vpn-modal-close-btn" onClick={onClose}>
+            <span>{t("vpn.close")}</span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function LanguageSwitcher({ className }) {
+  const { language, setLanguage } = useI18n();
+  return (
+    <div className={`lang-switcher${className ? ` ${className}` : ""}`} role="group" aria-label="Language">
+      <button
+        type="button"
+        className={`lang-switch-btn ${language === "ru" ? "is-active" : ""}`}
+        onClick={() => setLanguage("ru")}
+      >
+        RU
+      </button>
+      <span className="lang-switcher-sep">|</span>
+      <button
+        type="button"
+        className={`lang-switch-btn ${language === "en" ? "is-active" : ""}`}
+        onClick={() => setLanguage("en")}
+      >
+        EN
+      </button>
+    </div>
+  );
+}
+
 function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
+  const { t } = useI18n();
+  const [vpnOpen, setVpnOpen] = useState(false);
+
   return (
     <aside className="sidebar">
       <div className="sidebar-auth">
@@ -526,23 +607,27 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
       </div>
       <button type="button" className="nav-pill theme-switch" onClick={onToggleTheme}>
         {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-        <span>{theme === "dark" ? "Свет" : "Тьма"}</span>
+        <span>{theme === "dark" ? t("nav.light") : t("nav.dark")}</span>
       </button>
       <Link to="/" className={`nav-pill ${currentPage === "home" ? "active" : ""}`}>
         <Home size={16} />
-        <span>Главная</span>
+        <span>{t("nav.home")}</span>
       </Link>
       <Link to="/forum" className={`nav-pill ${currentPage === "forum" ? "active" : ""}`}>
         <MessageSquare size={16} />
-        <span>Форум</span>
+        <span>{t("nav.forum")}</span>
       </Link>
       <Link to="/news" className={`nav-pill ${currentPage === "news" ? "active" : ""}`}>
         <Newspaper size={16} />
-        <span>Новости</span>
+        <span>{t("nav.news")}</span>
       </Link>
+      <button type="button" className="nav-pill" onClick={() => setVpnOpen(true)}>
+        <Shield size={16} />
+        <span>{t("vpn.label")}</span>
+      </button>
       <Link to="/bots" className={`nav-pill ${currentPage === "bots" ? "active" : ""}`}>
         <Bot size={16} />
-        <span>ИИ Боты</span>
+        <span>{t("nav.bots")}</span>
       </Link>
       {Array.from({ length: CONSTANTS.TOTAL_SEASONS }, (_, index) => index + 1).map((season) => (
         <Link
@@ -551,43 +636,43 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
           className={`nav-pill ${currentSeason === season && currentPage === "season" ? "active" : ""}`}
         >
           <Tv size={16} />
-          <span>С{season}</span>
+          <span>{t("nav.season", { number: season })}</span>
         </Link>
       ))}
+      <VpnModal isOpen={vpnOpen} onClose={() => setVpnOpen(false)} />
     </aside>
   );
 }
 
 function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
+  const { t } = useI18n();
   const [openRatingId, setOpenRatingId] = useState(null);
 
   return (
     <div className="home-layout">
       <section className="panel hero-card">
         <div className="hero-content">
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "10px" }}>
-            <img
-              src={logoPng}
-              alt="BronyTV"
-              style={{ height: "44px", width: "auto", flexShrink: 0 }}
-            />
-            <h1 style={{ margin: 0 }}>{CONSTANTS.APP_NAME}</h1>
+          <div className="hero-heading-row">
+            <div className="hero-heading-title">
+              <img
+                src={logoPng}
+                alt="BronyTV"
+                style={{ height: "44px", width: "auto", flexShrink: 0 }}
+              />
+              <h1 style={{ margin: 0 }}>{CONSTANTS.APP_NAME}</h1>
+            </div>
+            <LanguageSwitcher className="hero-lang-switcher" />
           </div>
-          <p className="description">
-            BronyTV — это уютный стриминг-сервис для поклонников My Little Pony: Friendship Is Magic с удобной
-            навигацией по сезонам, подборкой лучших эпизодов по рейтингу и быстрым доступом к просмотру. На главной
-            собран топ-10 самых высоко оцененных видео по данным IMDb, а внутри каждого сезона можно выставить свою
-            оценку от 1 до 10. Здесь легко найти любимые серии и быстро перейти к просмотру без лишних действий.
-          </p>
+          <p className="description">{t("home.tagline")}</p>
           <div className="button-row">
             <Link className="primary-btn" to="/season/1">
-              Открыть сезоны
+              {t("home.openSeasons")}
             </Link>
             <Link className="primary-btn" to="/forum">
-              Открыть форум
+              {t("home.openForum")}
             </Link>
             <Link className="primary-btn" to="/news">
-              Открыть новости
+              {t("home.openNews")}
             </Link>
           </div>
         </div>
@@ -595,7 +680,7 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
 
       <section className="panel quick-list rating-center">
         <div className="quick-list-head centered">
-          <h2>Топ-10 видео MLP по рейтингу IMDb</h2>
+          <h2>{t("home.topTitle")}</h2>
         </div>
         {TOP_MLP_VIDEOS.map((item) => {
           const userRate = videoRatings[item.id];
@@ -606,7 +691,12 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
                   <h3>{item.title}</h3>
                 </Link>
                 <p className="muted">
-                  Сезон {item.season}, серия {item.episode} • {item.source}: {item.imdbRating}/10
+                  {t("home.seasonEpisode", {
+                    season: item.season,
+                    episode: item.episode,
+                    source: item.source,
+                    rating: item.imdbRating
+                  })}
                 </p>
               </div>
               <div className="compact-actions">
@@ -616,7 +706,7 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
                 </span>
                 <RatingButton
                   value={userRate}
-                  label="Оценить"
+                  label={t("home.rate")}
                   popoverId={`top-${item.id}`}
                   openPopoverId={openRatingId}
                   onOpenPopoverId={setOpenRatingId}
@@ -624,14 +714,14 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
                 />
                 {userRate ? (
                   <button type="button" className="secondary-btn small" onClick={() => onClearVideoRating(item.id)}>
-                    Удалить
+                    {t("home.delete")}
                   </button>
                 ) : null}
               </div>
             </div>
           );
         })}
-      </section>
+            </section>
     </div>
   );
 }

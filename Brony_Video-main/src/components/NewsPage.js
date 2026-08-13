@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Newspaper, Plus, Trash2, Image as ImageIcon } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { useI18n } from "../i18n";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch } from "../auth/api";
 
@@ -71,6 +72,7 @@ function parseImageList(imageUrl) {
 }
 
 function CreateNewsModal({ isOpen, onClose, onCreated }) {
+  const { t } = useI18n();
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -118,8 +120,8 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
     const trimmedTitle = title.trim();
     const trimmedContent = content.trim();
 
-    if (!trimmedTitle && !trimmedContent && imageFiles.length === 0 && !imageUrl.trim()) {
-      setError("Укажите хотя бы заголовок, текст или изображение.");
+        if (!trimmedTitle && !trimmedContent && imageFiles.length === 0 && !imageUrl.trim()) {
+      setError(t("news.required"));
       return;
     }
 
@@ -128,11 +130,11 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
       let uploadImageUrl = imageUrl.trim() || null;
 
       if (imageFiles.length > 0) {
-        try {
+                try {
           const base64Array = await Promise.all(imageFiles.map((file) => fileToBase64(file)));
           uploadImageUrl = JSON.stringify(base64Array);
         } catch (readError) {
-          setError("Не удалось прочитать файлы изображений.");
+          setError(t("news.readFileError"));
           setSubmitting(false);
           return;
         }
@@ -146,16 +148,16 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
           imageUrl: uploadImageUrl
         })
       });
-      const raw = await response.json().catch(() => ({}));
+            const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(raw.message || "Не удалось создать новость.");
+        throw new Error(raw.message || t("news.createFailed"));
       }
 
       const post = normalizeNewsPost(raw);
       onCreated(post);
       onClose();
     } catch (submitError) {
-      setError(submitError.message || "Не удалось создать новость.");
+      setError(submitError.message || t("news.createFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -163,31 +165,31 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
 
   return (
     <div className="news-modal-overlay" onClick={onClose} role="presentation">
-      <div className="news-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
-        <h2>Создать новость</h2>
+            <div className="news-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+        <h2>{t("news.titleCreate")}</h2>
         <form className="news-create-form" onSubmit={handleSubmit}>
           <label className="news-field">
-            <span>Заголовок (необязательно)</span>
+            <span>{t("news.fieldTitle")}</span>
             <input
               type="text"
               value={title}
               maxLength={200}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Заголовок новости"
+              placeholder={t("news.placeholderTitle")}
             />
           </label>
           <label className="news-field">
-            <span>Текст (необязательно)</span>
+            <span>{t("news.fieldContent")}</span>
             <textarea
               value={content}
               rows={5}
               maxLength={10000}
               onChange={(event) => setContent(event.target.value)}
-              placeholder="Содержание новости"
+              placeholder={t("news.placeholderContent")}
             />
           </label>
           <label className="news-field">
-            <span>Ссылка на изображение (необязательно)</span>
+            <span>{t("news.fieldImageUrl")}</span>
             <input
               type="text"
               value={imageUrl}
@@ -195,11 +197,11 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
                 setImageUrl(event.target.value);
                 setPreviewUrls([]);
               }}
-              placeholder="URL изображения"
+              placeholder={t("news.placeholderUrl")}
             />
           </label>
           <label className="news-field">
-            <span>Загрузить файлы (до 5)</span>
+            <span>{t("news.fieldFiles")}</span>
             <input type="file" accept="image/*" multiple onChange={handleImageChange} />
             {previewUrls.length > 0 ? (
               <div className="news-image-preview-row">
@@ -216,10 +218,10 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
           ) : null}
           <div className="news-form-actions">
             <button type="submit" className="primary-btn" disabled={submitting}>
-              {submitting ? "Публикация…" : "Опубликовать"}
+              {submitting ? t("news.publishing") : t("news.publish")}
             </button>
             <button type="button" className="secondary-btn" onClick={onClose} disabled={submitting}>
-              Отмена
+              {t("news.cancel")}
             </button>
           </div>
         </form>
@@ -229,6 +231,7 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
 }
 
 function NewsCard({ post, isAdmin, onDelete, isExpanded, onToggleExpand }) {
+  const { t } = useI18n();
   const images = parseImageList(post.imageUrl);
   const previewImage = images.length > 0 ? images[0] : null;
   const fullContent = post.content ?? "";
@@ -270,7 +273,7 @@ function NewsCard({ post, isAdmin, onDelete, isExpanded, onToggleExpand }) {
               fontWeight: 500,
             }}
           >
-            {isExpanded ? "Свернуть" : "Читать далее"}
+                        {isExpanded ? t("news.collapse") : t("news.readMore")}
           </button>
         ) : null}
         {isExpanded && images.length > 1 ? (
@@ -281,11 +284,11 @@ function NewsCard({ post, isAdmin, onDelete, isExpanded, onToggleExpand }) {
           </div>
         ) : null}
         {isAdmin ? (
-          <button
+                    <button
             type="button"
             className="news-delete-btn"
             onClick={() => onDelete(post.id)}
-            aria-label="Удалить новость"
+            aria-label={t("news.delete")}
           >
             <Trash2 size={14} />
           </button>
@@ -297,6 +300,7 @@ function NewsCard({ post, isAdmin, onDelete, isExpanded, onToggleExpand }) {
 
 export default function NewsPage() {
   const { user } = useAuth();
+  const { t } = useI18n();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -307,14 +311,14 @@ export default function NewsPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await apiFetch("/news");
+            const response = await apiFetch("/news");
       if (!response.ok) {
-        throw new Error("Не удалось загрузить новости.");
+        throw new Error(t("news.loadError"));
       }
       const payload = await response.json();
       setPosts((Array.isArray(payload) ? payload : []).map(normalizeNewsPost).filter(Boolean));
     } catch (loadError) {
-      setError(loadError.message || "Не удалось загрузить новости.");
+      setError(loadError.message || t("news.loadError"));
     } finally {
       setLoading(false);
     }
@@ -330,18 +334,18 @@ export default function NewsPage() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Удалить эту новость?")) {
+    const handleDelete = async (id) => {
+    if (!window.confirm(t("news.deleteConfirm"))) {
       return;
     }
     try {
       const response = await apiFetch(`/news/${id}`, { method: "DELETE" });
       if (!response.ok) {
-        throw new Error("Не удалось удалить новость.");
+        throw new Error(t("news.deleteFailed"));
       }
       setPosts((prev) => prev.filter((post) => post.id !== id));
     } catch (deleteError) {
-      setError(deleteError.message || "Не удалось удалить новость.");
+      setError(deleteError.message || t("news.deleteFailed"));
     }
   };
 
@@ -353,30 +357,30 @@ export default function NewsPage() {
 
   return (
     <section className="panel news-panel">
-      <header className="news-header">
+            <header className="news-header">
         <div>
           <h1>
             <Newspaper size={24} aria-hidden="true" />
-            <span>Новости</span>
+            <span>{t("news.title")}</span>
           </h1>
-          <p className="muted">Актуальные новости проекта BronyTV.</p>
+          <p className="muted">{t("news.subtitle")}</p>
         </div>
         {isAdmin ? (
           <button type="button" className="primary-btn" onClick={() => setCreateOpen(true)}>
             <Plus size={16} />
-            <span>Создать новость</span>
+            <span>{t("news.create")}</span>
           </button>
         ) : null}
       </header>
 
       {loading ? (
-        <p className="muted">Загрузка новостей…</p>
+        <p className="muted">{t("news.loading")}</p>
       ) : error ? (
         <p className="news-message news-message--error" role="alert">
           {error}
         </p>
       ) : posts.length === 0 ? (
-        <p className="muted">Пока нет новостей. Будьте первыми!</p>
+        <p className="muted">{t("news.empty")}</p>
       ) : (
         <ul className="news-list">
           {posts.map((post) => (
