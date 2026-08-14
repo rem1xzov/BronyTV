@@ -5669,6 +5669,130 @@ body[data-theme="dark"] .profile-email-confirm-warning {
   margin: 0;
 }
 
+/* --- AI Chat: Premium styling --- */
+.ai-premium .ai-bot-list-pane,
+.ai-premium .ai-chat-pane {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--bg-soft) 85%, var(--bg-card)), var(--bg-soft));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent),
+    0 18px 44px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.ai-premium .ai-bot-card {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.ai-premium .ai-bot-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(120deg, color-mix(in srgb, var(--bot-accent) 16%, transparent), transparent 62%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.ai-premium .ai-bot-card:hover {
+  border-color: color-mix(in srgb, var(--bot-accent) 55%, var(--border-soft));
+  transform: translateY(-2px);
+}
+
+.ai-premium .ai-bot-card:hover::before {
+  opacity: 1;
+}
+
+.ai-premium .ai-bot-card.is-active {
+  border-color: color-mix(in srgb, var(--bot-accent) 60%, var(--border-soft));
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--bot-accent) 22%, transparent);
+}
+
+.ai-premium .ai-bot-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 30% 25%, color-mix(in srgb, var(--bot-accent) 55%, #fff 45%), transparent 55%),
+    color-mix(in srgb, var(--bot-accent) 24%, var(--bg-soft));
+  border: 2px solid color-mix(in srgb, var(--bot-accent) 55%, var(--border-soft));
+}
+
+.ai-premium .ai-bot-card-name {
+  font-size: 0.95rem;
+}
+
+.ai-premium .ai-bot-card-race {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bot-accent) 14%, transparent);
+  width: fit-content;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.ai-premium .ai-chat-head {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--bot-accent) 10%, var(--bg-card)), transparent);
+}
+
+.ai-premium .ai-chat-head-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ai-premium .ai-chat-head-status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+}
+
+.ai-premium .ai-messages {
+  background:
+    radial-gradient(circle at 20% 15%, color-mix(in srgb, var(--accent) 5%, transparent), transparent 55%),
+    radial-gradient(circle at 80% 90%, color-mix(in srgb, var(--bot-accent) 7%, transparent), transparent 55%);
+}
+
+.ai-premium .ai-bubble {
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--text-main) 8%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.ai-premium .ai-msg--user .ai-bubble {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, var(--bg-card)), color-mix(in srgb, var(--accent) 8%, var(--bg-soft)));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-soft));
+}
+
+.ai-premium .ai-msg--bot .ai-bubble {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--bot-accent) 12%, var(--bg-card)), var(--bg-card));
+  border-color: color-mix(in srgb, var(--bot-accent) 30%, var(--border-soft));
+}
+
+.ai-premium .ai-composer-input {
+  background: color-mix(in srgb, var(--bg-soft) 90%, var(--bg-card));
+  box-shadow: inset 0 1px 4px color-mix(in srgb, var(--text-main) 8%, transparent);
+}
+
+.ai-premium .ai-composer-send {
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 75%, #fff 25%));
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--accent) 32%, transparent);
+}
+
+.ai-premium .ai-composer-send:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+}
+
+.ai-premium .ai-chat-placeholder-icon {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 18%, transparent), color-mix(in srgb, var(--bot-accent) 18%, transparent));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border-soft));
+}
+
 /* Lock body scroll while a fullscreen mobile chat dialog is open. */
 body.no-scroll {
   overflow: hidden;

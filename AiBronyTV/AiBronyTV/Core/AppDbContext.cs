@@ -7,6 +7,13 @@ public class UserLimitEntity
     public string SessionId { get; set; } = null!;
     public DateTime Date { get; set; }
     public int Count { get; set; }
+    public DateTime? PremiumUntil { get; set; }
+}
+
+public class PremiumKeyEntity
+{
+    public string Key { get; set; } = null!;
+    public bool IsUsed { get; set; }
 }
 
 public class ChatMessageEntity
@@ -26,6 +33,7 @@ public class AppDbContext : DbContext
     }
 
     public DbSet<UserLimitEntity> UserLimits => Set<UserLimitEntity>();
+    public DbSet<PremiumKeyEntity> PremiumKeys => Set<PremiumKeyEntity>();
     public DbSet<ChatMessageEntity> ChatMessages => Set<ChatMessageEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -37,6 +45,14 @@ public class AppDbContext : DbContext
             entity.ToTable("UserLimits", "ai");
             entity.HasKey(item => item.SessionId);
             entity.Property(item => item.SessionId).HasMaxLength(64);
+        });
+
+                modelBuilder.Entity<PremiumKeyEntity>(entity =>
+        {
+            entity.ToTable("PremiumKeys", "ai");
+            entity.HasKey(key => key.Key);
+            entity.Property(key => key.Key).HasMaxLength(32).IsRequired();
+            entity.Property(key => key.IsUsed).IsRequired();
         });
 
         modelBuilder.Entity<ChatMessageEntity>(entity =>

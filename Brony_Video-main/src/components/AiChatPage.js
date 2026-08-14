@@ -237,8 +237,12 @@ function AiChatPage() {
   const [streaming, setStreaming] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [chatView, setChatView] = useState(false); // mobile: list vs chat
-  const [error, setError] = useState("");
+    const [error, setError] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
+  const [premiumKey, setPremiumKey] = useState("");
+  const [premiumMsg, setPremiumMsg] = useState("");
+  const [premiumError, setPremiumError] = useState("");
+  const [premiumLoading, setPremiumLoading] = useState(false);
   const scrollRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -302,6 +306,35 @@ function AiChatPage() {
   }, [activeBotId]);
 
   const cancelClearHistory = useCallback(() => setConfirmClear(false), []);
+
+  const handleActivate = useCallback(async () => {
+    const key = premiumKey.trim();
+    if (!key || premiumLoading) return;
+    setPremiumError("");
+    setPremiumMsg("");
+    setPremiumLoading(true);
+
+    try {
+      const sessionId = ensureSession();
+      const res = await fetch("/api/bots/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ key, sessionId })
+      });
+
+      const payload = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(payload.message || `Сервер ответил: ${res.status}`);
+      }
+      setPremiumMsg(payload.message || "Премиум активирован на 30 дней! Лимит 200 сообщений.");
+      setPremiumKey("");
+    } catch (err) {
+      setPremiumError(err.message || "Не удалось активировать ключ.");
+    } finally {
+      setPremiumLoading(false);
+    }
+  }, [premiumKey, premiumLoading]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -551,10 +584,57 @@ function AiChatPage() {
                       <span className="ai-bot-card-race">{bot.race}</span>
                       <span className="ai-bot-card-tagline">{bot.tagline}</span>
                     </span>
-                    {isActive && <ChevronRight size={16} className="ai-bot-card-arrow" />}
+                                        {isActive && <ChevronRight size={16} className="ai-bot-card-arrow" />}
                   </button>
                 );
               })}
+            </div>
+
+            <div className="ai-premium-card">
+              <div className="ai-premium-head">
+                <span className="ai-premium-icon">
+                  <Star size={18} />
+                </span>
+                <div className="ai-premium-title">
+                  <strong>Активация Premium (Boosty)</strong>
+                  <span className="muted">Лимит 200 сообщений на 30 дней</span>
+                </div>
+              </div>
+
+              <div className="ai-premium-input-row">
+                <input
+                  type="text"
+                  className="ai-premium-input"
+                  value={premiumKey}
+                  onChange={(e) => setPremiumKey(e.target.value)}
+                  placeholder="Введите премиум-ключ"
+                  disabled={premiumLoading}
+                  maxLength={64}
+                />
+                <button
+                  type="button"
+                  className="primary-btn ai-premium-btn"
+                  onClick={handleActivate}
+                  disabled={premiumLoading || !premiumKey.trim()}
+                >
+                  {premiumLoading ? "..." : "Активировать"}
+                </button>
+              </div>
+
+              {premiumMsg && <div className="ai-premium-msg ai-premium-msg--ok">{premiumMsg}</div>}
+              {premiumError && <div className="ai-premium-msg ai-premium-msg--err">{premiumError}</div>}
+
+              <p className="ai-premium-hint">
+                Ключ можно получить на{" "}
+                <a
+                  href="https://boosty.to/bronytvru"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Boosty
+                </a>
+                . Донат или подписка снимут ограничения и откроют новые возможности.
+              </p>
             </div>
           </div>
         )}

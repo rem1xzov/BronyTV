@@ -47,25 +47,35 @@ public partial class BotApiService
             limitEntry = new UserLimitEntity { SessionId = limitKey, Date = nowUtc, Count = 0 };
             _db.UserLimits.Add(limitEntry);
         }
-        else if (nowUtc - limitEntry.Date >= LimitWindow)
+                else if (nowUtc - limitEntry.Date >= LimitWindow)
         {
             // A new 5-hour window has started: reset the counter.
             limitEntry.Date = nowUtc;
             limitEntry.Count = 0;
         }
 
-                // Never call the paid model after the limit has been reached.
-        if (limitEntry.Count >= MessageLimit)
+                // Staff (Owner/Admin) get unlimited access; otherwise enforce premium/free limits.
+        var roleKey = role?.Trim() ?? string.Empty;
+        var isStaff = roleKey.Equals("Owner", StringComparison.OrdinalIgnoreCase)
+                      || roleKey.Equals("Admin", StringComparison.OrdinalIgnoreCase);
+
+        // Premium users get a higher limit; otherwise it's the standard free limit.
+        var isPremiumActive = limitEntry.PremiumUntil.HasValue && limitEntry.PremiumUntil.Value > DateTime.UtcNow;
+        int currentMaxLimit = isPremiumActive ? 200 : 50;
+
+        // Owner and Admin can chat forever without any keys or limits.
+        // Never call the paid model after the limit has been reached (for everyone else).
+        if (!isStaff && limitEntry.Count >= currentMaxLimit)
         {
             // Do NOT save the user's message (do not spend their limit).
             // Instead, have the AI generate an in-character "limit reached" reply.
             var limitChatHistory = new ChatHistory(BuildSystemPrompt(characterId, userName, role));
             limitChatHistory.AddSystemMessage(
-                "СИСТЕМНОЕ ИНСТРУКЦИЯ: Пользователь исчерпал лимит бесплатных сообщений " +
-                $"({MessageLimit} сообщений на 5 часов). Ответь ему СТРОГО в своем характере, " +
-                "что тебе нужен перерыв и ты устал(а). ОБЯЗАТЕЛЬНО дай ссылку на Boosty: " +
-                "https://boosty.to/bronytvru и скажи, что донат или подписка снимут ограничения " +
-                "и откроют новые возможности.");
+                "ИНСТРУКЦИЯ СИСТЕМЫ: Пользователь исчерпал лимит сообщений. " +
+                $"Текущий лимит: {currentMaxLimit} сообщений. " +
+                "Ответь ему строго в своём характере, что тебе нужен перерыв/ты устал(а). " +
+                "ОБЯЗАТЕЛЬНО дай ссылку на Boosty: https://boosty.to/bronytvru и скажи, " +
+                "что премиум-ключ оттуда снимет ограничения.");
 
             var limitCompletion = _kernel.GetRequiredService<IChatCompletionService>();
             var limitStream = limitCompletion.GetStreamingChatMessageContentsAsync(
@@ -163,7 +173,11 @@ public partial class BotApiService
             Content = fullResponse.ToString(),
             Timestamp = DateTime.UtcNow
         });
-        limitEntry.Count++;
+                // Only count messages for non-staff users (Owner/Admin are unlimited).
+        if (!isStaff)
+        {
+            limitEntry.Count++;
+        }
         await _db.SaveChangesAsync(cancellationToken);
     }
 }

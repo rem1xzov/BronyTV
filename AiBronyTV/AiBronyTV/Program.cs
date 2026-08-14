@@ -1,11 +1,12 @@
 using System.Security.Claims;
 using System.Text;
 using System.Text.Json;
-using System.Threading.RateLimiting;
 using AiBronyTV.Core;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.SemanticKernel;
 
@@ -17,11 +18,12 @@ if (string.IsNullOrWhiteSpace(deepSeekApiKey))
 {
     throw new InvalidOperationException("DEEPSEEK_API_KEY is not configured.");
 }
-
 var rawModel = Environment.GetEnvironmentVariable("DEEPSEEK_MODEL");
 var modelId = string.IsNullOrWhiteSpace(rawModel) ? "deepseek-chat" : rawModel.Trim();
 var endpoint = Environment.GetEnvironmentVariable("DEEPSEEK_ENDPOINT") ?? "https://api.deepseek.com/v1";
 
+// JWT session validation — same signing key as the main BronyTV backend so the AI service
+// can validate the HttpOnly bronytv_session cookie (shared via docker-compose JWT_KEY).
 var jwtKey = builder.Configuration["Jwt:Key"];
 var jwtIssuer = builder.Configuration["Jwt:Issuer"];
 var jwtAudience = builder.Configuration["Jwt:Audience"];
@@ -45,9 +47,13 @@ builder.Services
             ValidIssuer = jwtIssuer,
             ValidAudience = jwtAudience,
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
-            ClockSkew = TimeSpan.FromMinutes(1)
+            ClockSkew = TimeSpan.FromMinutes(1),
+            // The main backend issues roles as ClaimTypes.Role; keep that as the role claim type.
+            RoleClaimType = ClaimTypes.Role
         };
 
+        // Read the token from the same cookie as the main site, not just from
+        // the Authorization header, so owner/admin overrides keep working.
         options.Events = new JwtBearerEvents
         {
             OnMessageReceived = context =>
@@ -63,38 +69,9 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization(options =>
-{
-    options.AddPolicy("VerifiedUser", policy =>
-    {
-        policy.RequireAuthenticatedUser();
-        policy.RequireRole("User");
-        policy.RequireClaim("email_verified", "true");
-    });
-});
-
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy("ai-chat", httpContext =>
-    {
-        var userId = httpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var partitionKey = string.IsNullOrWhiteSpace(userId)
-            ? httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown"
-            : userId;
-
-        return RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey,
-            _ => new FixedWindowRateLimiterOptions
-            {
-                PermitLimit = 12,
-                Window = TimeSpan.FromMinutes(1),
-                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
-                QueueLimit = 0,
-                AutoReplenishment = true
-            });
-    });
-});
+// Authorization is OPTIONAL here: anonymous guests may still chat with the standard free
+// limit. Only the role (Owner/Admin) is resolved from ctx.User to lift limits where known.
+builder.Services.AddAuthorization();
 
 // Database: use PostgreSQL when POSTGRES_HOST is set, otherwise in-memory (local demo only).
 var pgHost = Environment.GetEnvironmentVariable("POSTGRES_HOST");
@@ -108,69 +85,130 @@ if (!string.IsNullOrWhiteSpace(pgHost))
 }
 else
 {
+    // In-memory database used only for local testing / demo without Postgres.
     builder.Services.AddDbContext<AppDbContext>(options => options.UseInMemoryDatabase("TestBronyDb"));
 }
 
-builder.Services.AddSingleton<Kernel>(_ =>
+builder.Services.AddSingleton<Kernel>(sp =>
 {
     var kernelBuilder = Kernel.CreateBuilder();
-
+    
 #pragma warning disable SKEXP0010
     kernelBuilder.AddOpenAIChatCompletion(
         modelId: modelId,
         apiKey: deepSeekApiKey,
-        endpoint: new Uri(endpoint));
+        endpoint: new Uri(endpoint) 
+    );
 #pragma warning restore SKEXP0010
-
+    
     return kernelBuilder.Build();
 });
 
+// Добавляем как Scoped, так как DbContext тоже Scoped
 builder.Services.AddScoped<BotApiService>();
 
 var app = builder.Build();
 
-await using (var scope = app.Services.CreateAsyncScope())
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Авто-создание базы и таблиц при запуске
+using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    if (db.Database.IsRelational())
+    db.Database.EnsureCreated();
+
+    // Postgres-only schema upgrades (InMemory provider has no raw SQL support).
+    if (!string.IsNullOrWhiteSpace(pgHost) && db.Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true)
     {
-        // The AI service shares the PostgreSQL database server with BronyTV but owns
-        // an isolated schema. Explicit DDL is used because EnsureCreated does not add
-        // tables when another DbContext has already created tables in the database.
-        await db.Database.ExecuteSqlRawAsync("""
-            CREATE SCHEMA IF NOT EXISTS ai;
-
-            CREATE TABLE IF NOT EXISTS ai."UserLimits" (
-                "SessionId" character varying(64) NOT NULL,
-                "Date" timestamp with time zone NOT NULL,
-                "Count" integer NOT NULL,
-                CONSTRAINT "PK_UserLimits" PRIMARY KEY ("SessionId")
-            );
-
-            CREATE TABLE IF NOT EXISTS ai."ChatMessages" (
-                "Id" integer GENERATED BY DEFAULT AS IDENTITY,
-                "SessionId" character varying(170) NOT NULL,
-                "CharacterId" character varying(32) NOT NULL,
-                "Role" character varying(16) NOT NULL,
-                "Content" text NOT NULL,
-                "Timestamp" timestamp with time zone NOT NULL,
-                CONSTRAINT "PK_ChatMessages" PRIMARY KEY ("Id")
-            );
-
-            CREATE INDEX IF NOT EXISTS "IX_ChatMessages_SessionId_CharacterId_Timestamp"
-                ON ai."ChatMessages" ("SessionId", "CharacterId", "Timestamp");
-            """);
-    }
-    else
-    {
-        await db.Database.EnsureCreatedAsync();
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE ai.\"UserLimits\" ADD COLUMN IF NOT EXISTS \"PremiumUntil\" timestamp with time zone;");
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS ai.\"PremiumKeys\" " +
+            "(\"Key\" character varying(32) NOT NULL, \"IsUsed\" boolean NOT NULL, " +
+            "CONSTRAINT \"PK_PremiumKeys\" PRIMARY KEY (\"Key\"));");
     }
 }
 
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseRateLimiter();
+app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botService, HttpContext ctx) =>
+{
+    ctx.Response.Headers.Append("Content-Type", "text/event-stream");
+    ctx.Response.Headers.Append("Cache-Control", "no-cache");
+    ctx.Response.Headers.Append("Connection", "keep-alive");
 
+        try
+    {
+        // Resolve the user's role from the authentication context (if authenticated).
+        // Owner and Admin bypass message limits entirely.
+        var role = ctx.User.IsInRole("Owner")
+            ? "Owner"
+            : ctx.User.IsInRole("Admin")
+                ? "Admin"
+                : null;
+
+        var stream = botService.SendMessageStreamAsync(
+            request.SessionId,
+            request.SessionId,
+            request.CharacterId,
+            request.Message,
+            role: role);
+        
+                await foreach (var chunk in stream)
+        {
+            var payload = JsonSerializer.Serialize(new { text = chunk.Text, limit = chunk.IsLimit });
+            await ctx.Response.WriteAsync($"data: {payload}\n\n");
+            await ctx.Response.Body.FlushAsync();
+        }
+        
+        await ctx.Response.WriteAsync("data: [DONE]\n\n");
+        await ctx.Response.Body.FlushAsync();
+    }
+    catch (Exception ex)
+    {
+        var errorPayload = JsonSerializer.Serialize(new { error = ex.Message });
+        await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
+        await ctx.Response.Body.FlushAsync();
+    }
+});
+
+// Активация премиум-ключа (Boosty). Пользователь вводит одноразовый ключ,
+// и его лимит на 30 дней повышается до 200 сообщений.
+app.MapPost("/api/bots/activate", async (ActivateRequest request, AppDbContext db) =>
+{
+    var key = request.Key?.Trim();
+    if (string.IsNullOrWhiteSpace(key))
+    {
+        return Results.BadRequest(new { message = "Ключ не указан." });
+    }
+
+    var premiumKey = await db.PremiumKeys.FirstOrDefaultAsync(item => item.Key == key);
+    if (premiumKey == null || premiumKey.IsUsed)
+    {
+        return Results.BadRequest(new { message = "Неверный или уже использованный ключ." });
+    }
+
+        // Сессия текущего пользователя — ограничения по лимитам привязаны к sessionId.
+    var limitKey = request.SessionId;
+    if (string.IsNullOrWhiteSpace(limitKey))
+    {
+        return Results.BadRequest(new { message = "Не указана сессия пользователя." });
+    }
+
+    var limitEntry = await db.UserLimits.FirstOrDefaultAsync(item => item.SessionId == limitKey);
+    if (limitEntry == null)
+    {
+        limitEntry = new UserLimitEntity { SessionId = limitKey, Date = DateTime.UtcNow, Count = 0 };
+        db.UserLimits.Add(limitEntry);
+    }
+
+    premiumKey.IsUsed = true;
+    limitEntry.PremiumUntil = DateTime.UtcNow.AddDays(30);
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { message = "Премиум активирован на 30 дней! Лимит 200 сообщений." });
+});
+
+// Метаданные доступных персонажей-ботов (для UI). Аватары раздаёт фронтенд из assets.
 var bots = new[]
 {
     new { id = "rainbow", name = "Рэйнбоу Дэш", description = "Самая быстрая и дерзкая пегаска Понивилля." },
@@ -186,98 +224,10 @@ var bots = new[]
     new { id = "luna", name = "Принцесса Луна", description = "Повелительница снов и ночи, хранительница сновидений." },
     new { id = "cadance", name = "Принцесса Каденс", description = "Аликорн любви, правительница Кристальной Империи." }
 };
-var botIds = bots.Select(bot => bot.id).ToHashSet(StringComparer.Ordinal);
 
-app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botService, HttpContext context) =>
-{
-    var sessionId = request.SessionId?.Trim() ?? string.Empty;
-    var characterId = request.CharacterId?.Trim().ToLowerInvariant() ?? string.Empty;
-    var message = request.Message?.Trim() ?? string.Empty;
-
-    if (sessionId.Length is < 1 or > 128)
-    {
-        await WriteValidationErrorAsync(context, "Некорректный идентификатор сессии.");
-        return;
-    }
-
-    if (!botIds.Contains(characterId))
-    {
-        await WriteValidationErrorAsync(context, "Неизвестный персонаж.");
-        return;
-    }
-
-    if (message.Length is < 1 or > 2000)
-    {
-        await WriteValidationErrorAsync(context, "Сообщение должно содержать от 1 до 2000 символов.");
-        return;
-    }
-
-    if (!Guid.TryParse(context.User.FindFirstValue(ClaimTypes.NameIdentifier), out var userId))
-    {
-        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-        return;
-    }
-
-    // Client-provided session IDs are namespaced by the authenticated user. Daily limits
-    // are keyed only by user ID, so clearing localStorage cannot reset the allowance.
-    var conversationKey = $"{userId:N}:{sessionId}";
-    var limitKey = $"user:{userId:N}";
-    var rawUsername = context.User.FindFirstValue("username")?.Trim();
-    var userName = string.IsNullOrWhiteSpace(rawUsername) ? "Пользователь" : $"@{rawUsername}";
-    var role = context.User.IsInRole("Owner")
-        ? "Owner"
-        : context.User.IsInRole("Admin")
-            ? "Admin"
-            : "User";
-
-    context.Response.ContentType = "text/event-stream; charset=utf-8";
-    context.Response.Headers.CacheControl = "no-cache, no-transform";
-    context.Response.Headers.Append("X-Accel-Buffering", "no");
-
-    try
-    {
-        var stream = botService.SendMessageStreamAsync(
-            conversationKey,
-            limitKey,
-            characterId,
-            message,
-            userName,
-            role,
-            context.RequestAborted);
-
-        await foreach (var chunk in stream.WithCancellation(context.RequestAborted))
-        {
-            var payload = JsonSerializer.Serialize(new { text = chunk.Text, limit = chunk.IsLimit });
-            await context.Response.WriteAsync($"data: {payload}\n\n", context.RequestAborted);
-            await context.Response.Body.FlushAsync(context.RequestAborted);
-        }
-
-        await context.Response.WriteAsync("data: [DONE]\n\n", context.RequestAborted);
-        await context.Response.Body.FlushAsync(context.RequestAborted);
-    }
-    catch (OperationCanceledException) when (context.RequestAborted.IsCancellationRequested)
-    {
-        // The browser closed the stream; no error frame is needed.
-    }
-    catch (Exception)
-    {
-        var errorPayload = JsonSerializer.Serialize(new { error = "Не удалось получить ответ от ИИ-сервиса." });
-        await context.Response.WriteAsync($"data: {errorPayload}\n\n");
-        await context.Response.Body.FlushAsync();
-    }
-})
-.RequireAuthorization("VerifiedUser")
-.RequireRateLimiting("ai-chat");
-
-app.MapGet("/api/bots", () => Results.Json(bots))
-    .RequireAuthorization("VerifiedUser");
+app.MapGet("/api/bots", () => Results.Json(bots));
 
 app.Run();
 
-static Task WriteValidationErrorAsync(HttpContext context, string message)
-{
-    context.Response.StatusCode = StatusCodes.Status400BadRequest;
-    return context.Response.WriteAsJsonAsync(new { message });
-}
-
-public sealed record ChatRequest(string? SessionId, string? CharacterId, string? Message);
+public record ChatRequest(string SessionId, string CharacterId, string Message);
+public record ActivateRequest(string Key, string? SessionId);
