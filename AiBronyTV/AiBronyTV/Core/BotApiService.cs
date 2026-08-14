@@ -10,7 +10,8 @@ namespace AiBronyTV.Core;
 
 public partial class BotApiService
 {
-    private const int DailyMessageLimit = 50;
+    private const int MessageLimit = 50;
+    private static readonly TimeSpan LimitWindow = TimeSpan.FromHours(5);
 
     private readonly Kernel _kernel;
     private readonly AppDbContext _db;
@@ -35,26 +36,29 @@ public partial class BotApiService
             yield break;
         }
 
-        var today = DateTime.UtcNow.Date;
+        var nowUtc = DateTime.UtcNow;
         var limitEntry = await _db.UserLimits
             .FirstOrDefaultAsync(item => item.SessionId == limitKey, cancellationToken);
 
         if (limitEntry == null)
         {
-            limitEntry = new UserLimitEntity { SessionId = limitKey, Date = today, Count = 0 };
+            // `Date` column now stores the UTC timestamp of the start of the current
+            // counting window instead of a calendar date.
+            limitEntry = new UserLimitEntity { SessionId = limitKey, Date = nowUtc, Count = 0 };
             _db.UserLimits.Add(limitEntry);
         }
-        else if (limitEntry.Date != today)
+        else if (nowUtc - limitEntry.Date >= LimitWindow)
         {
-            limitEntry.Date = today;
+            // A new 5-hour window has started: reset the counter.
+            limitEntry.Date = nowUtc;
             limitEntry.Count = 0;
         }
 
         // Never call the paid model after the limit has been reached.
-        if (limitEntry.Count >= DailyMessageLimit)
+        if (limitEntry.Count >= MessageLimit)
         {
             yield return new BotChunk(
-                $"На сегодня лимит в {DailyMessageLimit} сообщений исчерпан. Возвращайся завтра, и мы продолжим общение!",
+                $"На данный момент лимит в {MessageLimit} сообщений исчерпан. Загляни через пару часов, и мы продолжим общение!",
                 IsLimit: true);
             yield break;
         }

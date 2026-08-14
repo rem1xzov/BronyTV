@@ -20,6 +20,7 @@ public class ForumPostConfiguration : IEntityTypeConfiguration<ForumPostEntity>
 
         builder.HasIndex(post => post.ThreadId);
         builder.HasIndex(post => post.CreatedAtUtc);
+        builder.HasIndex(post => post.ReplyToPostId);
 
         builder.HasOne(post => post.Thread)
             .WithMany(thread => thread.Posts)
@@ -29,6 +30,11 @@ public class ForumPostConfiguration : IEntityTypeConfiguration<ForumPostEntity>
         builder.HasOne(post => post.Author)
             .WithMany()
             .HasForeignKey(post => post.AuthorId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(post => post.ReplyToPost)
+            .WithMany()
+            .HasForeignKey(post => post.ReplyToPostId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

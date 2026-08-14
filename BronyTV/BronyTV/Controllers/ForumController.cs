@@ -94,11 +94,12 @@ public class ForumController : ControllerBase
             return Unauthorized();
         }
 
-        var (response, error, statusCode) = await _forumService.CreatePostAsync(
+                var (response, error, statusCode) = await _forumService.CreatePostAsync(
             threadId,
             userId,
             request.Content,
             request.Images,
+            request.ReplyToPostId,
             cancellationToken);
 
         if (response == null)

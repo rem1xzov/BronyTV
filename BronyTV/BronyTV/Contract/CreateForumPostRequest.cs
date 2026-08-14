@@ -10,4 +10,6 @@ public class CreateForumPostRequest
     public string Content { get; set; } = string.Empty;
 
     public List<string>? Images { get; set; }
+
+    public Guid? ReplyToPostId { get; set; }
 }

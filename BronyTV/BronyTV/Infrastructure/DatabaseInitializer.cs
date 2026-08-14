@@ -206,8 +206,29 @@ public static class DatabaseInitializer
         ALTER TABLE public."ForumPosts"
             ADD COLUMN IF NOT EXISTS "Images" text;
 
-        ALTER TABLE public."ForumPosts"
+                ALTER TABLE public."ForumPosts"
             ADD COLUMN IF NOT EXISTS "LikedUserIds" text;
+
+        ALTER TABLE public."ForumPosts"
+            ADD COLUMN IF NOT EXISTS "ReplyToPostId" uuid;
+
+        CREATE INDEX IF NOT EXISTS "IX_ForumPosts_ReplyToPostId"
+            ON public."ForumPosts" ("ReplyToPostId");
+
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_constraint
+                WHERE conname = 'FK_ForumPosts_ForumPosts_ReplyToPostId'
+            ) THEN
+                ALTER TABLE public."ForumPosts"
+                    ADD CONSTRAINT "FK_ForumPosts_ForumPosts_ReplyToPostId"
+                    FOREIGN KEY ("ReplyToPostId")
+                    REFERENCES public."ForumPosts" ("Id")
+                    ON DELETE CASCADE;
+            END IF;
+        END $$;
         """;
 
     private const string EnsureNewsPostsTableSql = """

@@ -51,9 +51,11 @@ public class ForumRepository : IForumRepository
     public async Task<IReadOnlyList<ForumPostEntity>> GetPostsByThreadIdAsync(
         Guid threadId,
         CancellationToken cancellationToken = default) =>
-        await _context.ForumPosts
+                await _context.ForumPosts
             .AsNoTracking()
             .Include(post => post.Author)
+            .Include(post => post.ReplyToPost)
+                .ThenInclude(reply => reply!.Author)
             .Where(post => post.ThreadId == threadId)
             .OrderBy(post => post.CreatedAtUtc)
             .ToListAsync(cancellationToken);
@@ -61,6 +63,8 @@ public class ForumRepository : IForumRepository
     public Task<ForumPostEntity?> GetPostByIdAsync(Guid postId, CancellationToken cancellationToken = default) =>
         _context.ForumPosts
             .Include(post => post.Author)
+            .Include(post => post.ReplyToPost)
+                .ThenInclude(reply => reply!.Author)
             .FirstOrDefaultAsync(post => post.Id == postId, cancellationToken);
 
     public async Task<ForumPostEntity> AddPostAsync(ForumPostEntity post, CancellationToken cancellationToken = default)

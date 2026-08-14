@@ -119,11 +119,14 @@ public class ForumService : IForumService
         return posts.Select(PostToResponse).ToList();
     }
 
-    public async Task<(ForumPostResponse? Response, string? Error, int StatusCode)> CreatePostAsync(
+
+
+        public async Task<(ForumPostResponse? Response, string? Error, int StatusCode)> CreatePostAsync(
         Guid threadId,
         Guid authorId,
         string content,
         List<string>? images,
+        Guid? replyToPostId,
         CancellationToken cancellationToken = default)
     {
         var hasContent = !string.IsNullOrWhiteSpace(content);
@@ -145,10 +148,20 @@ public class ForumService : IForumService
             return (null, "Тема не найдена.", 404);
         }
 
-        var user = await _userRepository.GetByIdAsync(authorId, cancellationToken);
+                var user = await _userRepository.GetByIdAsync(authorId, cancellationToken);
         if (user == null)
         {
             return (null, "Пользователь не найден.", 404);
+        }
+
+        ForumPostEntity? replyToPost = null;
+        if (replyToPostId.HasValue)
+        {
+            replyToPost = await _forumRepository.GetPostByIdAsync(replyToPostId.Value, cancellationToken);
+            if (replyToPost == null)
+            {
+                return (null, "Сообщение, на которое вы отвечаете, не найдено.", 404);
+            }
         }
 
         var post = new ForumPostEntity
@@ -157,6 +170,7 @@ public class ForumService : IForumService
             ThreadId = threadId,
             Content = content.Trim(),
             AuthorId = authorId,
+            ReplyToPostId = replyToPostId,
             CreatedAtUtc = DateTime.UtcNow,
             Images = images != null ? JsonSerializer.Serialize(images) : null
         };
@@ -172,7 +186,10 @@ public class ForumService : IForumService
             CreatedAtUtc = post.CreatedAtUtc,
             Images = DeserializeImages(post.Images),
             Likes = 0,
-            LikedByMe = false
+            LikedByMe = false,
+            ReplyToPostId = post.ReplyToPostId,
+            ReplyToAuthorUsername = replyToPost?.Author?.Username ?? "unknown",
+            ReplyToContent = replyToPost?.Content
         };
 
         return (postResponse, null, 201);
@@ -207,7 +224,7 @@ public class ForumService : IForumService
         post.LikedUserIds = likedIds.Count > 0 ? JsonSerializer.Serialize(likedIds) : null;
         await _forumRepository.UpdatePostAsync(post, cancellationToken);
 
-        var postResponse = new ForumPostResponse
+                var postResponse = new ForumPostResponse
         {
             Id = post.Id,
             Content = post.Content ?? string.Empty,
@@ -216,7 +233,10 @@ public class ForumService : IForumService
             CreatedAtUtc = post.CreatedAtUtc,
             Images = DeserializeImages(post.Images),
             Likes = likedIds.Count,
-            LikedByMe = likedByMe
+            LikedByMe = likedByMe,
+            ReplyToPostId = post.ReplyToPostId,
+            ReplyToAuthorUsername = post.ReplyToPost?.Author?.Username ?? "unknown",
+            ReplyToContent = post.ReplyToPost?.Content
         };
 
         return (postResponse, null, 200);
@@ -272,7 +292,7 @@ public class ForumService : IForumService
             Images = DeserializeImages(thread.Images)
         };
 
-    private static ForumPostResponse PostToResponse(ForumPostEntity post)
+        private static ForumPostResponse PostToResponse(ForumPostEntity post)
     {
         var likedIds = DeserializeLikedUserIds(post.LikedUserIds);
         return new ForumPostResponse
@@ -284,7 +304,10 @@ public class ForumService : IForumService
             CreatedAtUtc = post.CreatedAtUtc,
             Images = DeserializeImages(post.Images),
             Likes = likedIds.Count,
-            LikedByMe = false
+            LikedByMe = false,
+            ReplyToPostId = post.ReplyToPostId,
+            ReplyToAuthorUsername = post.ReplyToPost?.Author?.Username ?? "unknown",
+            ReplyToContent = post.ReplyToPost?.Content
         };
     }
 

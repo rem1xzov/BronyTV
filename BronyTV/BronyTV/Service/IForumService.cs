@@ -23,11 +23,12 @@ public interface IForumService
         Guid threadId,
         CancellationToken cancellationToken = default);
 
-    Task<(ForumPostResponse? Response, string? Error, int StatusCode)> CreatePostAsync(
+        Task<(ForumPostResponse? Response, string? Error, int StatusCode)> CreatePostAsync(
         Guid threadId,
         Guid authorId,
         string content,
         List<string>? images,
+        Guid? replyToPostId,
         CancellationToken cancellationToken = default);
 
     Task<(ForumPostResponse? Response, string? Error, int StatusCode)> ToggleLikeAsync(
