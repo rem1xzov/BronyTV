@@ -9,6 +9,7 @@ import {
   LogIn,
   PanelLeftClose,
   PanelLeftOpen,
+  Plus,
   Send,
   Star,
   Trash2,
@@ -243,6 +244,7 @@ function AiChatPage() {
   const [premiumMsg, setPremiumMsg] = useState("");
   const [premiumError, setPremiumError] = useState("");
   const [premiumLoading, setPremiumLoading] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const scrollRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -317,7 +319,7 @@ function AiChatPage() {
     try {
       const sessionId = ensureSession();
       const res = await fetch("/api/bots/activate", {
-        method: "POST",
+                method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ key, sessionId })
@@ -329,6 +331,7 @@ function AiChatPage() {
       }
       setPremiumMsg(payload.message || "Премиум активирован на 30 дней! Лимит 200 сообщений.");
       setPremiumKey("");
+      setShowPremiumModal(false);
     } catch (err) {
       setPremiumError(err.message || "Не удалось активировать ключ.");
     } finally {
@@ -583,58 +586,11 @@ function AiChatPage() {
                       <span className="ai-bot-card-name">{bot.name}</span>
                       <span className="ai-bot-card-race">{bot.race}</span>
                       <span className="ai-bot-card-tagline">{bot.tagline}</span>
-                    </span>
+                                        </span>
                                         {isActive && <ChevronRight size={16} className="ai-bot-card-arrow" />}
                   </button>
                 );
               })}
-            </div>
-
-            <div className="ai-premium-card">
-              <div className="ai-premium-head">
-                <span className="ai-premium-icon">
-                  <Star size={18} />
-                </span>
-                <div className="ai-premium-title">
-                  <strong>Активация Premium (Boosty)</strong>
-                  <span className="muted">Лимит 200 сообщений на 30 дней</span>
-                </div>
-              </div>
-
-              <div className="ai-premium-input-row">
-                <input
-                  type="text"
-                  className="ai-premium-input"
-                  value={premiumKey}
-                  onChange={(e) => setPremiumKey(e.target.value)}
-                  placeholder="Введите премиум-ключ"
-                  disabled={premiumLoading}
-                  maxLength={64}
-                />
-                <button
-                  type="button"
-                  className="primary-btn ai-premium-btn"
-                  onClick={handleActivate}
-                  disabled={premiumLoading || !premiumKey.trim()}
-                >
-                  {premiumLoading ? "..." : "Активировать"}
-                </button>
-              </div>
-
-              {premiumMsg && <div className="ai-premium-msg ai-premium-msg--ok">{premiumMsg}</div>}
-              {premiumError && <div className="ai-premium-msg ai-premium-msg--err">{premiumError}</div>}
-
-              <p className="ai-premium-hint">
-                Ключ можно получить на{" "}
-                <a
-                  href="https://boosty.to/bronytvru"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Boosty
-                </a>
-                . Донат или подписка снимут ограничения и откроют новые возможности.
-              </p>
             </div>
           </div>
         )}
@@ -655,7 +611,7 @@ function AiChatPage() {
                 )}
                 <BotAvatar bot={activeBot} size={44} />
                 <div className="ai-chat-head-info">
-                  <span className="ai-chat-head-name">{activeBot.name}</span>
+                                    <span className="ai-chat-head-name">{activeBot.name}</span>
                   <span className="ai-chat-head-status">онлайн · менеджер настроения</span>
                 </div>
               </div>
@@ -671,6 +627,15 @@ function AiChatPage() {
                     {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
                   </button>
                 )}
+                <button
+                  type="button"
+                  className="ai-chat-head-action"
+                  onClick={() => setShowPremiumModal(true)}
+                  aria-label="Активировать Premium"
+                  title="Активировать Premium"
+                >
+                  <Plus size={20} />
+                </button>
                 <button
                   type="button"
                   className="ai-chat-head-action"
@@ -791,7 +756,7 @@ function AiChatPage() {
               <button
                 type="button"
                 className="ai-confirm-btn ai-confirm-btn--cancel"
-                onClick={cancelClearHistory}
+                                onClick={cancelClearHistory}
               >
                 <X size={16} />
                 Отмена
@@ -808,6 +773,66 @@ function AiChatPage() {
                 Удалить
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showPremiumModal && (
+        <div className="ai-premium-overlay" onClick={() => setShowPremiumModal(false)}>
+          <div className="ai-premium-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="ai-premium-close"
+              onClick={() => setShowPremiumModal(false)}
+              aria-label="Закрыть"
+              title="Закрыть"
+            >
+              <X size={18} />
+            </button>
+            <div className="ai-premium-modal-icon">
+              <Star size={22} />
+            </div>
+            <h3>Активация Premium</h3>
+            <p className="ai-premium-modal-text">
+              Активируй премиум-ключ с Boosty и получи <strong>200 сообщений на 30 дней</strong> без
+              ограничений.
+            </p>
+            <div className="ai-premium-modal-input-row">
+              <input
+                type="text"
+                className="ai-premium-modal-input"
+                value={premiumKey}
+                onChange={(e) => setPremiumKey(e.target.value)}
+                placeholder="Введите премиум-ключ"
+                disabled={premiumLoading}
+                maxLength={64}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleActivate();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="primary-btn ai-premium-modal-btn"
+                onClick={handleActivate}
+                disabled={premiumLoading || !premiumKey.trim()}
+              >
+                {premiumLoading ? "..." : "Активировать"}
+              </button>
+            </div>
+
+            {premiumError && <div className="ai-premium-modal-msg ai-premium-modal-msg--err">{premiumError}</div>}
+            {premiumMsg && <div className="ai-premium-modal-msg ai-premium-modal-msg--ok">{premiumMsg}</div>}
+
+            <p className="ai-premium-modal-hint">
+              Ключ можно получить на{" "}
+              <a href="https://boosty.to/bronytvru" target="_blank" rel="noopener noreferrer">
+                Boosty
+              </a>
+              . Донат или подписка снимут ограничения и откроют новые возможности.
+            </p>
           </div>
         </div>
       )}
