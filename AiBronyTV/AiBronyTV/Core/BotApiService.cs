@@ -54,12 +54,43 @@ public partial class BotApiService
             limitEntry.Count = 0;
         }
 
-        // Never call the paid model after the limit has been reached.
+                // Never call the paid model after the limit has been reached.
         if (limitEntry.Count >= MessageLimit)
         {
-            yield return new BotChunk(
-                $"На данный момент лимит в {MessageLimit} сообщений исчерпан. Загляни через 5 часов, и мы продолжим общение!",
-                IsLimit: true);
+            // Do NOT save the user's message (do not spend their limit).
+            // Instead, have the AI generate an in-character "limit reached" reply.
+            var limitChatHistory = new ChatHistory(BuildSystemPrompt(characterId, userName, role));
+            limitChatHistory.AddSystemMessage(
+                "СИСТЕМНОЕ ИНСТРУКЦИЯ: Пользователь исчерпал лимит бесплатных сообщений " +
+                $"({MessageLimit} сообщений на 5 часов). Ответь ему СТРОГО в своем характере, " +
+                "что тебе нужен перерыв и ты устал(а). ОБЯЗАТЕЛЬНО дай ссылку на Boosty: " +
+                "https://boosty.to/bronytvru и скажи, что донат или подписка снимут ограничения " +
+                "и откроют новые возможности.");
+
+            var limitCompletion = _kernel.GetRequiredService<IChatCompletionService>();
+            var limitStream = limitCompletion.GetStreamingChatMessageContentsAsync(
+                limitChatHistory,
+                new OpenAIPromptExecutionSettings
+                {
+                    Temperature = 0.7,
+                    MaxTokens = 300,
+                    FrequencyPenalty = 0.5,
+                    PresencePenalty = 0.5
+                },
+                _kernel,
+                cancellationToken);
+
+            await foreach (var chunk in limitStream.WithCancellation(cancellationToken))
+            {
+                if (chunk.Content == null)
+                {
+                    continue;
+                }
+
+                yield return new BotChunk(chunk.Content, IsLimit: true);
+            }
+
+            // Do not increment limitEntry.Count — the user's limit window stays as is.
             yield break;
         }
 
