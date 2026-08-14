@@ -58,7 +58,7 @@ public partial class BotApiService
         if (limitEntry.Count >= MessageLimit)
         {
             yield return new BotChunk(
-                $"На данный момент лимит в {MessageLimit} сообщений исчерпан. Загляни через пару часов, и мы продолжим общение!",
+                $"На данный момент лимит в {MessageLimit} сообщений исчерпан. Загляни через 5 часов, и мы продолжим общение!",
                 IsLimit: true);
             yield break;
         }

@@ -68,6 +68,26 @@ function formatDate(value) {
   return `${day} ${month} в ${time}`;
 }
 
+function buildPostTree(posts) {
+  const nodes = {};
+  posts.forEach((post) => {
+    nodes[post.id] = { ...post, children: [] };
+  });
+
+  const roots = [];
+  posts.forEach((post) => {
+    const node = nodes[post.id];
+    const parentId = post.replyToPostId;
+    if (parentId && nodes[parentId]) {
+      nodes[parentId].children.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+
+  return roots;
+}
+
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -391,6 +411,101 @@ function ForumThreadView({ threadId }) {
     }
   };
 
+        const ForumPostNode = ({ node, depth = 0 }) => {
+    const currentUsername = user?.username || user?.userName;
+    const currentUserRole = (user?.platformRole || user?.role || "").toLowerCase();
+    const isOwner = currentUserRole === "owner" || user?.isOwner;
+    const isAdmin = currentUserRole === "admin" || user?.isPlatformAdmin;
+    const isAuthor = Boolean(currentUsername && currentUsername === node.authorUsername);
+    const postAuthorRole = (node.authorRole || "").toLowerCase();
+    const canDelete = isOwner || isAuthor || (isAdmin && postAuthorRole !== "owner");
+
+    return (
+      <li
+        key={node.id}
+        className="forum-post-item"
+        style={{ marginLeft: depth > 0 ? Math.min(depth * 18, 90) : 0 }}
+      >
+        <div className="forum-post-head">
+          <span className="forum-post-author">@{node.authorUsername || "anonymous"}</span>
+          <time className="muted forum-post-date" dateTime={node.createdAt}>
+            {formatDate(node.createdAt)}
+          </time>
+        </div>
+
+        <p className="forum-post-content">{node.content}</p>
+
+        {node.images && node.images.length > 0 ? (
+          <div className="forum-post-images">
+            {node.images.map((src, idx) => (
+              <img
+                key={idx}
+                src={src}
+                alt={`Post image ${idx + 1}`}
+                className="forum-post-image"
+                loading="lazy"
+                style={{
+                  maxWidth: "100%",
+                  height: "auto",
+                  maxHeight: "400px",
+                  objectFit: "contain",
+                  borderRadius: "8px",
+                  display: "block",
+                  marginTop: "8px"
+                }}
+              />
+            ))}
+          </div>
+        ) : null}
+
+        <div className="forum-post-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
+          <button
+            type="button"
+            className="forum-post-reply-btn primary-btn"
+            onClick={() => handleReplyToUser(node)}
+            aria-label="Ответить пользователю"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
+          >
+            {t("forum.replyTo")}
+          </button>
+          <button
+            type="button"
+            className={`forum-post-like-btn primary-btn ${node.likedByMe ? "forum-post-like-btn--active" : ""}`}
+            onClick={() => handleLikePost(node.id)}
+            aria-label="Лайк"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
+          >
+            <Heart
+              size={14}
+              fill={node.likedByMe ? "#00BFFF" : "none"}
+              stroke={node.likedByMe ? "#00BFFF" : "currentColor"}
+            />
+            <span>{node.likes}</span>
+          </button>
+          {canDelete && (
+            <button
+              type="button"
+              className="forum-post-delete-btn primary-btn"
+              onClick={() => handleDeletePost(node.id)}
+              aria-label="Удалить пост"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+        </div>
+
+        {node.children.length > 0 ? (
+          <ul className="forum-post-children">
+            {node.children.map((child) => (
+              <ForumPostNode key={child.id} node={child} depth={depth + 1} />
+            ))}
+          </ul>
+        ) : null}
+      </li>
+    );
+  };
+
     if (loading) {
     return <p className="muted">{t("forum.loadingThread")}</p>;
   }
@@ -450,93 +565,11 @@ function ForumThreadView({ threadId }) {
         <h2>{t("forum.answers", { count: posts.length })}</h2>
         {posts.length === 0 ? (
           <p className="muted">{t("forum.emptyPosts")}</p>
-        ) : (
+                ) : (
           <ul className="forum-post-list">
-            {posts.map((post) => {
-              const currentUsername = user?.username || user?.userName;
-              const currentUserRole = (user?.platformRole || user?.role || '').toLowerCase();
-              const isOwner = currentUserRole === 'owner' || user?.isOwner;
-              const isAdmin = currentUserRole === 'admin' || user?.isPlatformAdmin;
-              const isAuthor = Boolean(currentUsername && currentUsername === post.authorUsername);
-              const postAuthorRole = (post.authorRole || '').toLowerCase();
-              const canDelete = isOwner || isAuthor || (isAdmin && postAuthorRole !== 'owner');
-
-                            return (
-                <li key={post.id} className="forum-post-item">
-                  {post.replyToPostId ? (
-                    <div className="forum-post-quote">
-                      <span className="forum-post-quote-author">
-                        @{post.replyToAuthorUsername || "anonymous"}
-                      </span>
-                      <span className="forum-post-quote-text">{post.replyToContent || ""}</span>
-                    </div>
-                  ) : null}
-                  <p className="forum-post-author">@{post.authorUsername || "anonymous"}</p>
-                  <p className="forum-post-content">{post.content}</p>
-                  {post.images && post.images.length > 0 ? (
-                    <div className="forum-post-images">
-                      {post.images.map((src, idx) => (
-                        <img
-                          key={idx}
-                          src={src}
-                          alt={`Post image ${idx + 1}`}
-                          className="forum-post-image"
-                          loading="lazy"
-                          style={{
-                            maxWidth: "100%",
-                            height: "auto",
-                            maxHeight: "400px",
-                            objectFit: "contain",
-                            borderRadius: "8px",
-                            display: "block",
-                            marginTop: "8px"
-                          }}
-                        />
-                      ))}
-                    </div>
-                  ) : null}
-                  <time className="muted forum-post-date" dateTime={post.createdAt}>
-                    {formatDate(post.createdAt)}
-                  </time>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                                        <button
-                      type="button"
-                      className="forum-post-reply-btn primary-btn"
-                      onClick={() => handleReplyToUser(post)}
-                      aria-label="Ответить пользователю"
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
-                    >
-                                            {t("forum.replyTo")}
-                    </button>
-                    <button
-                      type="button"
-                      className={`forum-post-like-btn primary-btn ${post.likedByMe ? "forum-post-like-btn--active" : ""}`}
-                      onClick={() => handleLikePost(post.id)}
-                      aria-label="Лайк"
-                      style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
-                    >
-                      <Heart
-                        size={14}
-                        fill={post.likedByMe ? "#00BFFF" : "none"}
-                        stroke={post.likedByMe ? "#00BFFF" : "currentColor"}
-                      />
-                      <span>{post.likes}</span>
-                    </button>
-                    {canDelete && (
-                      <button
-                        type="button"
-                        className="forum-post-delete-btn primary-btn"
-                        onClick={() => handleDeletePost(post.id)}
-                        aria-label="Удалить пост"
-                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
+            {buildPostTree(posts).map((rootNode) => (
+              <ForumPostNode key={rootNode.id} node={rootNode} depth={0} />
+            ))}
           </ul>
         )}
       </div>
