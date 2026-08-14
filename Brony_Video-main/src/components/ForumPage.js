@@ -37,7 +37,7 @@ function normalizePost(raw) {
     return null;
   }
 
-  return {
+        return {
     id,
     content: raw.content ?? raw.Content ?? "",
     createdAt: raw.createdAt ?? raw.CreatedAt,
@@ -45,7 +45,10 @@ function normalizePost(raw) {
     authorRole: raw.authorRole ?? raw.AuthorRole ?? "user",
     images: raw.images ?? raw.Images ?? [],
     likes: Number(raw.likes ?? raw.Likes ?? 0),
-    likedByMe: Boolean(raw.likedByMe ?? raw.LikedByMe ?? false)
+    likedByMe: Boolean(raw.likedByMe ?? raw.LikedByMe ?? false),
+    replyToPostId: raw.replyToPostId ?? raw.ReplyToPostId ?? null,
+    replyToAuthorUsername: raw.replyToAuthorUsername ?? raw.ReplyToAuthorUsername ?? "",
+    replyToContent: raw.replyToContent ?? raw.ReplyToContent ?? ""
   };
 }
 
@@ -59,13 +62,10 @@ function formatDate(value) {
     return "";
   }
 
-  return date.toLocaleString("ru-RU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
+  const day = date.toLocaleString("ru-RU", { day: "numeric" });
+  const month = date.toLocaleString("ru-RU", { month: "short" }).replace(".", "");
+  const time = date.toLocaleString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return `${day} ${month} в ${time}`;
 }
 
 function fileToBase64(file) {
@@ -227,8 +227,9 @@ function ForumThreadView({ threadId }) {
   const [replyText, setReplyText] = useState("");
   const [replyImages, setReplyImages] = useState([]);
   const [replyPreviewUrls, setReplyPreviewUrls] = useState([]);
-  const [replyError, setReplyError] = useState("");
+    const [replyError, setReplyError] = useState("");
   const [replying, setReplying] = useState(false);
+  const [replyToPost, setReplyToPost] = useState(null);
 
   const loadThread = useCallback(async () => {
     setLoading(true);
@@ -303,9 +304,9 @@ function ForumThreadView({ threadId }) {
         images = await Promise.all(replyImages.map((file) => fileToBase64(file)));
       }
 
-      const response = await apiFetch(`/forum/threads/${threadId}/posts`, {
+            const response = await apiFetch(`/forum/threads/${threadId}/posts`, {
         method: "POST",
-        body: JSON.stringify({ content: trimmed, images })
+        body: JSON.stringify({ content: trimmed, images, replyToPostId: replyToPost?.id ?? null })
       });
             const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -315,6 +316,7 @@ function ForumThreadView({ threadId }) {
       setReplyText("");
       setReplyImages([]);
       setReplyPreviewUrls([]);
+      setReplyToPost(null);
       await loadThread();
     } catch (submitError) {
       setReplyError(submitError.message || t("forum.replyFailed"));
@@ -323,14 +325,12 @@ function ForumThreadView({ threadId }) {
     }
   };
 
-  const handleReplyToUser = (username) => {
-    setReplyText((prev) => {
-      const mention = `@${username}, `;
-      if (prev.includes(mention)) {
-        return prev;
-      }
-      return mention + prev;
-    });
+    const clearReplyTarget = () => {
+    setReplyToPost(null);
+  };
+
+  const handleReplyToUser = (post) => {
+    setReplyToPost(post);
   };
 
   const handleLikePost = async (postId) => {
@@ -461,8 +461,16 @@ function ForumThreadView({ threadId }) {
               const postAuthorRole = (post.authorRole || '').toLowerCase();
               const canDelete = isOwner || isAuthor || (isAdmin && postAuthorRole !== 'owner');
 
-              return (
+                            return (
                 <li key={post.id} className="forum-post-item">
+                  {post.replyToPostId ? (
+                    <div className="forum-post-quote">
+                      <span className="forum-post-quote-author">
+                        @{post.replyToAuthorUsername || "anonymous"}
+                      </span>
+                      <span className="forum-post-quote-text">{post.replyToContent || ""}</span>
+                    </div>
+                  ) : null}
                   <p className="forum-post-author">@{post.authorUsername || "anonymous"}</p>
                   <p className="forum-post-content">{post.content}</p>
                   {post.images && post.images.length > 0 ? (
@@ -491,10 +499,10 @@ function ForumThreadView({ threadId }) {
                     {formatDate(post.createdAt)}
                   </time>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-                    <button
+                                        <button
                       type="button"
                       className="forum-post-reply-btn primary-btn"
-                      onClick={() => handleReplyToUser(post.authorUsername)}
+                      onClick={() => handleReplyToUser(post)}
                       aria-label="Ответить пользователю"
                       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: '36px', padding: '0 14px', borderRadius: '18px' }}
                     >
@@ -535,7 +543,25 @@ function ForumThreadView({ threadId }) {
 
             {user ? (
         user.username ? (
-          <form className="forum-reply-form" onSubmit={handleReply}>
+                    <form className="forum-reply-form" onSubmit={handleReply}>
+            {replyToPost ? (
+              <div className="forum-reply-target">
+                <span className="forum-reply-target-label">
+                  {t("forum.replyingTo")} @{replyToPost.authorUsername || "anonymous"}
+                </span>
+                <span className="forum-reply-target-snippet">
+                  {replyToPost.content || ""}
+                </span>
+                <button
+                  type="button"
+                  className="forum-reply-target-cancel"
+                  onClick={clearReplyTarget}
+                  aria-label={t("forum.cancelReply")}
+                >
+                  ✕
+                </button>
+              </div>
+            ) : null}
             <label className="forum-field">
               <span>{t("forum.replyLabel")}</span>
               <textarea

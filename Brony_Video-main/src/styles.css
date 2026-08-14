@@ -6089,3 +6089,51 @@ body.no-scroll {
     align-items: flex-start;
   }
 }
+.forum-post-quote {
+  background: rgba(255, 255, 255, 0.05);
+  border-left: 3px solid #d81b60;
+  padding: 6px 12px;
+  margin-bottom: 12px;
+  border-radius: 0 4px 4px 0;
+  font-size: 0.9rem;
+}
+.forum-post-quote-author {
+  font-weight: 600;
+  color: #d81b60;
+  margin-bottom: 4px;
+}
+.forum-post-quote-text {
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.forum-reply-target {
+  background: rgba(216, 27, 96, 0.1);
+  border: 1px solid rgba(216, 27, 96, 0.3);
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.forum-reply-target-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+.forum-reply-target-author {
+  font-weight: 600;
+  color: #d81b60;
+  font-size: 0.9rem;
+}
+.forum-reply-target-text {
+  font-size: 0.85rem;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
