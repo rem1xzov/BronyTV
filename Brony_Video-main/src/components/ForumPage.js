@@ -426,10 +426,12 @@ function ForumThreadView({ threadId }) {
         className="forum-post-item"
         style={{ marginLeft: depth > 0 ? Math.min(depth * 18, 90) : 0 }}
       >
-        <div className="forum-post-head">
-          <span className="forum-post-author">@{node.authorUsername || "anonymous"}</span>
-          <time className="muted forum-post-date" dateTime={node.createdAt}>
-            {formatDate(node.createdAt)}
+                <div className="forum-post-head" style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '8px' }}>
+          <span className="forum-post-author" style={{ fontWeight: 'bold', color: '#d81b60', margin: 0, fontSize: '0.95rem' }}>
+            @{node.authorUsername || "anonymous"}
+          </span>
+          <time className="forum-post-date" style={{ fontSize: '0.85rem', color: '#888' }}>
+            {node.createdAt ? formatDate(node.createdAt) : ""}
           </time>
         </div>
 
