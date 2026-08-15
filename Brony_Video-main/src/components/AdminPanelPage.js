@@ -604,7 +604,7 @@ export default function AdminPanelPage() {
           </article>
 
           {/* Генерация премиум-ключа */}
-          <article className="admin-card">
+          <article className="admin-card admin-card--premium-key">
             <h2>
               <Star size={20} aria-hidden="true" />
               <span>Сгенерировать премиум-ключ</span>

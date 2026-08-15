@@ -3925,6 +3925,33 @@ body[data-theme="dark"] .profile-email-confirm-warning {
   word-break: break-all;
 }
 
+/* Premium-key generation card: more breathing room than the default admin-card.
+   Kept to values already used by other admin cards for visual consistency. */
+.admin-card--premium-key {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 26px;
+}
+
+.admin-card--premium-key h2 {
+  margin: 0;
+}
+
+.admin-card--premium-key .admin-message {
+  padding: 14px 16px;
+  line-height: 1.5;
+}
+
+.admin-card--premium-key .admin-premium-key-box {
+  margin: 0;
+}
+
+.admin-card--premium-key .admin-submit-btn {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
 .admin-upload-form {
   display: flex;
   flex-direction: column;
