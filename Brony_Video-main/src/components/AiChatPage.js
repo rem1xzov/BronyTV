@@ -192,6 +192,20 @@ const saveSessionMeta = (meta) => {
   }
 };
 
+const formatPremiumDate = (iso) => {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "long",
+      year: "numeric"
+    });
+  } catch {
+    return "";
+  }
+};
+
 function BotAvatar({ bot, size = 56 }) {
   const fallback = (bot?.name || "Бот").slice(0, 1).toUpperCase();
   return (
@@ -243,8 +257,10 @@ function AiChatPage() {
   const [premiumKey, setPremiumKey] = useState("");
   const [premiumMsg, setPremiumMsg] = useState("");
   const [premiumError, setPremiumError] = useState("");
-  const [premiumLoading, setPremiumLoading] = useState(false);
+    const [premiumLoading, setPremiumLoading] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [premiumStatus, setPremiumStatus] = useState(null);
+  const [showPremiumInfoModal, setShowPremiumInfoModal] = useState(false);
   const scrollRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -307,7 +323,25 @@ function AiChatPage() {
     setConfirmClear(true);
   }, [activeBotId]);
 
-  const cancelClearHistory = useCallback(() => setConfirmClear(false), []);
+    const cancelClearHistory = useCallback(() => setConfirmClear(false), []);
+
+  const fetchPremiumStatus = useCallback(async () => {
+    try {
+      const sessionId = ensureSession();
+      const res = await fetch(`/api/bots/premium-status?sessionId=${encodeURIComponent(sessionId)}`, {
+        credentials: "include"
+      });
+      if (!res.ok) return;
+      const payload = await res.json().catch(() => ({}));
+      setPremiumStatus(payload);
+    } catch {
+      /* не критично — кнопка останется на плюсе */
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPremiumStatus();
+  }, [fetchPremiumStatus]);
 
   const handleActivate = useCallback(async () => {
     const key = premiumKey.trim();
@@ -329,15 +363,16 @@ function AiChatPage() {
       if (!res.ok) {
         throw new Error(payload.message || `Сервер ответил: ${res.status}`);
       }
-      setPremiumMsg(payload.message || "Премиум активирован на 30 дней! Лимит 200 сообщений.");
+            setPremiumMsg(payload.message || "Премиум активирован на 30 дней! Лимит 200 сообщений.");
       setPremiumKey("");
       setShowPremiumModal(false);
+      fetchPremiumStatus();
     } catch (err) {
       setPremiumError(err.message || "Не удалось активировать ключ.");
     } finally {
       setPremiumLoading(false);
     }
-  }, [premiumKey, premiumLoading]);
+  }, [premiumKey, premiumLoading, fetchPremiumStatus]);
 
   const handleSend = useCallback(async () => {
     const text = input.trim();
@@ -627,14 +662,14 @@ function AiChatPage() {
                     {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
                   </button>
                 )}
-                <button
+                                <button
                   type="button"
                   className="ai-chat-head-action"
-                  onClick={() => setShowPremiumModal(true)}
-                  aria-label="Активировать Premium"
-                  title="Активировать Premium"
+                  onClick={() => (premiumStatus?.isActive ? setShowPremiumInfoModal(true) : setShowPremiumModal(true))}
+                  aria-label={premiumStatus?.isActive ? "Статус Premium" : "Активировать Premium"}
+                  title={premiumStatus?.isActive ? "Статус Premium" : "Активировать Premium"}
                 >
-                  <Plus size={20} />
+                  {premiumStatus?.isActive ? <Check size={20} /> : <Plus size={20} />}
                 </button>
                 <button
                   type="button"
@@ -826,13 +861,51 @@ function AiChatPage() {
             {premiumError && <div className="ai-premium-modal-msg ai-premium-modal-msg--err">{premiumError}</div>}
             {premiumMsg && <div className="ai-premium-modal-msg ai-premium-modal-msg--ok">{premiumMsg}</div>}
 
-            <p className="ai-premium-modal-hint">
+                        <p className="ai-premium-modal-hint">
               Ключ можно получить на{" "}
               <a href="https://boosty.to/bronytvru" target="_blank" rel="noopener noreferrer">
                 Boosty
               </a>
               . Донат или подписка снимут ограничения и откроют новые возможности.
             </p>
+          </div>
+        </div>
+      )}
+
+      {showPremiumInfoModal && (
+        <div className="ai-premium-overlay" onClick={() => setShowPremiumInfoModal(false)}>
+          <div className="ai-premium-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              className="ai-premium-close"
+              onClick={() => setShowPremiumInfoModal(false)}
+              aria-label="Закрыть"
+              title="Закрыть"
+            >
+              <X size={18} />
+            </button>
+            <div className="ai-premium-modal-icon">
+              <Check size={22} />
+            </div>
+            <h3>У вас активен премиум</h3>
+            <p className="ai-premium-modal-text">
+              Осталось{" "}
+              <strong>
+                {premiumStatus?.daysLeft ?? 0}{" "}
+                {(() => {
+                  const d = premiumStatus?.daysLeft ?? 0;
+                  const mod10 = d % 10;
+                  const mod100 = d % 100;
+                  if (mod10 === 1 && mod100 !== 11) return "день";
+                  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return "дня";
+                  return "дней";
+                })()}
+              </strong>{" "}
+              (до {formatPremiumDate(premiumStatus?.expiresAt) || "—"}).
+            </p>
+            <div className="ai-premium-modal-hint">
+              <p>Премиум уже активен, вводить ключ не нужно. Новый ключ просто продлит срок действия.</p>
+            </div>
           </div>
         </div>
       )}

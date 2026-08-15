@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Home, LifeBuoy, Upload, Users } from "lucide-react";
+import { ArrowLeft, Home, LifeBuoy, Star, Upload, Users } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch, apiUpload } from "../auth/api";
@@ -96,6 +96,11 @@ export default function AdminPanelPage() {
   const [createUserError, setCreateUserError] = useState("");
   const [createUserSuccess, setCreateUserSuccess] = useState("");
   const [creatingUser, setCreatingUser] = useState(false);
+
+  const [premiumKeyLoading, setPremiumKeyLoading] = useState(false);
+  const [premiumKeyResult, setPremiumKeyResult] = useState("");
+  const [premiumKeyError, setPremiumKeyError] = useState("");
+  const [premiumKeyCopied, setPremiumKeyCopied] = useState(false);
 
   useEffect(() => {
     if (loading) {
@@ -417,6 +422,49 @@ export default function AdminPanelPage() {
     }
   };
 
+  const handleGeneratePremiumKey = async () => {
+    setPremiumKeyLoading(true);
+    setPremiumKeyError("");
+    setPremiumKeyResult("");
+    setPremiumKeyCopied(false);
+
+    try {
+      const response = await fetch("/api/admin/premium-keys/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: "{}"
+      });
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(
+          (response.status === 403
+            ? "Нет прав: только владелец или администратор может генерировать ключи. "
+            : "") +
+            (payload.message || `Сервер ответил: ${response.status}`)
+        );
+      }
+
+      setPremiumKeyResult(payload.key || "");
+    } catch (error) {
+      setPremiumKeyError(error.message || "Не удалось сгенерировать ключ.");
+    } finally {
+      setPremiumKeyLoading(false);
+    }
+  };
+
+  const handleCopyPremiumKey = async () => {
+    if (!premiumKeyResult) return;
+    try {
+      await navigator.clipboard.writeText(premiumKeyResult);
+      setPremiumKeyCopied(true);
+      setTimeout(() => setPremiumKeyCopied(false), 2000);
+    } catch {
+      setPremiumKeyError("Не удалось скопировать ключ в буфер обмена.");
+    }
+  };
+
   if (loading || !isPlatformAdmin(user)) {
     return (
       <section className="admin-panel admin-panel--loading">
@@ -553,6 +601,48 @@ export default function AdminPanelPage() {
                 {creatingUser ? "Создание..." : "Создать аккаунт"}
               </button>
             </form>
+          </article>
+
+          {/* Генерация премиум-ключа */}
+          <article className="admin-card">
+            <h2>
+              <Star size={20} aria-hidden="true" />
+              <span>Сгенерировать премиум-ключ</span>
+            </h2>
+            <p className="muted">
+              Создаёт один одноразовый ключ для выдачи покупателю на Boosty. Скопируйте его в пост
+              или личное сообщение.
+            </p>
+
+            {premiumKeyError ? (
+              <p className="admin-message admin-message--error" role="alert">
+                {premiumKeyError}
+              </p>
+            ) : null}
+
+            {premiumKeyResult ? (
+              <div className="admin-premium-key-box">
+                <div className="admin-premium-key-row">
+                  <code className="admin-premium-key">{premiumKeyResult}</code>
+                  <button
+                    type="button"
+                    className="secondary-btn"
+                    onClick={handleCopyPremiumKey}
+                  >
+                    {premiumKeyCopied ? "Скопировано ✓" : "Скопировать"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            <button
+              type="button"
+              className="primary-btn admin-submit-btn"
+              onClick={handleGeneratePremiumKey}
+              disabled={premiumKeyLoading}
+            >
+              {premiumKeyLoading ? "Генерация..." : "Сгенерировать премиум-ключ"}
+            </button>
           </article>
 
           {/* Список пользователей */}

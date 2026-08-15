@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using AiBronyTV.Core;
@@ -218,6 +219,30 @@ app.MapPost("/api/bots/activate", async (ActivateRequest request, AppDbContext d
 })
 .RequireAuthorization("VerifiedUser");
 
+// Статус премиума для текущей сессии — фронтенд решает, показывать "+" или галочку.
+app.MapGet("/api/bots/premium-status", async (string sessionId, AppDbContext db) =>
+{
+    if (string.IsNullOrWhiteSpace(sessionId))
+    {
+        return Results.Ok(new { isActive = false });
+    }
+
+    var limitEntry = await db.UserLimits.FirstOrDefaultAsync(item => item.SessionId == sessionId);
+    if (limitEntry?.PremiumUntil == null || limitEntry.PremiumUntil <= DateTime.UtcNow)
+    {
+        return Results.Ok(new { isActive = false });
+    }
+
+    var daysLeft = (int)Math.Ceiling((limitEntry.PremiumUntil.Value - DateTime.UtcNow).TotalDays);
+    return Results.Ok(new
+    {
+        isActive = true,
+        expiresAt = limitEntry.PremiumUntil.Value.ToString("O"),
+        daysLeft
+    });
+})
+.RequireAuthorization("VerifiedUser");
+
 // Метаданные доступных персонажей-ботов (для UI). Аватары раздаёт фронтенд из assets.
 var bots = new[]
 {
@@ -237,6 +262,35 @@ var bots = new[]
 
 app.MapGet("/api/bots", () => Results.Json(bots))
     .RequireAuthorization("VerifiedUser");
+
+// Генерация одноразового премиум-ключа (для выдачи покупателям Boosty).
+// Только Owner/Admin. Ключ генерируется криптографически стойким ГПСЧ.
+app.MapPost("/api/admin/premium-keys/generate", async (AppDbContext db, HttpContext ctx) =>
+{
+    var isOwner = ctx.User.IsInRole("Owner");
+    var isAdmin = ctx.User.IsInRole("Admin");
+    if (!isOwner && !isAdmin)
+    {
+        return Results.Json(new { message = "Доступ только для владельца или администратора." },
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    // Безопасный алфавит без похожих символов (нет 0/O, 1/I/l), чтобы ключ
+    // можно было без ошибок перепечатать вручную.
+    const string alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+    var keyChars = new char[20];
+    for (var i = 0; i < keyChars.Length; i++)
+    {
+        keyChars[i] = alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)];
+    }
+    var key = new string(keyChars);
+
+    db.PremiumKeys.Add(new PremiumKeyEntity { Key = key, IsUsed = false });
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new { key });
+})
+.RequireAuthorization("VerifiedUser");
 
 app.Run();
 
