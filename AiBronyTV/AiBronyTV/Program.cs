@@ -69,9 +69,17 @@ builder.Services
         };
     });
 
-// Authorization is OPTIONAL here: anonymous guests may still chat with the standard free
-// limit. Only the role (Owner/Admin) is resolved from ctx.User to lift limits where known.
-builder.Services.AddAuthorization();
+// Chat, the bot list and premium-key activation all require a signed-in user with a
+// confirmed email. Roles (Owner/Admin) are resolved later from ctx.User to lift limits.
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("VerifiedUser", policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireRole("User");
+        policy.RequireClaim("email_verified", "true");
+    });
+});
 
 // Database: use PostgreSQL when POSTGRES_HOST is set, otherwise in-memory (local demo only).
 var pgHost = Environment.GetEnvironmentVariable("POSTGRES_HOST");
@@ -162,14 +170,15 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
         
         await ctx.Response.WriteAsync("data: [DONE]\n\n");
         await ctx.Response.Body.FlushAsync();
-    }
+        }
     catch (Exception ex)
     {
         var errorPayload = JsonSerializer.Serialize(new { error = ex.Message });
         await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
         await ctx.Response.Body.FlushAsync();
     }
-});
+})
+.RequireAuthorization("VerifiedUser");
 
 // Активация премиум-ключа (Boosty). Пользователь вводит одноразовый ключ,
 // и его лимит на 30 дней повышается до 200 сообщений.
@@ -201,12 +210,13 @@ app.MapPost("/api/bots/activate", async (ActivateRequest request, AppDbContext d
         db.UserLimits.Add(limitEntry);
     }
 
-    premiumKey.IsUsed = true;
+        premiumKey.IsUsed = true;
     limitEntry.PremiumUntil = DateTime.UtcNow.AddDays(30);
     await db.SaveChangesAsync();
 
     return Results.Ok(new { message = "Премиум активирован на 30 дней! Лимит 200 сообщений." });
-});
+})
+.RequireAuthorization("VerifiedUser");
 
 // Метаданные доступных персонажей-ботов (для UI). Аватары раздаёт фронтенд из assets.
 var bots = new[]
@@ -225,7 +235,8 @@ var bots = new[]
     new { id = "cadance", name = "Принцесса Каденс", description = "Аликорн любви, правительница Кристальной Империи." }
 };
 
-app.MapGet("/api/bots", () => Results.Json(bots));
+app.MapGet("/api/bots", () => Results.Json(bots))
+    .RequireAuthorization("VerifiedUser");
 
 app.Run();
 
