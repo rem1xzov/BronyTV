@@ -98,9 +98,10 @@ export default function AdminPanelPage() {
   const [creatingUser, setCreatingUser] = useState(false);
 
   const [premiumKeyLoading, setPremiumKeyLoading] = useState(false);
-  const [premiumKeyResult, setPremiumKeyResult] = useState("");
   const [premiumKeyError, setPremiumKeyError] = useState("");
-  const [premiumKeyCopied, setPremiumKeyCopied] = useState(false);
+  const [premiumKeys, setPremiumKeys] = useState([]);
+  const [premiumKeysTotal, setPremiumKeysTotal] = useState(0);
+  const [premiumKeyCopied, setPremiumKeyCopied] = useState("");
 
   useEffect(() => {
     if (loading) {
@@ -253,9 +254,36 @@ export default function AdminPanelPage() {
     }
   };
 
+  const loadPremiumKeys = async () => {
+    setPremiumKeyError("");
+    try {
+      const response = await fetch("/api/admin/premium-keys/list", {
+        credentials: "include"
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(
+          (response.status === 403
+            ? "Нет прав: только владелец или администратор может просматривать ключи. "
+            : "") +
+            (payload.message || `Сервер ответил: ${response.status}`)
+        );
+      }
+
+      const keys = Array.isArray(payload.keys ?? payload.Keys)
+        ? payload.keys ?? payload.Keys
+        : [];
+      setPremiumKeys(keys);
+      setPremiumKeysTotal(Number(payload.total ?? payload.Total ?? keys.length));
+    } catch (error) {
+      setPremiumKeyError(error.message || "Не удалось загрузить список ключей.");
+    }
+  };
+
   useEffect(() => {
     if (activeTab === "users") {
       loadUsers(1);
+      loadPremiumKeys();
     }
   }, [activeTab]);
 
@@ -425,8 +453,6 @@ export default function AdminPanelPage() {
   const handleGeneratePremiumKey = async () => {
     setPremiumKeyLoading(true);
     setPremiumKeyError("");
-    setPremiumKeyResult("");
-    setPremiumKeyCopied(false);
 
     try {
       const response = await fetch("/api/admin/premium-keys/generate", {
@@ -446,7 +472,8 @@ export default function AdminPanelPage() {
         );
       }
 
-      setPremiumKeyResult(payload.key || "");
+      // Перечитываем весь список с сервера, чтобы новый ключ появился в нём.
+      await loadPremiumKeys();
     } catch (error) {
       setPremiumKeyError(error.message || "Не удалось сгенерировать ключ.");
     } finally {
@@ -454,12 +481,12 @@ export default function AdminPanelPage() {
     }
   };
 
-  const handleCopyPremiumKey = async () => {
-    if (!premiumKeyResult) return;
+  const handleCopyPremiumKey = async (key) => {
+    if (!key) return;
     try {
-      await navigator.clipboard.writeText(premiumKeyResult);
-      setPremiumKeyCopied(true);
-      setTimeout(() => setPremiumKeyCopied(false), 2000);
+      await navigator.clipboard.writeText(key);
+      setPremiumKeyCopied(key);
+      setTimeout(() => setPremiumKeyCopied(""), 2000);
     } catch {
       setPremiumKeyError("Не удалось скопировать ключ в буфер обмена.");
     }
@@ -620,20 +647,31 @@ export default function AdminPanelPage() {
               </p>
             ) : null}
 
-            {premiumKeyResult ? (
-              <div className="admin-premium-key-box">
-                <div className="admin-premium-key-row">
-                  <code className="admin-premium-key">{premiumKeyResult}</code>
-                  <button
-                    type="button"
-                    className="secondary-btn"
-                    onClick={handleCopyPremiumKey}
-                  >
-                    {premiumKeyCopied ? "Скопировано ✓" : "Скопировать"}
-                  </button>
-                </div>
-              </div>
-            ) : null}
+            <div className="admin-users-header">
+              <span className="admin-premium-key-list-title">Премиум-ключи</span>
+              <p className="muted">Всего: {premiumKeysTotal}</p>
+            </div>
+
+            {premiumKeys.length === 0 ? (
+              <p className="muted">Неиспользованных ключей пока нет.</p>
+            ) : (
+              <ul className="admin-premium-key-list">
+                {premiumKeys.map((key) => (
+                  <li key={key} className="admin-premium-key-box">
+                    <div className="admin-premium-key-row">
+                      <code className="admin-premium-key">{key}</code>
+                      <button
+                        type="button"
+                        className="secondary-btn"
+                        onClick={() => handleCopyPremiumKey(key)}
+                      >
+                        {premiumKeyCopied === key ? "Скопировано ✓" : "Скопировать"}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <button
               type="button"

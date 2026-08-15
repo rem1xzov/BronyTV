@@ -281,7 +281,7 @@ app.MapPost("/api/admin/premium-keys/generate", async (AppDbContext db, HttpCont
     var keyChars = new char[20];
     for (var i = 0; i < keyChars.Length; i++)
     {
-        keyChars[i] = alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)];
+                keyChars[i] = alphabet[RandomNumberGenerator.GetInt32(alphabet.Length)];
     }
     var key = new string(keyChars);
 
@@ -289,6 +289,27 @@ app.MapPost("/api/admin/premium-keys/generate", async (AppDbContext db, HttpCont
     await db.SaveChangesAsync();
 
     return Results.Ok(new { key });
+})
+.RequireAuthorization("VerifiedUser");
+
+// Список неиспользованных премиум-ключей (для выдачи покупателям Boosty).
+// Только Owner/Admin. Возвращает все ключи с IsUsed == false.
+app.MapGet("/api/admin/premium-keys/list", async (AppDbContext db, HttpContext ctx) =>
+{
+    var isOwner = ctx.User.IsInRole("Owner");
+    var isAdmin = ctx.User.IsInRole("Admin");
+    if (!isOwner && !isAdmin)
+    {
+        return Results.Json(new { message = "Доступ только для владельца или администратора." },
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    var keys = await db.PremiumKeys
+        .Where(item => !item.IsUsed)
+        .Select(item => item.Key)
+        .ToListAsync();
+
+    return Results.Ok(new { keys, total = keys.Count });
 })
 .RequireAuthorization("VerifiedUser");
 

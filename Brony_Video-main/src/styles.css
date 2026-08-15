@@ -3915,6 +3915,20 @@ body[data-theme="dark"] .profile-email-confirm-warning {
   flex-wrap: wrap;
 }
 
+.admin-premium-key-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.admin-premium-key-list-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
 .admin-premium-key {
   flex: 1 1 auto;
   min-width: 0;
