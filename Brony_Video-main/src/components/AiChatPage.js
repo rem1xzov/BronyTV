@@ -923,8 +923,8 @@ function AiChatPage() {
 
                   <button
                     type="button"
-                    className="primary-btn ai-sheet-form-submit"
-                    onClick={handleStartAdventure}
+                                        className="primary-btn ai-sheet-form-submit"
+                    onClick={() => handleStartAdventure()}
                     disabled={!characterName.trim() || streaming}
                   >
                     <BookOpen size={17} />
@@ -984,8 +984,8 @@ function AiChatPage() {
                 />
                 <button
                   type="button"
-                  className="ai-composer-send"
-                  onClick={handleSend}
+                                    className="ai-composer-send"
+                  onClick={() => handleSend()}
                   disabled={streaming || !input.trim()}
                   aria-label="Отправить"
                 >
