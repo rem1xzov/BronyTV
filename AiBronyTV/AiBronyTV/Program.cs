@@ -319,7 +319,24 @@ app.MapGet("/api/admin/premium-keys/list", async (AppDbContext db, HttpContext c
         .Select(item => item.Key)
         .ToListAsync();
 
-    return Results.Ok(new { keys, total = keys.Count });
+        return Results.Ok(new { keys, total = keys.Count });
+})
+.RequireAuthorization("VerifiedUser");
+
+// Очистка истории переписки для конкретного персонажа (sessionId + characterId).
+// Используется кнопкой «Очистить чат» на фронтенде, чтобы бот забыл прошлый разговор.
+app.MapDelete("/api/chat/history", async (string sessionId, string characterId, AppDbContext db) =>
+{
+    if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(characterId))
+    {
+        return Results.BadRequest(new { message = "Не указаны sessionId или characterId." });
+    }
+
+    await db.ChatMessages
+        .Where(message => message.SessionId == sessionId && message.CharacterId == characterId)
+        .ExecuteDeleteAsync();
+
+    return Results.Ok(new { cleared = true });
 })
 .RequireAuthorization("VerifiedUser");
 

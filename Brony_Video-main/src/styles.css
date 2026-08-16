@@ -5526,6 +5526,72 @@ body[data-theme="dark"] .profile-email-confirm-warning {
   font-size: 0.95rem;
 }
 
+.ai-bot-avatar--icon {
+  color: var(--text-main);
+}
+
+.ai-bot-avatar--icon svg {
+  display: block;
+}
+
+.ai-sheet-form {
+  margin: auto;
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+}
+
+.ai-sheet-form-head {
+  text-align: left;
+  margin-bottom: 4px;
+}
+
+.ai-sheet-form-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.ai-sheet-form-head p {
+  margin: 6px 0 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.ai-sheet-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.ai-sheet-form .ai-sheet-form-submit {
+  justify-content: center;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.ai-sheet-form-hint {
+  margin: -6px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-align: left;
+}
+
+@media (max-width: 480px) {
+  .ai-sheet-form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .ai-msg {
   display: flex;
   align-items: flex-start;

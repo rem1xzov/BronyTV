@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   ArrowLeft,
+  BookOpen,
   Bot,
   Check,
   ChevronRight,
@@ -21,6 +22,13 @@ import { useAuth } from "../auth/AuthContext";
 // Метаданные персонажей-ботов. id совпадает с characterId в микросервисе AiBronyTV,
 // avatar — имя файла в public/assets/avatars.
 const BOT_CATALOG = [
+  {
+    id: "narrator",
+    name: "Рассказчик",
+    race: "Game Master",
+    tagline: "Опиши своего персонажа и отправься в приключение по Эквестрии.",
+    colour: "#8e5af0"
+  },
   {
     id: "rainbow",
     name: "Рэйнбоу Дэш",
@@ -280,16 +288,21 @@ const formatPremiumDate = (iso) => {
 
 function BotAvatar({ bot, size = 56 }) {
   const fallback = (bot?.name || "Бот").slice(0, 1).toUpperCase();
+  const baseStyle = {
+    width: size,
+    height: size,
+    "--bot-accent": bot?.colour || "var(--accent)",
+    fontSize: size * 0.38
+  };
+  if (bot?.id === "narrator") {
+    return (
+      <div className="ai-bot-avatar ai-bot-avatar--icon" style={baseStyle}>
+        <BookOpen size={size * 0.5} />
+      </div>
+    );
+  }
   return (
-    <div
-      className="ai-bot-avatar"
-      style={{
-        width: size,
-        height: size,
-        "--bot-accent": bot?.colour || "var(--accent)",
-        fontSize: size * 0.38
-      }}
-    >
+    <div className="ai-bot-avatar" style={baseStyle}>
       {bot?.avatar ? (
         <img src={buildAssetUrl(bot.avatar)} alt="" draggable={false} />
       ) : (
@@ -330,9 +343,16 @@ function AiChatPage() {
   const [premiumMsg, setPremiumMsg] = useState("");
   const [premiumError, setPremiumError] = useState("");
     const [premiumLoading, setPremiumLoading] = useState(false);
-  const [showPremiumModal, setShowPremiumModal] = useState(false);
+    const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [premiumStatus, setPremiumStatus] = useState(null);
   const [showPremiumInfoModal, setShowPremiumInfoModal] = useState(false);
+  const [characterName, setCharacterName] = useState("");
+  const [characterAge, setCharacterAge] = useState("");
+  const [characterGender, setCharacterGender] = useState("");
+  const [characterRace, setCharacterRace] = useState("");
+  const [characterCutieMark, setCharacterCutieMark] = useState("");
+  const [characterDescription, setCharacterDescription] = useState("");
+  const [characterPlot, setCharacterPlot] = useState("");
   const scrollRef = useRef(null);
   const streamRef = useRef(null);
 
@@ -376,8 +396,25 @@ function AiChatPage() {
 
   const toggleCollapse = useCallback(() => setSidebarCollapsed((v) => !v), []);
 
-  const doClearHistory = useCallback(() => {
+    const doClearHistory = useCallback(async () => {
     if (!activeBotId) return;
+    const sessionId = ensureSession();
+    setConfirmClear(false);
+    // Сначала реально удаляем историю на бэкенде, чтобы бот забыл прошлый разговор.
+    try {
+      const res = await fetch(
+        `/api/chat/history?sessionId=${encodeURIComponent(sessionId)}&characterId=${encodeURIComponent(activeBotId)}`,
+        { method: "DELETE", credentials: "include" }
+      );
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.message || `Сервер ответил: ${res.status}`);
+      }
+    } catch (err) {
+      setError(err.message || "Не удалось очистить историю на сервере.");
+      return;
+    }
+    // Только при успешном ответе сервера чистим локальный state.
     try {
       const raw = localStorage.getItem(MESSAGES_KEY);
       const byChar = raw ? JSON.parse(raw) : {};
@@ -446,8 +483,8 @@ function AiChatPage() {
     }
   }, [premiumKey, premiumLoading, fetchPremiumStatus]);
 
-  const handleSend = useCallback(async () => {
-    const text = input.trim();
+    const handleSend = useCallback(async (overrideText) => {
+    const text = (overrideText ?? input).trim();
     if (!text || !activeBotId || streaming) return;
     if (!user || !user.isEmailConfirmed) {
       window.dispatchEvent(new CustomEvent("bronytv:open-auth", { detail: { mode: "signin" } }));
@@ -577,7 +614,7 @@ function AiChatPage() {
     }
   }, [activeBotId, input, messages, refreshUser, streaming, user]);
 
-  const handleKeyDown = useCallback(
+    const handleKeyDown = useCallback(
     (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -585,6 +622,32 @@ function AiChatPage() {
       }
     },
     [handleSend]
+  );
+
+  const handleStartAdventure = useCallback(() => {
+    if (!characterName.trim()) return;
+    const sheet =
+      `**Анкета персонажа:** Имя: ${characterName.trim()} Возраст: ${characterAge.trim()} ` +
+      `Пол: ${characterGender.trim()} Раса: ${characterRace.trim()} Кьютимарка: ${characterCutieMark.trim()} ` +
+      `Описание: ${characterDescription.trim()}  **Сюжет:** ${characterPlot.trim()} `;
+    handleSend(sheet);
+  }, [
+    characterName,
+    characterAge,
+    characterGender,
+    characterRace,
+    characterCutieMark,
+    characterDescription,
+    characterPlot,
+    handleSend
+  ]);
+
+  const orderedBots = useMemo(
+    () => [
+      ...bots.filter((b) => b.id === "narrator"),
+      ...bots.filter((b) => b.id !== "narrator")
+    ],
+    [bots]
   );
 
   const isDesktopView = () => window.matchMedia("(min-width: 961px)").matches;
@@ -678,8 +741,8 @@ function AiChatPage() {
               <span className="ai-bot-list-title">Персонажи</span>
             </div>
 
-            <div className="ai-bot-list">
-              {bots.map((bot) => {
+                        <div className="ai-bot-list">
+              {orderedBots.map((bot) => {
                 const isActive = bot.id === activeBotId;
                 return (
                   <button
@@ -757,8 +820,111 @@ function AiChatPage() {
 
             {error && <div className="ai-chat-error">{error}</div>}
 
-            <div className="ai-messages" ref={scrollRef}>
-              {messages.length === 0 ? (
+                        <div className="ai-messages" ref={scrollRef}>
+              {activeBot.id === "narrator" && messages.length === 0 ? (
+                <div className="ai-sheet-form">
+                  <div className="ai-sheet-form-head">
+                    <div className="ai-sheet-form-title">
+                      <BookOpen size={20} />
+                      <span>Создай своего персонажа</span>
+                    </div>
+                    <p>Заполни анкету — и Рассказчик отправит тебя в приключение по Эквестрии.</p>
+                  </div>
+
+                  <label className="news-field">
+                    <span>Имя *</span>
+                    <input
+                      type="text"
+                      value={characterName}
+                      onChange={(e) => setCharacterName(e.target.value)}
+                      placeholder="Например, Лунный Вихрь"
+                      maxLength={80}
+                    />
+                  </label>
+
+                  <div className="ai-sheet-form-row">
+                    <label className="news-field">
+                      <span>Возраст</span>
+                      <input
+                        type="text"
+                        value={characterAge}
+                        onChange={(e) => setCharacterAge(e.target.value)}
+                        placeholder="Например, 18"
+                        maxLength={40}
+                      />
+                    </label>
+                    <label className="news-field">
+                      <span>Пол</span>
+                      <input
+                        type="text"
+                        value={characterGender}
+                        onChange={(e) => setCharacterGender(e.target.value)}
+                        placeholder="Например, жеребец"
+                        maxLength={40}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="ai-sheet-form-row">
+                    <label className="news-field">
+                      <span>Раса</span>
+                      <input
+                        type="text"
+                        value={characterRace}
+                        onChange={(e) => setCharacterRace(e.target.value)}
+                        placeholder="Пони, пегас, единорог..."
+                        maxLength={60}
+                      />
+                    </label>
+                    <label className="news-field">
+                      <span>Кьютимарка</span>
+                      <input
+                        type="text"
+                        value={characterCutieMark}
+                        onChange={(e) => setCharacterCutieMark(e.target.value)}
+                        placeholder="Например, серебряная звезда"
+                        maxLength={60}
+                      />
+                    </label>
+                  </div>
+
+                  <label className="news-field">
+                    <span>Описание персонажа</span>
+                    <textarea
+                      value={characterDescription}
+                      onChange={(e) => setCharacterDescription(e.target.value)}
+                      placeholder="Характер, внешность, цели..."
+                      rows={3}
+                      maxLength={1000}
+                    />
+                  </label>
+
+                  <label className="news-field">
+                    <span>Завязка сюжета</span>
+                    <textarea
+                      value={characterPlot}
+                      onChange={(e) => setCharacterPlot(e.target.value)}
+                      placeholder="С чего начнётся приключение? Можно оставить пустым."
+                      rows={5}
+                      maxLength={1500}
+                    />
+                  </label>
+
+                  <button
+                    type="button"
+                    className="primary-btn ai-sheet-form-submit"
+                    onClick={handleStartAdventure}
+                    disabled={!characterName.trim() || streaming}
+                  >
+                    <BookOpen size={17} />
+                    Начать приключение
+                  </button>
+
+                  {!characterName.trim() && (
+                    <p className="ai-sheet-form-hint">Введите имя персонажа, чтобы начать.</p>
+                  )}
+                </div>
+              ) : messages.length === 0 ? (
                 <div className="ai-chat-empty">
                   <BotAvatar bot={activeBot} size={72} />
                   <p>
@@ -868,13 +1034,10 @@ function AiChatPage() {
                 <X size={16} />
                 Отмена
               </button>
-              <button
+                            <button
                 type="button"
                 className="ai-confirm-btn ai-confirm-btn--danger"
-                onClick={() => {
-                  doClearHistory();
-                  setConfirmClear(false);
-                }}
+                onClick={doClearHistory}
               >
                 <Check size={16} />
                 Удалить
