@@ -4,10 +4,12 @@ import {
   ArrowLeft,
   BookOpen,
   Bot,
-  Check,
+    Check,
   ChevronRight,
   LockKeyhole,
   LogIn,
+  Maximize,
+  Minimize,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -351,10 +353,12 @@ function AiChatPage() {
   const [characterGender, setCharacterGender] = useState("");
   const [characterRace, setCharacterRace] = useState("");
   const [characterCutieMark, setCharacterCutieMark] = useState("");
-  const [characterDescription, setCharacterDescription] = useState("");
+    const [characterDescription, setCharacterDescription] = useState("");
   const [characterPlot, setCharacterPlot] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const scrollRef = useRef(null);
   const streamRef = useRef(null);
+  const textareaRef = useRef(null);
 
   const activeBot = bots.find((b) => b.id === activeBotId) || null;
 
@@ -478,10 +482,18 @@ function AiChatPage() {
       fetchPremiumStatus();
     } catch (err) {
       setPremiumError(err.message || "Не удалось активировать ключ.");
-    } finally {
+        } finally {
       setPremiumLoading(false);
     }
   }, [premiumKey, premiumLoading, fetchPremiumStatus]);
+
+  const handleTextareaInput = (e) => {
+    setInput(e.target.value);
+    if (textareaRef.current && !isFullscreen) {
+      textareaRef.current.style.height = "auto";
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 240)}px`; // ~10 строк
+    }
+  };
 
     const handleSend = useCallback(async (overrideText) => {
     const text = (overrideText ?? input).trim();
@@ -493,11 +505,12 @@ function AiChatPage() {
 
     const sessionId = ensureSession();
     const userMsg = { id: nextId(), role: "user", text, limit: false };
-    const assistantMsg = { id: nextId(), role: "assistant", text: "", limit: false, streaming: true };
+        const assistantMsg = { id: nextId(), role: "assistant", text: "", limit: false, streaming: true };
 
     const nextMessages = [...messages, userMsg, assistantMsg];
     setMessages(nextMessages);
     setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
     setError("");
     setStreaming(true);
 
@@ -958,27 +971,39 @@ function AiChatPage() {
               )}
             </div>
 
-            <div className="ai-composer">
-              <textarea
-                className="ai-composer-input"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Сообщение..."
-                disabled={streaming}
-                rows={1}
-                maxLength={2000}
-              />
-              <button
-                type="button"
-                className="ai-composer-send"
-                onClick={handleSend}
-                disabled={streaming || !input.trim()}
-                aria-label="Отправить"
-              >
-                <Send size={18} />
-              </button>
-            </div>
+                        {!(activeBot.id === "narrator" && messages.length === 0) && (
+              <div className={`ai-composer${isFullscreen ? " expanded" : ""}`}>
+                <button
+                  type="button"
+                  className="action-btn ai-composer-fullscreen-btn"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  aria-label={isFullscreen ? "Свернуть" : "Развернуть"}
+                  title={isFullscreen ? "Свернуть" : "Развернуть"}
+                >
+                  {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
+                </button>
+                <textarea
+                  className="ai-composer-input"
+                  ref={textareaRef}
+                  value={input}
+                  onChange={handleTextareaInput}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Сообщение..."
+                  disabled={streaming}
+                  rows={1}
+                  maxLength={2000}
+                />
+                <button
+                  type="button"
+                  className="ai-composer-send"
+                  onClick={handleSend}
+                  disabled={streaming || !input.trim()}
+                  aria-label="Отправить"
+                >
+                  <Send size={18} />
+                </button>
+              </div>
+            )}
           </div>
         )}
 

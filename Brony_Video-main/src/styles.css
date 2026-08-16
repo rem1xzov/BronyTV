@@ -5680,6 +5680,7 @@ body[data-theme="dark"] .profile-email-confirm-warning {
 
 /* Composer: pinned to bottom of the chat pane, never leaves viewport */
 .ai-composer {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 8px;
@@ -5692,15 +5693,28 @@ body[data-theme="dark"] .profile-email-confirm-warning {
   flex: 1;
   min-width: 0;
   resize: none;
+  overflow-y: auto;
+  min-height: 44px;
+  max-height: 240px;
+  box-sizing: border-box;
   border: 1px solid var(--border-soft);
-  border-radius: 14px;
+  border-radius: 20px;
   background: var(--bg-soft);
   color: var(--text-main);
   font: inherit;
   font-size: 0.95rem;
-  padding: 10px 12px;
+  padding: 12px;
   line-height: 1.4;
-  max-height: 140px;
+  transition: height 0.1s ease;
+}
+
+.ai-composer-input::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ai-composer-input::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--text-muted) 40%, transparent);
+  border-radius: 999px;
 }
 
 .ai-composer-input:focus {
@@ -5736,6 +5750,45 @@ body[data-theme="dark"] .profile-email-confirm-warning {
 .ai-composer-send:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.ai-composer-fullscreen-btn {
+  flex-shrink: 0;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  border: 1px solid var(--border-soft);
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
+}
+
+.ai-composer-fullscreen-btn:hover {
+  background: color-mix(in srgb, var(--accent-soft) 60%, var(--bg-soft));
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.ai-composer.expanded {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg-primary, #fff);
+  z-index: 1000;
+  padding: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
+  border-radius: 20px 20px 0 0;
+}
+
+.ai-composer.expanded .ai-composer-input {
+  max-height: 60vh !important;
+  height: 60vh !important;
 }
 
 .ai-typing {
