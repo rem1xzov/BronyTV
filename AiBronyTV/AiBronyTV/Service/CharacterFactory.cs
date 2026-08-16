@@ -20,6 +20,16 @@ public class CharacterFactory
             "celestia" => SystemPrompts.CelestiaPersona,
             "luna" => SystemPrompts.LunaPersona,
             "cadance" => SystemPrompts.CadancePersona,
+            "applebloom" => SystemPrompts.AppleBloomPersona,
+            "sweetiebelle" => SystemPrompts.SweetieBellePersona,
+            "scootaloo" => SystemPrompts.ScootalooPersona,
+            "derpy" => SystemPrompts.DerpyPersona,
+            "discord" => SystemPrompts.DiscordPersona,
+            "cozyglow" => SystemPrompts.CozyGlowPersona,
+            "octavia" => SystemPrompts.OctaviaPersona,
+            "djpon3" => SystemPrompts.DjPon3Persona,
+            "shiningarmor" => SystemPrompts.ShiningArmorPersona,
+            "narrator" => SystemPrompts.NarratorPersona,
             _ => throw new ArgumentException($"Персонаж с ID '{characterId}' не найден!")
         };
         return persona + "\n\n" + SystemPrompts.UniversalRpRules;

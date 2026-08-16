@@ -105,7 +105,7 @@ const BOT_CATALOG = [
     id: "luna",
     name: "Принцесса Луна",
     race: "Аликорн",
-    tagline: "Повелительница снов и ночи, хранительница сновидений.",
+        tagline: "Повелительница снов и ночи, хранительница сновидений.",
     avatar: "luna.jpe",
     colour: "#4a3f9e"
   },
@@ -116,6 +116,78 @@ const BOT_CATALOG = [
     tagline: "Аликорн любви, правительница Кристальной Империи.",
     avatar: "cadence.jpe",
     colour: "#f3a8dd"
+  },
+  {
+    id: "applebloom",
+    name: "Эппл Блум",
+    race: "Земная пони",
+    tagline: "Младшая сестра Эпплджек и заядлая открывательница меток.",
+    avatar: "applebloom.jpe",
+    colour: "#f0782b"
+  },
+  {
+    id: "sweetiebelle",
+    name: "Свити Белль",
+    race: "Единорог",
+    tagline: "Беззаботная сестра Рарити, всегда готовая спеть.",
+    avatar: "sweetiebelle .jpe",
+    colour: "#f7d3e0"
+  },
+  {
+    id: "scootaloo",
+    name: "Скуталу",
+    race: "Пегас",
+    tagline: "Трескун и обожательница Рэйнбоу Дэш.",
+    avatar: "scootaloo.jpe",
+    colour: "#e8796a"
+  },
+  {
+    id: "derpy",
+    name: "Дерпи Хувз",
+    race: "Пегас",
+    tagline: "Косоглазая, но добрейшая почтальонка Понивилля.",
+    avatar: "Derpyhooves.jpe",
+    colour: "#9aa7b8"
+  },
+  {
+    id: "discord",
+    name: "Дискорд",
+    race: "Дух хаоса",
+    tagline: "Властелин хаоса, обожающий ломать правила реальности.",
+    avatar: "discord.jpe",
+    colour: "#b18cd9"
+  },
+  {
+    id: "cozyglow",
+    name: "Кози Глоу",
+    race: "Пегас",
+    tagline: "Милая и прилежная ученица, в душе — гениальная интриганка.",
+    avatar: "cozyglow.jpe",
+    colour: "#f5a8b8"
+  },
+  {
+    id: "octavia",
+    name: "Октавия",
+    race: "Земная пони",
+    tagline: "Искушённая виолончелистка с консервативным вкусом.",
+    avatar: "octavia.jpe",
+    colour: "#7a7f8f"
+  },
+  {
+    id: "djpon3",
+    name: "Ди-Джей Пон-3",
+    race: "Единорог",
+    tagline: "Легендарная техно-дэнс диджейка Кантерлота.",
+    avatar: "djpon3.jpe",
+    colour: "#8e7cf0"
+  },
+  {
+    id: "shiningarmor",
+    name: "Шайнинг Армор",
+    race: "Единорог",
+    tagline: "Капитан гвардии Кристальной Империи и брат Твайлайт.",
+    avatar: "shiningarmor.jpe",
+    colour: "#5aa7d6"
   }
 ];
 

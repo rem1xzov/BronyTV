@@ -258,6 +258,16 @@ var bots = new[]
     new { id = "celestia", name = "Принцесса Селестия", description = "Мудрая правительница Эквестрии, поднимающая солнце." },
     new { id = "luna", name = "Принцесса Луна", description = "Повелительница снов и ночи, хранительница сновидений." },
     new { id = "cadance", name = "Принцесса Каденс", description = "Аликорн любви, правительница Кристальной Империи." }
+    new { id = "applebloom", name = "Эппл Блум", description = "Младшая сестра Эпплджек, ищущая свой талант." },
+    new { id = "sweetiebelle", name = "Свити Бель", description = "Сестренка Рарити. Хорошо поет, но часто косячит." },
+    new { id = "scootaloo", name = "Скуталу", description = "Сорвиголова на скутере и фанатка Радуги Дэш." },
+    new { id = "derpy", name = "Дерпи", description = "Добрая почтальонша, которая очень любит маффины." },
+    new { id = "discord", name = "Дискорд", description = "Бывший дух хаоса. Обожает абсурд и розыгрыши." },
+    new { id = "cozyglow", name = "Коузи Глоу", description = "Самая милая пони... с манией величия." },
+    new { id = "octavia", name = "Октавия", description = "Изысканная виолончелистка из Кантерлота." },
+    new { id = "djpon3", name = "DJ Pon-3", description = "Крутая тусовщица, общающаяся на сленге." },
+    new { id = "shiningarmor", name = "Шайнинг Армор", description = "Капитан Королевской Стражи и гик." },
+    new { id = "narrator", name = "Рассказчик (RPG)", description = "Опиши своего персонажа, и Рассказчик создаст для тебя сюжет в Эквестрии!" }
 };
 
 app.MapGet("/api/bots", () => Results.Json(bots))
