@@ -7,9 +7,7 @@ import {
     Check,
   ChevronRight,
   LockKeyhole,
-  LogIn,
-  Maximize,
-  Minimize,
+    LogIn,
   PanelLeftClose,
   PanelLeftOpen,
   Plus,
@@ -354,8 +352,7 @@ function AiChatPage() {
   const [characterRace, setCharacterRace] = useState("");
   const [characterCutieMark, setCharacterCutieMark] = useState("");
     const [characterDescription, setCharacterDescription] = useState("");
-  const [characterPlot, setCharacterPlot] = useState("");
-  const [isFullscreen, setIsFullscreen] = useState(false);
+    const [characterPlot, setCharacterPlot] = useState("");
   const scrollRef = useRef(null);
   const streamRef = useRef(null);
   const textareaRef = useRef(null);
@@ -487,9 +484,9 @@ function AiChatPage() {
     }
   }, [premiumKey, premiumLoading, fetchPremiumStatus]);
 
-  const handleTextareaInput = (e) => {
+    const handleTextareaInput = (e) => {
     setInput(e.target.value);
-    if (textareaRef.current && !isFullscreen) {
+    if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 240)}px`; // ~10 строк
     }
@@ -972,16 +969,7 @@ function AiChatPage() {
             </div>
 
                         {!(activeBot.id === "narrator" && messages.length === 0) && (
-              <div className={`ai-composer${isFullscreen ? " expanded" : ""}`}>
-                <button
-                  type="button"
-                  className="action-btn ai-composer-fullscreen-btn"
-                  onClick={() => setIsFullscreen(!isFullscreen)}
-                  aria-label={isFullscreen ? "Свернуть" : "Развернуть"}
-                  title={isFullscreen ? "Свернуть" : "Развернуть"}
-                >
-                  {isFullscreen ? <Minimize size={20} /> : <Maximize size={20} />}
-                </button>
+                            <div className="ai-composer">
                 <textarea
                   className="ai-composer-input"
                   ref={textareaRef}

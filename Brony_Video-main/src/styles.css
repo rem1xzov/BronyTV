@@ -5752,45 +5752,6 @@ body[data-theme="dark"] .profile-email-confirm-warning {
   cursor: not-allowed;
 }
 
-.ai-composer-fullscreen-btn {
-  flex-shrink: 0;
-  width: 42px;
-  height: 42px;
-  border-radius: 14px;
-  border: 1px solid var(--border-soft);
-  background: var(--bg-soft);
-  color: var(--text-muted);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
-}
-
-.ai-composer-fullscreen-btn:hover {
-  background: color-mix(in srgb, var(--accent-soft) 60%, var(--bg-soft));
-  color: var(--accent);
-  transform: translateY(-1px);
-}
-
-.ai-composer.expanded {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--bg-primary, #fff);
-  z-index: 1000;
-  padding: 20px;
-  border-top: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.15);
-  border-radius: 20px 20px 0 0;
-}
-
-.ai-composer.expanded .ai-composer-input {
-  max-height: 60vh !important;
-  height: 60vh !important;
-}
-
 .ai-typing {
   display: inline-flex;
   gap: 4px;
