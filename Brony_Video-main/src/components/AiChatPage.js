@@ -357,7 +357,8 @@ function AiChatPage() {
   const streamRef = useRef(null);
   const textareaRef = useRef(null);
 
-  const activeBot = bots.find((b) => b.id === activeBotId) || null;
+    const activeBot = bots.find((b) => b.id === activeBotId) || null;
+  const isNarratorSetup = activeBot?.id === 'narrator' && messages.length === 0;
 
   useEffect(() => {
     if (activeBotId) {
@@ -831,7 +832,7 @@ function AiChatPage() {
             {error && <div className="ai-chat-error">{error}</div>}
 
                         <div className="ai-messages" ref={scrollRef}>
-              {activeBot.id === "narrator" && messages.length === 0 ? (
+                            {isNarratorSetup ? (
                 <div className="ai-sheet-form">
                   <div className="ai-sheet-form-head">
                     <div className="ai-sheet-form-title">
@@ -968,8 +969,8 @@ function AiChatPage() {
               )}
             </div>
 
-                        {!(activeBot.id === "narrator" && messages.length === 0) && (
-                            <div className="ai-composer">
+                                                {!isNarratorSetup && (
+              <div className="ai-composer">
                 <textarea
                   className="ai-composer-input"
                   ref={textareaRef}
