@@ -111,12 +111,20 @@ public class ForumService : IForumService
         return (false, "Недостаточно прав для удаления темы.", 403);
     }
 
-    public async Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
+        public async Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
         Guid threadId,
         CancellationToken cancellationToken = default)
     {
         var posts = await _forumRepository.GetPostsByThreadIdAsync(threadId, cancellationToken);
         return posts.Select(PostToResponse).ToList();
+    }
+
+    public async Task<string?> GetThreadTitleByIdAsync(
+        Guid threadId,
+        CancellationToken cancellationToken = default)
+    {
+        var thread = await _forumRepository.GetThreadByIdAsync(threadId, cancellationToken);
+        return thread?.Title;
     }
 
 

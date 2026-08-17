@@ -19,7 +19,11 @@ public interface IForumService
         string currentUserRole,
         CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
+        Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
+        Guid threadId,
+        CancellationToken cancellationToken = default);
+
+    Task<string?> GetThreadTitleByIdAsync(
         Guid threadId,
         CancellationToken cancellationToken = default);
 

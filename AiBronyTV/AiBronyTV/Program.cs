@@ -23,6 +23,11 @@ var rawModel = Environment.GetEnvironmentVariable("DEEPSEEK_MODEL");
 var modelId = string.IsNullOrWhiteSpace(rawModel) ? "deepseek-chat" : rawModel.Trim();
 var endpoint = Environment.GetEnvironmentVariable("DEEPSEEK_ENDPOINT") ?? "https://api.deepseek.com/v1";
 
+// Server-to-server: базовый URL основного бэкенда + общий внутренний ключ для защиты
+// внутренних эндпоинтов (по аналогии с JWT_KEY в docker-compose).
+var bronyBackendUrl = Environment.GetEnvironmentVariable("BRONYTV_BACKEND_URL") ?? "http://brony-backend:5000";
+var internalKey = Environment.GetEnvironmentVariable("BRONYTV_INTERNAL_KEY") ?? string.Empty;
+
 // JWT session validation — same signing key as the main BronyTV backend so the AI service
 // can validate the HttpOnly bronytv_session cookie (shared via docker-compose JWT_KEY).
 var jwtKey = builder.Configuration["Jwt:Key"];
@@ -116,6 +121,13 @@ builder.Services.AddSingleton<Kernel>(sp =>
 // Добавляем как Scoped, так как DbContext тоже Scoped
 builder.Services.AddScoped<BotApiService>();
 
+// HttpClient для server-to-server звонков в основной BronyTV-бэкенд.
+builder.Services.AddHttpClient("BronyBackend", client =>
+{
+    client.BaseAddress = new Uri(bronyBackendUrl);
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
+
 var app = builder.Build();
 
 app.UseAuthentication();
@@ -139,7 +151,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botService, HttpContext ctx) =>
+app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botService, HttpContext ctx, IHttpClientFactory httpClientFactory) =>
 {
     ctx.Response.Headers.Append("Content-Type", "text/event-stream");
     ctx.Response.Headers.Append("Cache-Control", "no-cache");
@@ -154,6 +166,10 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
             : ctx.User.IsInRole("Admin")
                 ? "Admin"
                 : null;
+
+        // UserId из JWT (ClaimTypes.NameIdentifier) — основной site-пользователь.
+        var userIdRaw = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        Guid.TryParse(userIdRaw, out var bronyUserId);
 
         var stream = botService.SendMessageStreamAsync(
             request.SessionId,
@@ -171,6 +187,31 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
         
         await ctx.Response.WriteAsync("data: [DONE]\n\n");
         await ctx.Response.Body.FlushAsync();
+
+        // Best-effort: логируем факт общения с ботом в основной backend.
+        // Передаём ТОЛЬКО UserId и имя бота (characterId), НИКОГДА текст сообщения.
+        if (bronyUserId != Guid.Empty && !string.IsNullOrWhiteSpace(internalKey))
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var client = httpClientFactory.CreateClient("BronyBackend");
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        userId = bronyUserId,
+                        characterId = request.CharacterId
+                    });
+                    using var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                    content.Headers.Add("X-Internal-Key", internalKey);
+                    await client.PostAsync("/api/internal/activity/bot-chat", content);
+                }
+                catch
+                {
+                    // Логирование бот-активности не должно ломать чат.
+                }
+            });
+        }
         }
     catch (Exception ex)
     {

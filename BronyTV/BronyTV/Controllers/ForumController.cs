@@ -10,11 +10,15 @@ namespace BronyTV.Controllers;
 [Route("api/forum")]
 public class ForumController : ControllerBase
 {
-    private readonly IForumService _forumService;
+        private readonly IForumService _forumService;
+    private readonly IUserActivityService _userActivityService;
 
-    public ForumController(IForumService forumService)
+    public ForumController(
+        IForumService forumService,
+        IUserActivityService userActivityService)
     {
         _forumService = forumService;
+        _userActivityService = userActivityService;
     }
 
     [HttpGet("threads")]
@@ -75,10 +79,25 @@ public class ForumController : ControllerBase
         return NoContent();
     }
 
-    [HttpGet("threads/{threadId:guid}/posts")]
+        [HttpGet("threads/{threadId:guid}/posts")]
     public async Task<IActionResult> GetPosts(Guid threadId, CancellationToken cancellationToken)
     {
         var posts = await _forumService.GetPostsAsync(threadId, cancellationToken);
+
+        // Логируем факт просмотра темы только для залогиненных пользователей (гости не логируются).
+        if (TryGetUserId(out var viewerId))
+        {
+            var threadTitle = await _forumService.GetThreadTitleByIdAsync(threadId, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(threadTitle))
+            {
+                await _userActivityService.RecordAsync(
+                    viewerId,
+                    "forum_view",
+                    threadTitle,
+                    CancellationToken.None);
+            }
+        }
+
         return Ok(posts);
     }
 
@@ -102,9 +121,20 @@ public class ForumController : ControllerBase
             request.ReplyToPostId,
             cancellationToken);
 
-        if (response == null)
+                if (response == null)
         {
             return StatusCode(statusCode, new { message = error });
+        }
+
+        // Логируем факт написания поста (тема, НЕ текст самого поста).
+        var threadTitle = await _forumService.GetThreadTitleByIdAsync(threadId, cancellationToken);
+        if (!string.IsNullOrWhiteSpace(threadTitle))
+        {
+            await _userActivityService.RecordAsync(
+                userId,
+                "forum_post",
+                threadTitle,
+                CancellationToken.None);
         }
 
         return Ok(response);

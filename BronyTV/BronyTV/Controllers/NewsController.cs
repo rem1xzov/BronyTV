@@ -2,6 +2,7 @@ using System.Security.Claims;
 using BronyTV.Contract;
 using BronyTV.DbContext.Entity;
 using BronyTV.Repository;
+using BronyTV.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,11 +14,16 @@ public class NewsController : ControllerBase
 {
     private readonly INewsPostRepository _newsRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IUserActivityService _userActivityService;
 
-    public NewsController(INewsPostRepository newsRepository, IUserRepository userRepository)
+    public NewsController(
+        INewsPostRepository newsRepository,
+        IUserRepository userRepository,
+        IUserActivityService userActivityService)
     {
         _newsRepository = newsRepository;
         _userRepository = userRepository;
+        _userActivityService = userActivityService;
     }
 
     [HttpGet]
@@ -34,6 +40,16 @@ public class NewsController : ControllerBase
         if (news == null)
         {
             return NotFound(new { message = "Новость не найдена." });
+        }
+
+        // Логируем факт просмотра новости только для залогиненных пользователей.
+        if (TryGetUserId(out var viewerId) && !string.IsNullOrWhiteSpace(news.Title))
+        {
+            await _userActivityService.RecordAsync(
+                viewerId,
+                "news_view",
+                news.Title,
+                CancellationToken.None);
         }
 
         return Ok(MapToResponse(news));

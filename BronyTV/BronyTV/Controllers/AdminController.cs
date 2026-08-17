@@ -11,10 +11,14 @@ namespace BronyTV.Controllers;
 public class AdminController : ControllerBase
 {
     private readonly IAdminUserService _adminUserService;
+    private readonly IUserActivityService _userActivityService;
 
-    public AdminController(IAdminUserService adminUserService)
+    public AdminController(
+        IAdminUserService adminUserService,
+        IUserActivityService userActivityService)
     {
         _adminUserService = adminUserService;
+        _userActivityService = userActivityService;
     }
 
     [HttpGet("users")]
@@ -25,6 +29,17 @@ public class AdminController : ControllerBase
     {
         var users = await _adminUserService.ListUsersAsync(page, pageSize, cancellationToken);
         return Ok(users);
+    }
+
+    /// <summary>
+    /// История последних действий пользователя (последние 10 записей, по убыванию времени).
+    /// Доступно только владельцу/администратору.
+    /// </summary>
+    [HttpGet("users/{userId:guid}/activity")]
+    public async Task<IActionResult> GetUserActivity(Guid userId, CancellationToken cancellationToken)
+    {
+        var response = await _userActivityService.GetRecentAsync(userId, 10, cancellationToken);
+        return Ok(response);
     }
 
     [HttpGet("users/search")]
