@@ -907,6 +907,9 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const progressStorageKey = `s${safeSeason}e${selectedEpisode?.id || 1}`;
   const [resumeLabel, setResumeLabel] = useState("");
   const lastSavedSecondRef = useRef(-1);
+  // Защита от дублей логирования просмотра: шлём запрос не чаще одного раза на эпизод,
+  // даже если пользователь несколько раз ставит на паузу/продолжает тоже видео.
+  const videoLogRef = useRef(null);
   const [videoError, setVideoError] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
   const [nearEpisodeEnd, setNearEpisodeEnd] = useState(false);
@@ -980,8 +983,9 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     setPlaybackSpeed(1);
     setControlsVisible(true);
     setVolumeFocused(false);
-    setTimelineActive(false);
+        setTimelineActive(false);
     lastSavedSecondRef.current = -1;
+    videoLogRef.current = null;
   }, [videoSrc, safeSeason, episode]);
 
   useEffect(() => {
@@ -1798,9 +1802,23 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 setIsPlaying(false);
                 handleVideoPause(event);
               }}
-              onPlay={() => {
+                            onPlay={() => {
                 setIsPlaying(true);
                 setVideoEnded(false);
+
+                // Логируем начало просмотра серии (только для залогиненных — сервер
+                // сам отсеет гостей). Один раз на эпизод, чтобы не спамить при
+                // паузе/переключении. Дубль снимает и бэкенд (окно 5 минут).
+                const episodeKey = `${safeSeason}:${selectedEpisode?.id || 1}`;
+                if (videoLogRef.current !== episodeKey) {
+                  videoLogRef.current = episodeKey;
+                  apiFetch("/activity/video-watch", {
+                    method: "POST",
+                    body: JSON.stringify({
+                      details: `Сезон ${safeSeason} — серия ${selectedEpisode?.id || 1}`
+                    })
+                  }).catch(() => {});
+                }
               }}
               onEnded={handleVideoEnded}
               onError={() => setVideoError(true)}
