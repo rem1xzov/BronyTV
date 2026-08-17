@@ -349,8 +349,24 @@ export default function NewsPage() {
     }
   };
 
-  const toggleExpand = (newsId) => {
-    setExpandedNews((prev) => ({ ...prev, [newsId]: !prev[newsId] }));
+    const toggleExpand = (newsId) => {
+    setExpandedNews((prev) => {
+      const next = { ...prev, [newsId]: !prev[newsId] };
+
+      // Логируем факт "открытия новости" только при разворачивании (и только для
+      // залогиненных — сервер сам отсеет гостей). Разворачивание происходит на
+      // клиенте без отдельного GET /api/news/{id}, поэтому логируем через лёгкий
+      // пользовательский эндпоинт.
+      if (!prev[newsId]) {
+        const post = posts.find((item) => String(item.id) === String(newsId));
+        apiFetch("/activity/news-view", {
+          method: "POST",
+          body: JSON.stringify({ title: post?.title || "" })
+        }).catch(() => {});
+      }
+
+      return next;
+    });
   };
 
   const isAdmin = user && isPlatformAdmin(user);

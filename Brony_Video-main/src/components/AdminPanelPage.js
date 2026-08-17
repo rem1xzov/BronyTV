@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Home, LifeBuoy, Star, Upload, Users } from "lucide-react";
+import { Activity as ActivityIcon, ArrowLeft, Home, LifeBuoy, Star, Upload, Users } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch, apiUpload } from "../auth/api";
 import AdminSupportPanel from "./AdminSupportPanel";
+import AdminActivityPanel from "./AdminActivityPanel";
 
 function normalizeSeason(raw) {
   if (!raw || typeof raw !== "object") {
@@ -61,48 +62,7 @@ function formatRoleLabel(user) {
   if (user.isPlatformAdmin || user.platformRole === "Admin" || user.role === "Admin") {
     return "Админ";
   }
-  return "Пользователь";
-}
-
-const ACTIVITY_LABELS = {
-  video_watch: "Просмотр серии",
-  bot_chat: "Общение с ботом",
-  forum_view: "Просмотр темы",
-  forum_post: "Написал в теме",
-  news_view: "Просмотр новости"
-};
-
-// Человекочитаемое относительное время ("только что", "5 мин назад", ...).
-function formatActivityTime(timestamp) {
-  if (!timestamp) {
-    return "";
-  }
-  const date = new Date(timestamp);
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-  const diffSeconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
-
-  if (diffSeconds < 60) {
-    return "только что";
-  }
-
-  const minutes = Math.floor(diffSeconds / 60);
-  if (minutes < 60) {
-    return `${minutes} мин назад`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours} ч назад`;
-  }
-
-  const days = Math.floor(hours / 24);
-  if (days < 7) {
-    return `${days} дн назад`;
-  }
-
-  return date.toLocaleDateString("ru-RU");
+      return "Пользователь";
 }
 
 export default function AdminPanelPage() {
@@ -128,10 +88,7 @@ export default function AdminPanelPage() {
   const [userListLoading, setUserListLoading] = useState(false);
   const [userActionError, setUserActionError] = useState("");
   const [userActionMessage, setUserActionMessage] = useState("");
-  const [userActionId, setUserActionId] = useState(null);
-
-  const [activitiesByUser, setActivitiesByUser] = useState({});
-  const [activityLoadingId, setActivityLoadingId] = useState(null);
+    const [userActionId, setUserActionId] = useState(null);
 
   const [newUsername, setNewUsername] = useState("");
   const [newEmail, setNewEmail] = useState("");
@@ -295,38 +252,6 @@ export default function AdminPanelPage() {
       setUserResults([]);
     } finally {
       setUserListLoading(false);
-    }
-  };
-
-  // Открыть/закрыть блок последних действий пользователя.
-  const toggleActivity = async (userId) => {
-    if (activitiesByUser[userId]) {
-      setActivitiesByUser((prev) => {
-        const next = { ...prev };
-        delete next[userId];
-        return next;
-      });
-      return;
-    }
-
-    setActivityLoadingId(userId);
-    setUserActionError("");
-
-    try {
-      const response = await apiFetch(`/admin/users/${userId}/activity`);
-      const raw = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        throw new Error(raw.message || "Не удалось загрузить активность.");
-      }
-
-      const list = Array.isArray(raw.activities ?? raw.Activities)
-        ? raw.activities ?? raw.Activities
-        : [];
-      setActivitiesByUser((prev) => ({ ...prev, [userId]: list }));
-    } catch (error) {
-      setUserActionError(error.message || "Не удалось загрузить активность.");
-    } finally {
-      setActivityLoadingId(null);
     }
   };
 
@@ -615,7 +540,7 @@ export default function AdminPanelPage() {
         >
           <Users size={16} aria-hidden="true" />
           <span>Управление пользователями</span>
-        </button>
+                </button>
         <button
           type="button"
           role="tab"
@@ -626,9 +551,21 @@ export default function AdminPanelPage() {
           <LifeBuoy size={16} aria-hidden="true" />
           <span>Обращения в поддержку</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "activity"}
+          className={`admin-panel-tab${activeTab === "activity" ? " is-active" : ""}`}
+          onClick={() => setActiveTab("activity")}
+        >
+          <ActivityIcon size={16} aria-hidden="true" />
+          <span>Активность</span>
+        </button>
       </div>
 
-      {activeTab === "support" ? (
+      {activeTab === "activity" ? (
+        <AdminActivityPanel onBack={() => setActiveTab("users")} />
+      ) : activeTab === "support" ? (
         <AdminSupportPanel />
       ) : activeTab === "users" ? (
         <div className="admin-panel-grid">
@@ -841,7 +778,7 @@ export default function AdminPanelPage() {
                           >
                             {foundUser.isBannedFromCommenting ? "Разбанить" : "Забанить"}
                           </button>
-                          <button
+                                                    <button
                             type="button"
                             className="danger-btn"
                             disabled={busy}
@@ -851,56 +788,6 @@ export default function AdminPanelPage() {
                           </button>
                         </div>
                       )}
-
-                      <div className="admin-user-activity">
-                        {activityLoadingId === foundUser.id ? (
-                          <p className="muted">Загрузка активности…</p>
-                        ) : activitiesByUser[foundUser.id] ? (
-                          <div className="admin-user-activity-body">
-                            <div className="admin-user-activity-head">
-                              <span className="admin-activity-title">Последние действия</span>
-                              <button
-                                type="button"
-                                className="secondary-btn"
-                                onClick={() => toggleActivity(foundUser.id)}
-                              >
-                                Скрыть
-                              </button>
-                            </div>
-                            {activitiesByUser[foundUser.id].length === 0 ? (
-                              <p className="muted">Записей пока нет.</p>
-                            ) : (
-                              <ul className="admin-user-activity-list">
-                                {activitiesByUser[foundUser.id].map((activity, index) => (
-                                  <li key={index} className="admin-activity-item">
-                                    <div className="admin-activity-main">
-                                      <span className="admin-activity-type">
-                                        {ACTIVITY_LABELS[activity.type] || activity.type}
-                                      </span>
-                                      {activity.details ? (
-                                        <span className="admin-activity-details">
-                                          {activity.details}
-                                        </span>
-                                      ) : null}
-                                    </div>
-                                    <span className="admin-activity-time muted">
-                                      {formatActivityTime(activity.timestamp)}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        ) : (
-                          <button
-                            type="button"
-                            className="secondary-btn"
-                            onClick={() => toggleActivity(foundUser.id)}
-                          >
-                            Показать активность
-                          </button>
-                        )}
-                      </div>
                     </li>
                   );
                 })}

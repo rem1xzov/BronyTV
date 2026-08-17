@@ -600,6 +600,12 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
   const { t } = useI18n();
   const [vpnOpen, setVpnOpen] = useState(false);
 
+  const openVpn = () => {
+    setVpnOpen(true);
+    // Логируем клик по плашке VPN (только факт, для залогиненных — сервер отсеет гостей).
+    apiFetch("/activity/vpn-click", { method: "POST" }).catch(() => {});
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar-auth">
@@ -621,7 +627,7 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
         <Newspaper size={16} />
         <span>{t("nav.news")}</span>
       </Link>
-      <button type="button" className="nav-pill" onClick={() => setVpnOpen(true)}>
+            <button type="button" className="nav-pill" onClick={openVpn}>
         <Shield size={16} />
         <span>{t("vpn.label")}</span>
       </button>

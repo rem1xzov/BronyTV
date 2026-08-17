@@ -6599,3 +6599,151 @@ body.no-scroll {
   white-space: pre-wrap;
   word-break: break-word;
 }
+/* ==== Admin: страница «Активность» (все пользователи, за неделю) ==== */
+.admin-card--activity {
+  padding: 18px;
+}
+
+.admin-activity-page-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-activity-page-heading h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 1.15rem;
+}
+
+.admin-activity-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-activity-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 32px 16px;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.admin-activity-user-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-activity-user-card {
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--bg-soft);
+}
+
+.admin-activity-user-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.admin-activity-username {
+  font-size: 0.95rem;
+  color: var(--text-main);
+}
+
+.admin-activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-activity-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 10px;
+  padding: 6px 0;
+  border-bottom: 1px dashed var(--border-soft);
+}
+
+.admin-activity-item:last-child {
+  border-bottom: 0;
+}
+
+.admin-activity-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.admin-activity-type {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--text-main);
+}
+
+.admin-activity-details {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.admin-activity-time {
+  font-size: 0.76rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Мобильная адаптация страницы «Активность» */
+@media (max-width: 768px) {
+  .admin-card--activity {
+    padding: 12px;
+  }
+
+  .admin-activity-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-activity-page-actions {
+    width: 100%;
+  }
+
+  .admin-activity-page-actions .secondary-btn {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .admin-activity-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .admin-activity-time {
+    white-space: normal;
+  }
+}

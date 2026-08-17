@@ -167,9 +167,13 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
                 ? "Admin"
                 : null;
 
-        // UserId из JWT (ClaimTypes.NameIdentifier) — основной site-пользователь.
+                // UserId из JWT (ClaimTypes.NameIdentifier) — основной site-пользователь.
         var userIdRaw = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
         Guid.TryParse(userIdRaw, out var bronyUserId);
+
+        // TEMP-DIAG: временная диагностика логирования активности чата с ботом.
+        // Выводится в docker logs aibronytv, НЕ в ответ пользователю.
+        Console.WriteLine($"[activity-diag] chat/userIdRaw='{userIdRaw}' bronyUserId='{bronyUserId}' internalKeySet='{!string.IsNullOrWhiteSpace(internalKey)}'");
 
         var stream = botService.SendMessageStreamAsync(
             request.SessionId,

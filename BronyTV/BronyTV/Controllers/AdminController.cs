@@ -31,7 +31,7 @@ public class AdminController : ControllerBase
         return Ok(users);
     }
 
-    /// <summary>
+        /// <summary>
     /// История последних действий пользователя (последние 10 записей, по убыванию времени).
     /// Доступно только владельцу/администратору.
     /// </summary>
@@ -41,6 +41,21 @@ public class AdminController : ControllerBase
         var response = await _userActivityService.GetRecentAsync(userId, 10, cancellationToken);
         return Ok(response);
     }
+
+    /// <summary>
+    /// Активность ВСЕХ пользователей за последние 7 дней (единая хронологическая лента).
+    /// Используется отдельной страницей «Активность» в админке.
+    /// Параметр <paramref name="days"/> позволяет расширить/сузить окно (по умолчанию 7).
+    /// </summary>
+    [HttpGet("activity/week")]
+    public async Task<IActionResult> GetRecentAllUsersActivity(
+        [FromQuery] int days = 7,
+        CancellationToken cancellationToken = default)
+    {
+        var items = await _userActivityService.GetRecentAllUsersAsync(days, cancellationToken);
+        return Ok(new { activities = items });
+    }
+
 
     [HttpGet("users/search")]
     public async Task<IActionResult> SearchUsers([FromQuery] string? query, CancellationToken cancellationToken)

@@ -11,10 +11,14 @@ namespace BronyTV.Service;
 public class UserActivityService : IUserActivityService
 {
     private readonly IUserActivityRepository _repository;
+    private readonly IUserRepository _userRepository;
 
-    public UserActivityService(IUserActivityRepository repository)
+    public UserActivityService(
+        IUserActivityRepository repository,
+        IUserRepository userRepository)
     {
         _repository = repository;
+        _userRepository = userRepository;
     }
 
     // Сколько времени одно и то же событие (тип + детали) считается "свежим" и
@@ -56,6 +60,12 @@ public class UserActivityService : IUserActivityService
         };
 
         await _repository.AddAsync(activity, cancellationToken);
+
+        // Простое окно хранения (Часть 4): при каждой записи подчищаем записи старше 7 дней,
+        // чтобы таблица не росла бесконечно. Объёмы проекта небольшие (десятки-сотни
+        // пользователей), поэтому одиночный DELETE на запись — приемлемая цена за отказ
+        // от фоновых задач/Hosted Services.
+        await _repository.DeleteOlderThanAsync(TimeSpan.FromDays(7), CancellationToken.None);
     }
 
     public async Task<UserActivityListResponse> GetRecentAsync(
@@ -76,5 +86,36 @@ public class UserActivityService : IUserActivityService
                 })
                 .ToList()
         };
+    }
+
+    public async Task<IReadOnlyList<UserActivityWithUserResponse>> GetRecentAllUsersAsync(
+        int days = 7,
+        CancellationToken cancellationToken = default)
+    {
+        var items = await _repository.GetRecentAllUsersAsync(days, 500, cancellationToken);
+
+        var userIds = items.Select(item => item.UserId).Distinct().ToList();
+        var usersById = new Dictionary<Guid, (string? Username, string? Email)>();
+        foreach (var userId in userIds)
+        {
+            var user = await _userRepository.GetByIdAsync(userId, cancellationToken);
+            usersById[userId] = (user?.Username, user?.Email);
+        }
+
+        return items
+            .Select(activity =>
+            {
+                usersById.TryGetValue(activity.UserId, out var user);
+                return new UserActivityWithUserResponse
+                {
+                    UserId = activity.UserId,
+                    Username = user.Username,
+                    Email = user.Email,
+                    Type = activity.ActivityType,
+                    Details = activity.Details,
+                    Timestamp = activity.Timestamp
+                };
+            })
+            .ToList();
     }
 }

@@ -19,4 +19,19 @@ public interface IUserActivityRepository
         Guid userId,
         int limit,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Возвращает всю активность всех пользователей за последние N дней
+    /// (по убыванию времени).
+    /// </summary>
+    Task<IReadOnlyList<UserActivityEntity>> GetRecentAllUsersAsync(
+        int days = 7,
+        int limit = 500,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Удаляет записи активности старше указанного возраста (окно хранения).
+    /// Возвращает количество удалённых строк.
+    /// </summary>
+    Task<int> DeleteOlderThanAsync(TimeSpan maxAge, CancellationToken cancellationToken = default);
 }
