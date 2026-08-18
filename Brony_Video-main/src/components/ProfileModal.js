@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { AlertCircle, LifeBuoy, LogIn, Pencil, Shield, UserCircle, X } from "lucide-react";
+import { AlertCircle, Bookmark, LifeBuoy, LogIn, Pencil, Shield, UserCircle, X } from "lucide-react";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { useAuth } from "../auth/AuthContext";
 import { resolveAvatarEmoji, validateAvatarEmoji } from "../auth/avatar";
@@ -10,6 +10,7 @@ import { normalizeAuthUser } from "../auth/user";
 import { validateUsername } from "../auth/username";
 import { validateChangePassword } from "../auth/password";
 import SupportModal from "./SupportModal";
+import FavoritesModal from "./FavoritesModal";
 
 function ProfileSkeleton() {
   return (
@@ -51,6 +52,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
   const [emojiError, setEmojiError] = useState("");
   const [emojiSuccess, setEmojiSuccess] = useState("");
   const [supportOpen, setSupportOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
   const [emojiSaving, setEmojiSaving] = useState(false);
 
   onCloseRef.current = onClose;
@@ -99,8 +101,9 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
       setEmojiInput("");
       setEmojiError("");
       setEmojiSuccess("");
-      setEmojiSaving(false);
+            setEmojiSaving(false);
       setSupportOpen(false);
+      setFavoritesOpen(false);
       return undefined;
     }
 
@@ -566,7 +569,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
                 </div>
               ) : null}
 
-              <div className="profile-support-section">
+                            <div className="profile-support-section">
                 <button
                   type="button"
                   className="secondary-btn profile-support-btn"
@@ -574,6 +577,17 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
                 >
                   <LifeBuoy size={16} aria-hidden="true" />
                   <span>Поддержка</span>
+                </button>
+              </div>
+
+              <div className="profile-favorites-section">
+                <button
+                  type="button"
+                  className="secondary-btn profile-favorites-btn"
+                  onClick={() => setFavoritesOpen(true)}
+                >
+                  <Bookmark size={16} aria-hidden="true" />
+                  <span>Избранное</span>
                 </button>
               </div>
 
@@ -737,10 +751,17 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
           )}
         </div>
       </div>
-      <SupportModal
+            <SupportModal
         isOpen={supportOpen}
         onClose={() => setSupportOpen(false)}
         user={displayUser}
+      />
+      <FavoritesModal
+        isOpen={favoritesOpen}
+        onClose={() => {
+          setFavoritesOpen(false);
+          onClose();
+        }}
       />
     </div>,
     document.body

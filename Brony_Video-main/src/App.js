@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  Bookmark,
+  BookmarkCheck,
   Bot,
   Check,
   ChevronRight,
@@ -28,6 +30,8 @@ import {
 import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
 import { apiFetch, apiUrl } from "./auth/api";
 import { useI18n } from "./i18n";
+import { useAuth } from "./auth/AuthContext";
+import { addFavorite, fetchFavoriteStatus, removeFavorite } from "./favorites/api";
 import ForumPage from "./components/ForumPage";
 import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
@@ -930,8 +934,12 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const [isMuted, setIsMuted] = useState(false);
   const [skipFeedback, setSkipFeedback] = useState(null);
   const [controlsVisible, setControlsVisible] = useState(true);
-  const [volumeFocused, setVolumeFocused] = useState(false);
+    const [volumeFocused, setVolumeFocused] = useState(false);
   const [timelineActive, setTimelineActive] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteBusy, setFavoriteBusy] = useState(false);
+  const [favoriteMessage, setFavoriteMessage] = useState("");
+  const { isAuthenticated } = useAuth();
   const mobileTapPendingRef = useRef(null);
   const skipFeedbackTimerRef = useRef(null);
   const controlsHideTimerRef = useRef(null);
@@ -952,6 +960,10 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     !isPlaying || settingsOpen || speedSubmenuOpen || volumeFocused || timelineActive;
   const controlsHidden = isPlaying && !controlsVisible && !controlsLocked;
 
+  const remoteEpisodeVideo = remoteVideos.find(
+    (video) => video.episodeNumber === selectedEpisode?.id
+  );
+  const currentVideoId = remoteEpisodeVideo?.id || "";
   const videoSrc = selectedEpisode?.filePath ? getMediaUrl(selectedEpisode.filePath) : "";
   const downloadFileName = useMemo(() => {
     const rawPath = selectedEpisode?.filePath || videoSrc;
@@ -984,9 +996,61 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     setControlsVisible(true);
     setVolumeFocused(false);
         setTimelineActive(false);
-    lastSavedSecondRef.current = -1;
+        lastSavedSecondRef.current = -1;
     videoLogRef.current = null;
   }, [videoSrc, safeSeason, episode]);
+
+  useEffect(() => {
+    if (!currentVideoId) {
+      setIsFavorite(false);
+      return undefined;
+    }
+    let cancelled = false;
+    fetchFavoriteStatus(currentVideoId)
+      .then((status) => {
+        if (!cancelled) {
+          setIsFavorite(status);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setIsFavorite(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentVideoId]);
+
+  const toggleFavorite = useCallback(async () => {
+    if (favoriteBusy) {
+      return;
+    }
+    if (!isAuthenticated) {
+      setFavoriteMessage("Войдите в аккаунт, чтобы добавить серию в избранное.");
+      return;
+    }
+    if (!currentVideoId) {
+      setFavoriteMessage("Не удалось определить серию для избранного.");
+      return;
+    }
+    setFavoriteBusy(true);
+    setFavoriteMessage("");
+    try {
+      if (isFavorite) {
+        await removeFavorite(currentVideoId);
+        setIsFavorite(false);
+      } else {
+        await addFavorite(currentVideoId);
+        setIsFavorite(true);
+        setFavoriteMessage("Серия добавлена в избранное.");
+      }
+    } catch (error) {
+      setFavoriteMessage(error.message || "Не удалось обновить избранное.");
+    } finally {
+      setFavoriteBusy(false);
+    }
+  }, [currentVideoId, favoriteBusy, isAuthenticated, isFavorite]);
 
   useEffect(() => {
     if (!settingsOpen) {
@@ -2090,7 +2154,16 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       ) : null}
       <h3>{selectedEpisode?.title || "Серия недоступна"}</h3>
       <p className="muted">{selectedEpisode?.description || "Описание недоступно."}</p>
-      <div className="button-row">
+            <div className="button-row">
+        <button
+          type="button"
+          className={`secondary-btn ${isFavorite ? "player-favorite-btn--active" : ""}`}
+          onClick={toggleFavorite}
+          disabled={favoriteBusy}
+        >
+          {isFavorite ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+          <span>{isFavorite ? "В избранном" : "В избранное"}</span>
+        </button>
         <button type="button" className="primary-btn" onClick={toggleShellFullscreen}>
           <Maximize size={16} />
           <span>На весь экран</span>
@@ -2099,6 +2172,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
           Назад к сезону
         </Link>
       </div>
+      {favoriteMessage ? <p className="muted video-error-msg">{favoriteMessage}</p> : null}
       <div className="next-videos">
         <h3>Следующие видео</h3>
         {nextEpisodes.length === 0 ? (

@@ -56,6 +56,8 @@ builder.Services.AddScoped<ISupportService, SupportService>();
 builder.Services.AddScoped<INewsPostRepository, NewsPostRepository>();
 builder.Services.AddScoped<IUserActivityRepository, UserActivityRepository>();
 builder.Services.AddScoped<IUserActivityService, UserActivityService>();
+builder.Services.AddScoped<IUserFavoriteRepository, UserFavoriteRepository>();
+builder.Services.AddScoped<IUserFavoriteService, UserFavoriteService>();
 builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.Configure<AdminAccessOptions>(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
 builder.Services.AddSingleton<IAdminAccessService, AdminAccessService>();

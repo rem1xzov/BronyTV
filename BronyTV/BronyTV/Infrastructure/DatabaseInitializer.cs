@@ -160,6 +160,7 @@ public static class DatabaseInitializer
         await EnsureNewsPostsTableAsync(context, logger, cancellationToken);
         await EnsureSupportTablesAsync(context, logger, cancellationToken);
         await EnsureUserActivityTableAsync(context, logger, cancellationToken);
+        await EnsureUserFavoritesTableAsync(context, logger, cancellationToken);
     }
 
     private const string EnsureUserPlatformRoleColumnSql = """
@@ -259,8 +260,25 @@ public static class DatabaseInitializer
                 REFERENCES public."Users" ("Id") ON DELETE CASCADE
         );
 
-        CREATE INDEX IF NOT EXISTS "IX_UserActivities_UserId_Timestamp"
+                CREATE INDEX IF NOT EXISTS "IX_UserActivities_UserId_Timestamp"
             ON public."UserActivities" ("UserId", "Timestamp");
+        """;
+
+    private const string EnsureUserFavoritesTableSql = """
+        CREATE TABLE IF NOT EXISTS public."UserFavorites" (
+            "Id" uuid NOT NULL,
+            "UserId" uuid NOT NULL,
+            "VideoId" uuid NOT NULL,
+            "AddedAt" timestamp with time zone NOT NULL DEFAULT now(),
+            CONSTRAINT "PK_UserFavorites" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_UserFavorites_Users_UserId" FOREIGN KEY ("UserId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_UserFavorites_Videos_VideoId" FOREIGN KEY ("VideoId")
+                REFERENCES public."Videos" ("Id") ON DELETE CASCADE
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_UserFavorites_UserId_VideoId"
+            ON public."UserFavorites" ("UserId", "VideoId");
         """;
 
     private const string EnsureSupportTablesSql = """
@@ -349,7 +367,7 @@ public static class DatabaseInitializer
         logger.LogInformation("Verified public support tables exist (CREATE TABLE IF NOT EXISTS).");
     }
 
-    public static async Task EnsureUserActivityTableAsync(
+        public static async Task EnsureUserActivityTableAsync(
         DbBronyTV context,
         ILogger logger,
         CancellationToken cancellationToken = default)
@@ -357,6 +375,16 @@ public static class DatabaseInitializer
         await context.Database.ExecuteSqlRawAsync(EnsureUserActivityTableSql, cancellationToken);
         logger.LogInformation("Verified public.\"UserActivities\" table exists (CREATE TABLE IF NOT EXISTS).");
     }
+
+    public static async Task EnsureUserFavoritesTableAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureUserFavoritesTableSql, cancellationToken);
+        logger.LogInformation("Verified public.\"UserFavorites\" table exists (CREATE TABLE IF NOT EXISTS).");
+    }
+
 
     private const string EnsureUserCommentBanColumnSql = """
         ALTER TABLE public."Users"

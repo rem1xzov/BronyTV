@@ -680,6 +680,12 @@ body[data-theme="dark"] .hero-thumb {
   margin-top: 8px;
 }
 
+.player-favorite-btn--active {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-soft));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-soft));
+  color: var(--accent-strong);
+}
+
 .player-panel .video-player,
 .player-panel .video-placeholder {
   box-sizing: border-box;
@@ -3775,6 +3781,20 @@ body[data-theme="dark"] .profile-email-confirm-warning {
 }
 
 .profile-support-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.profile-favorites-section {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.profile-favorites-btn {
   width: 100%;
   display: inline-flex;
   align-items: center;
