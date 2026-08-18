@@ -1735,9 +1735,31 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [saveVideoProgress]
   );
 
-  const toggleShellFullscreen = useCallback(async () => {
+    const toggleShellFullscreen = useCallback(async () => {
     const shellNode = playerShellRef.current;
     const videoNode = playerRef.current;
+
+    // Safe helpers for the Screen Orientation API (not present on all browsers /
+    // can be blocked by browser policy — never let an orientation failure break
+    // the fullscreen toggle).
+    const tryLockLandscape = () => {
+      const orientation = screen.orientation;
+      if (!orientation || typeof orientation.lock !== "function") {
+        return; // API unavailable — fall back to natural rotation.
+      }
+      orientation.lock("landscape").catch(() => {});
+    };
+    const tryUnlockOrientation = () => {
+      const orientation = screen.orientation;
+      if (!orientation || typeof orientation.unlock !== "function") {
+        return;
+      }
+      try {
+        orientation.unlock();
+      } catch (error) {
+        // Ignore — orientation unlock is best-effort.
+      }
+    };
 
     try {
       // Специальный вызов для iOS Safari (iPhone)
@@ -1752,6 +1774,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       const isActive = activeElement === shellNode;
 
       if (isActive) {
+        tryUnlockOrientation();
         if (document.exitFullscreen) {
           await document.exitFullscreen();
         } else if (document.webkitExitFullscreen) {
@@ -1767,10 +1790,20 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       } else if (shellNode.msRequestFullscreen) {
         shellNode.msRequestFullscreen();
       }
+
+      // После входа в полноэкранный режим на мобильном устройстве принудительно
+      // блокируем альбомную ориентацию. requestFullscreen() сам по себе НЕ
+      // поворачивает видео под ориентацию устройства — это делает lock().
+      // Работает на Android Chrome/Samsung Internet при явном пользовательском
+      // действии (клик по кнопке выступает как пользовательский жест). Если API
+      // недоступен/заблокирован — не чиним, полагаясь на естественный поворот.
+      if (isMobileTouchDevice()) {
+        tryLockLandscape();
+      }
     } catch (error) {
       // Fail silently if fullscreen is blocked by browser policy.
     }
-  }, []);
+  }, [isMobileTouchDevice]);
 
   return (
     <section className="panel player-panel">
