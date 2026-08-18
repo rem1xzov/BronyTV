@@ -163,7 +163,7 @@ export default function FavoritesModal({ isOpen, onClose }) {
               <div className="favorites-modal-empty-icon" aria-hidden="true">
                 <Bookmark size={22} />
               </div>
-              <p className="favorites-modal-empty-title">Пока пусто</p>
+              <p className="favorites-modal-empty-title">В избранном пока ничего нет</p>
               <p className="muted favorites-modal-empty-text">
                 Добавляйте серии в избранное с плеера — они появятся здесь.
               </p>

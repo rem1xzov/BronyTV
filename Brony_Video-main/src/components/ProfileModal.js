@@ -10,7 +10,6 @@ import { normalizeAuthUser } from "../auth/user";
 import { validateUsername } from "../auth/username";
 import { validateChangePassword } from "../auth/password";
 import SupportModal from "./SupportModal";
-import FavoritesModal from "./FavoritesModal";
 
 function ProfileSkeleton() {
   return (
@@ -24,7 +23,7 @@ function ProfileSkeleton() {
   );
 }
 
-export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
+export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenFavorites }) {
   const { user, refreshUser, logout, updateUsername, updatePassword, updateAvatarEmoji } = useAuth();
   const titleId = useId();
   const onCloseRef = useRef(onClose);
@@ -51,8 +50,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
   const [emojiInput, setEmojiInput] = useState("");
   const [emojiError, setEmojiError] = useState("");
   const [emojiSuccess, setEmojiSuccess] = useState("");
-  const [supportOpen, setSupportOpen] = useState(false);
-  const [favoritesOpen, setFavoritesOpen] = useState(false);
+    const [supportOpen, setSupportOpen] = useState(false);
   const [emojiSaving, setEmojiSaving] = useState(false);
 
   onCloseRef.current = onClose;
@@ -102,8 +100,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
       setEmojiError("");
       setEmojiSuccess("");
             setEmojiSaving(false);
-      setSupportOpen(false);
-      setFavoritesOpen(false);
+            setSupportOpen(false);
       return undefined;
     }
 
@@ -580,11 +577,11 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
                 </button>
               </div>
 
-              <div className="profile-favorites-section">
+                            <div className="profile-favorites-section">
                 <button
                   type="button"
                   className="secondary-btn profile-favorites-btn"
-                  onClick={() => setFavoritesOpen(true)}
+                  onClick={onOpenFavorites}
                 >
                   <Bookmark size={16} aria-hidden="true" />
                   <span>Избранное</span>
@@ -750,18 +747,11 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn }) {
             </div>
           )}
         </div>
-      </div>
+            </div>
             <SupportModal
         isOpen={supportOpen}
         onClose={() => setSupportOpen(false)}
         user={displayUser}
-      />
-      <FavoritesModal
-        isOpen={favoritesOpen}
-        onClose={() => {
-          setFavoritesOpen(false);
-          onClose();
-        }}
       />
     </div>,
     document.body

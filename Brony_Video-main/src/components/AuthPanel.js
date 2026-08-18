@@ -3,12 +3,14 @@ import { LogIn, LogOut, UserCircle, UserPlus } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import AuthModal from "./AuthModal";
 import ProfileModal from "./ProfileModal";
+import FavoritesModal from "./FavoritesModal";
 
 export default function AuthPanel() {
   const { user, loading, logout } = useAuth();
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState("signin");
   const [profileOpen, setProfileOpen] = useState(false);
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
 
   const openAuthModal = (mode) => {
     setAuthModalMode(mode);
@@ -23,8 +25,13 @@ export default function AuthPanel() {
     setProfileOpen(true);
   };
 
-  const closeProfile = () => {
+    const closeProfile = () => {
     setProfileOpen(false);
+  };
+
+  const openFavoritesFromProfile = () => {
+    setProfileOpen(false);
+    setFavoritesOpen(true);
   };
 
   const handleLogout = async () => {
@@ -93,10 +100,15 @@ export default function AuthPanel() {
             <span>Выйти</span>
           </button>
         </div>
-        <ProfileModal
+                <ProfileModal
           isOpen={profileOpen}
           onClose={closeProfile}
           onRequestSignIn={() => openAuthModal("signin")}
+          onOpenFavorites={openFavoritesFromProfile}
+        />
+        <FavoritesModal
+          isOpen={favoritesOpen}
+          onClose={() => setFavoritesOpen(false)}
         />
       </>
     );
