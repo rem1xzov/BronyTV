@@ -10,6 +10,9 @@ import { normalizeAuthUser } from "../auth/user";
 import { validateUsername } from "../auth/username";
 import { validateChangePassword } from "../auth/password";
 import SupportModal from "./SupportModal";
+import VpnModal from "./VpnModal";
+import { fetchVpnStatus } from "../vpn/api";
+
 
 function ProfileSkeleton() {
   return (
@@ -50,8 +53,12 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
   const [emojiInput, setEmojiInput] = useState("");
   const [emojiError, setEmojiError] = useState("");
   const [emojiSuccess, setEmojiSuccess] = useState("");
-    const [supportOpen, setSupportOpen] = useState(false);
+        const [supportOpen, setSupportOpen] = useState(false);
   const [emojiSaving, setEmojiSaving] = useState(false);
+  const [vpnOpen, setVpnOpen] = useState(false);
+  const [vpnStatus, setVpnStatus] = useState(null);
+  const [vpnStatusError, setVpnStatusError] = useState("");
+
 
   onCloseRef.current = onClose;
 
@@ -99,8 +106,11 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
       setEmojiInput("");
       setEmojiError("");
       setEmojiSuccess("");
-            setEmojiSaving(false);
+                  setEmojiSaving(false);
             setSupportOpen(false);
+            setVpnOpen(false);
+            setVpnStatus(null);
+            setVpnStatusError("");
       return undefined;
     }
 
@@ -145,7 +155,34 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
     return () => {
       cancelled = true;
     };
-  }, [isOpen, refreshUser]);
+    }, [isOpen, refreshUser]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+    let cancelled = false;
+    fetchVpnStatus()
+      .then(async (response) => {
+        if (cancelled) {
+          return;
+        }
+        const raw = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setVpnStatusError(raw.message || "Не удалось загрузить статус VPN.");
+          return;
+        }
+        setVpnStatus(raw);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setVpnStatusError("Не удалось загрузить статус VPN.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -577,7 +614,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
                 </button>
               </div>
 
-                            <div className="profile-favorites-section">
+                                                        <div className="profile-favorites-section">
                 <button
                   type="button"
                   className="secondary-btn profile-favorites-btn"
@@ -587,6 +624,24 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
                   <span>Избранное</span>
                 </button>
               </div>
+
+                            <div className="profile-vpn-section">
+                <button
+                  type="button"
+                  className="secondary-btn profile-vpn-btn"
+                  onClick={() => setVpnOpen(true)}
+                >
+                  <Shield size={16} aria-hidden="true" />
+                  <span>{vpnStatus?.isActive ? "VPN активен" : "BronyVPN"}</span>
+                  {vpnStatus?.isActive ? (
+                    <span className="profile-vpn-badge profile-vpn-badge--active">Активен</span>
+                  ) : null}
+                </button>
+                {vpnStatusError ? (
+                  <p className="profile-vpn-hint muted">{vpnStatusError}</p>
+                ) : null}
+              </div>
+
 
               <div className="profile-password-section">
                 {!passwordFormOpen ? (
@@ -748,10 +803,16 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
           )}
         </div>
             </div>
-            <SupportModal
+                        <SupportModal
         isOpen={supportOpen}
         onClose={() => setSupportOpen(false)}
         user={displayUser}
+      />
+      <VpnModal
+        isOpen={vpnOpen}
+        onClose={() => setVpnOpen(false)}
+        isAuthenticated={Boolean(displayUser)}
+        onRequestSignIn={() => setVpnOpen(false)}
       />
     </div>,
     document.body

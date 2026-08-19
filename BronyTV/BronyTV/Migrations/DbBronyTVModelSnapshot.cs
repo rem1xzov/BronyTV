@@ -351,13 +351,20 @@ namespace BronyTV.Migrations
                         .HasColumnType("character varying(16)")
                         .HasDefaultValue("User");
 
-                    b.Property<string>("Race")
+                                        b.Property<string>("Race")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
                     b.Property<DateTime>("RaceSelectedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ReferralCode")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<Guid?>("ReferredByUserId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("Username")
                         .HasMaxLength(25)
@@ -368,9 +375,13 @@ namespace BronyTV.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                    b.HasIndex("EmailConfirmationToken")
+                                        b.HasIndex("EmailConfirmationToken")
                         .IsUnique()
                         .HasFilter("\"EmailConfirmationToken\" IS NOT NULL");
+
+                    b.HasIndex("ReferralCode")
+                        .IsUnique()
+                        .HasFilter("\"ReferralCode\" IS NOT NULL");
 
                     b.HasIndex("Username")
                         .IsUnique()

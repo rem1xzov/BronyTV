@@ -17,28 +17,32 @@ public class UserAuthService : IUserAuthService
     private const int ConfirmationResendCooldownSeconds = 60;
     private const int MaxConfirmationAttempts = 5;
 
-    private readonly IUserRepository _userRepository;
+        private readonly IUserRepository _userRepository;
     private readonly IAdminAccessService _adminAccessService;
     private readonly IEmailService _emailService;
+    private readonly IVpnRepository _vpnRepository;
     private readonly IConfiguration _configuration;
 
     public UserAuthService(
         IUserRepository userRepository,
         IAdminAccessService adminAccessService,
         IEmailService emailService,
+        IVpnRepository vpnRepository,
         IConfiguration configuration)
     {
         _userRepository = userRepository;
         _adminAccessService = adminAccessService;
         _emailService = emailService;
+        _vpnRepository = vpnRepository;
         _configuration = configuration;
     }
 
-    public async Task<(RegistrationPendingResponse? Response, string? Error)> RegisterAsync(
+        public async Task<(RegistrationPendingResponse? Response, string? Error)> RegisterAsync(
         string email,
         string password,
         string race,
         string username,
+        string? referralCode = null,
         CancellationToken cancellationToken = default)
     {
         var normalizedEmail = NormalizeEmail(email);
@@ -62,6 +66,21 @@ public class UserAuthService : IUserAuthService
             return (null, usernameError);
         }
 
+        // Реферальная система BronyVPN: резолвим пригласившего по коду, если он указан.
+        // Игнорируем неверный/несуществующий код (мягкая деградация), но НЕ даём
+        // пригласить самого себя (это выяснится после создания аккаунта).
+        Guid? referredByUserId = null;
+        if (!string.IsNullOrWhiteSpace(referralCode))
+        {
+            var referrer = await _userRepository.GetByReferralCodeAsync(
+                referralCode.Trim(),
+                cancellationToken);
+            if (referrer != null)
+            {
+                referredByUserId = referrer.Id;
+            }
+        }
+
         var existing = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
         if (existing?.IsEmailConfirmed == true)
         {
@@ -81,6 +100,9 @@ public class UserAuthService : IUserAuthService
         var confirmationCode = CreateEmailConfirmationCode();
         var confirmationHash = BCrypt.Net.BCrypt.HashPassword(confirmationCode);
 
+        // Уникальный реферальный код — генерируем до тех пор, пока не найдём свободный.
+        var newReferralCode = await GenerateUniqueReferralCodeAsync(cancellationToken);
+
         if (existing == null)
         {
             existing = new UserEntity
@@ -98,7 +120,9 @@ public class UserAuthService : IUserAuthService
                 EmailConfirmationToken = confirmationHash,
                 EmailConfirmationExpiresAtUtc = now.AddMinutes(ConfirmationLifetimeMinutes),
                 EmailConfirmationLastSentAtUtc = now,
-                EmailConfirmationFailedAttempts = 0
+                EmailConfirmationFailedAttempts = 0,
+                ReferralCode = newReferralCode,
+                ReferredByUserId = referredByUserId
             };
 
             await _userRepository.CreateAsync(existing, cancellationToken);
@@ -113,6 +137,8 @@ public class UserAuthService : IUserAuthService
             existing.CreatedAtUtc = now;
             existing.RaceSelectedAtUtc = now;
             existing.PlatformRole = _adminAccessService.ResolveInitialRole(normalizedEmail);
+            existing.ReferralCode ??= newReferralCode;
+            existing.ReferredByUserId ??= referredByUserId;
             existing.EmailConfirmationToken = confirmationHash;
             existing.EmailConfirmationExpiresAtUtc = now.AddMinutes(ConfirmationLifetimeMinutes);
             existing.EmailConfirmationLastSentAtUtc = now;
@@ -282,12 +308,34 @@ public class UserAuthService : IUserAuthService
                 : "Неверный код подтверждения.");
         }
 
-        user.IsEmailConfirmed = true;
+                user.IsEmailConfirmed = true;
         user.EmailConfirmationToken = null;
         user.EmailConfirmationExpiresAtUtc = null;
         user.EmailConfirmationLastSentAtUtc = null;
         user.EmailConfirmationFailedAttempts = 0;
         await _userRepository.SaveChangesAsync(user, cancellationToken);
+
+        // Реферальная система BronyVPN: если приглашённый подтвердил email —
+        // начисляем пригласившему бонусные дни за успешного реферала.
+        if (user.ReferredByUserId.HasValue && user.ReferredByUserId.Value != user.Id)
+        {
+            var referrer = await _userRepository.GetByIdAsync(user.ReferredByUserId.Value, cancellationToken);
+            if (referrer != null)
+            {
+                await _vpnRepository.AddReferralRewardAsync(
+                    new ReferralRewardEntity
+                    {
+                        Id = Guid.NewGuid(),
+                        ReferrerId = referrer.Id,
+                        ReferralUserId = user.Id,
+                        BonusDays = 7,
+                        Reason = "email_confirmed",
+                        CreatedAtUtc = DateTime.UtcNow
+                    },
+                    cancellationToken);
+            }
+        }
+
         return (true, null);
     }
 
@@ -435,8 +483,24 @@ public class UserAuthService : IUserAuthService
         }
     }
 
-    private static string CreateEmailConfirmationCode() =>
+        private static string CreateEmailConfirmationCode() =>
         RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
+
+    // Генерирует уникальный (пока ещё не занятый) реферальный код.
+    private async Task<string> GenerateUniqueReferralCodeAsync(CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            var candidate = Models.VpnConfig.GeneratePromoCode();
+            if (!await _userRepository.ReferralCodeExistsAsync(candidate, cancellationToken))
+            {
+                return candidate;
+            }
+        }
+
+        // Крайне маловероятно, но на всякий случай не даём зациклиться.
+        return Models.VpnConfig.GeneratePromoCode() + Guid.NewGuid().ToString("N")[..4];
+    }
 
     private static string NormalizeEmail(string email) =>
         string.IsNullOrWhiteSpace(email) ? string.Empty : email.Trim().ToLowerInvariant();

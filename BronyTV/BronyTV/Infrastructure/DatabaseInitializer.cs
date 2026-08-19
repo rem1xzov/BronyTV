@@ -150,17 +150,19 @@ public static class DatabaseInitializer
         await EnsureUsersTableAsync(context, logger, cancellationToken);
         await EnsureUsernameColumnAsync(context, logger, cancellationToken);
         await EnsureAvatarEmojiColumnAsync(context, logger, cancellationToken);
-        await EnsureCommentsTableAsync(context, logger, cancellationToken);
+                await EnsureCommentsTableAsync(context, logger, cancellationToken);
         await EnsureParentCommentIdColumnAsync(context, logger, cancellationToken);
         await EnsureCommentLikesTableAsync(context, logger, cancellationToken);
         await EnsureUserCommentBanColumnAsync(context, logger, cancellationToken);
         await EnsureUserPlatformRoleColumnAsync(context, logger, cancellationToken);
         await EnsureEmailConfirmationColumnsAsync(context, logger, cancellationToken);
+        await EnsureUserReferralColumnsAsync(context, logger, cancellationToken);
         await EnsureForumTablesAsync(context, logger, cancellationToken);
         await EnsureNewsPostsTableAsync(context, logger, cancellationToken);
         await EnsureSupportTablesAsync(context, logger, cancellationToken);
         await EnsureUserActivityTableAsync(context, logger, cancellationToken);
         await EnsureUserFavoritesTableAsync(context, logger, cancellationToken);
+        await EnsureVpnTablesAsync(context, logger, cancellationToken);
     }
 
     private const string EnsureUserPlatformRoleColumnSql = """
@@ -264,7 +266,7 @@ public static class DatabaseInitializer
             ON public."UserActivities" ("UserId", "Timestamp");
         """;
 
-    private const string EnsureUserFavoritesTableSql = """
+        private const string EnsureUserFavoritesTableSql = """
         CREATE TABLE IF NOT EXISTS public."UserFavorites" (
             "Id" uuid NOT NULL,
             "UserId" uuid NOT NULL,
@@ -279,6 +281,98 @@ public static class DatabaseInitializer
 
         CREATE UNIQUE INDEX IF NOT EXISTS "IX_UserFavorites_UserId_VideoId"
             ON public."UserFavorites" ("UserId", "VideoId");
+        """;
+
+    private const string EnsureUserReferralColumnsSql = """
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "ReferralCode" character varying(16);
+
+        CREATE UNIQUE INDEX IF NOT EXISTS "IX_Users_ReferralCode"
+            ON public."Users" ("ReferralCode")
+            WHERE "ReferralCode" IS NOT NULL;
+
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "ReferredByUserId" uuid;
+
+        CREATE INDEX IF NOT EXISTS "IX_Users_ReferredByUserId"
+            ON public."Users" ("ReferredByUserId");
+
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM pg_constraint
+                WHERE conname = 'FK_Users_Users_ReferredByUserId'
+            ) THEN
+                ALTER TABLE public."Users"
+                    ADD CONSTRAINT "FK_Users_Users_ReferredByUserId"
+                    FOREIGN KEY ("ReferredByUserId")
+                    REFERENCES public."Users" ("Id")
+                    ON DELETE SET NULL;
+            END IF;
+        END $$;
+        """;
+
+    private const string EnsureVpnTablesSql = """
+        CREATE TABLE IF NOT EXISTS public."VpnSubscriptions" (
+            "Id" uuid NOT NULL,
+            "UserId" uuid NOT NULL,
+            "Kind" character varying(16) NOT NULL,
+            "PlanName" character varying(100) NOT NULL,
+            "StartedAtUtc" timestamp with time zone NOT NULL,
+            "ExpiresAtUtc" timestamp with time zone,
+            "ClientUuid" character varying(64),
+            "Note" character varying(500),
+            "IsRevoked" boolean NOT NULL DEFAULT FALSE,
+            "PanelPlanNameId" character varying(32),
+            CONSTRAINT "PK_VpnSubscriptions" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_VpnSubscriptions_Users_UserId" FOREIGN KEY ("UserId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_VpnSubscriptions_UserId"
+            ON public."VpnSubscriptions" ("UserId");
+
+        CREATE TABLE IF NOT EXISTS public."VpnPromoKeys" (
+            "Code" character varying(16) NOT NULL,
+            "IsUsed" boolean NOT NULL,
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            "UsedAtUtc" timestamp with time zone,
+            "UsedByUserId" uuid,
+            "SubscriptionId" uuid,
+            CONSTRAINT "PK_VpnPromoKeys" PRIMARY KEY ("Code"),
+            CONSTRAINT "FK_VpnPromoKeys_Users_UsedByUserId" FOREIGN KEY ("UsedByUserId")
+                REFERENCES public."Users" ("Id") ON DELETE SET NULL,
+            CONSTRAINT "FK_VpnPromoKeys_VpnSubscriptions_SubscriptionId" FOREIGN KEY ("SubscriptionId")
+                REFERENCES public."VpnSubscriptions" ("Id") ON DELETE SET NULL
+        );
+
+                CREATE INDEX IF NOT EXISTS "IX_VpnPromoKeys_IsUsed"
+            ON public."VpnPromoKeys" ("IsUsed");
+
+        ALTER TABLE public."VpnPromoKeys"
+            ADD COLUMN IF NOT EXISTS "ClientUuid" character varying(64);
+
+        CREATE TABLE IF NOT EXISTS public."ReferralRewards" (
+            "Id" uuid NOT NULL,
+            "ReferrerId" uuid NOT NULL,
+            "ReferralUserId" uuid NOT NULL,
+            "BonusDays" integer NOT NULL,
+            "Reason" character varying(32) NOT NULL,
+            "IsRedeemed" boolean NOT NULL DEFAULT FALSE,
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            CONSTRAINT "PK_ReferralRewards" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_ReferralRewards_Users_ReferrerId" FOREIGN KEY ("ReferrerId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_ReferralRewards_Users_ReferralUserId" FOREIGN KEY ("ReferralUserId")
+                REFERENCES public."Users" ("Id") ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_ReferralRewards_ReferrerId"
+            ON public."ReferralRewards" ("ReferrerId");
+
+        CREATE INDEX IF NOT EXISTS "IX_ReferralRewards_ReferralUserId"
+            ON public."ReferralRewards" ("ReferralUserId");
         """;
 
     private const string EnsureSupportTablesSql = """
@@ -376,13 +470,31 @@ public static class DatabaseInitializer
         logger.LogInformation("Verified public.\"UserActivities\" table exists (CREATE TABLE IF NOT EXISTS).");
     }
 
-    public static async Task EnsureUserFavoritesTableAsync(
+        public static async Task EnsureUserFavoritesTableAsync(
         DbBronyTV context,
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
         await context.Database.ExecuteSqlRawAsync(EnsureUserFavoritesTableSql, cancellationToken);
         logger.LogInformation("Verified public.\"UserFavorites\" table exists (CREATE TABLE IF NOT EXISTS).");
+    }
+
+    public static async Task EnsureUserReferralColumnsAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureUserReferralColumnsSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Users\" referral columns and unique index.");
+    }
+
+    public static async Task EnsureVpnTablesAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureVpnTablesSql, cancellationToken);
+        logger.LogInformation("Verified public VPN tables exist (CREATE TABLE IF NOT EXISTS).");
     }
 
 

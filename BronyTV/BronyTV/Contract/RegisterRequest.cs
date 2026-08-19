@@ -22,4 +22,8 @@ public class RegisterRequest
     [MinLength(4)]
     [MaxLength(25)]
     public string Username { get; set; } = string.Empty;
+
+    /// <summary>Реферальный код, переданный через ?ref=CODE в ссылке на регистрацию.</summary>
+    [MaxLength(16)]
+    public string? ReferralCode { get; set; }
 }

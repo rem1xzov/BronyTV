@@ -45,10 +45,16 @@ export function AuthProvider({ children }) {
     };
   }, [refreshUser]);
 
-  const register = useCallback(async ({ email, password, race, username }) => {
+    const register = useCallback(async ({ email, password, race, username }) => {
+    let referralCode = null;
+    try {
+      referralCode = localStorage.getItem("bronytv-referral") || null;
+    } catch (error) {
+      referralCode = null;
+    }
     const response = await apiFetch("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, race, username })
+      body: JSON.stringify({ email, password, race, username, referralCode })
     });
     const raw = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -56,6 +62,12 @@ export function AuthProvider({ children }) {
     }
     // Registration creates only a pending account. A session is issued after the
     // six-digit code from the email has been verified.
+    // Реферальный код используется один раз — очищаем, чтобы не применять повторно.
+    try {
+      localStorage.removeItem("bronytv-referral");
+    } catch (error) {
+      // Ignore storage failures.
+    }
     return raw;
   }, []);
 

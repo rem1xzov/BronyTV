@@ -67,9 +67,20 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
         builder.Property(user => user.EmailConfirmationLastSentAtUtc)
             .IsRequired(false);
 
-        builder.Property(user => user.EmailConfirmationFailedAttempts)
+                builder.Property(user => user.EmailConfirmationFailedAttempts)
             .HasDefaultValue(0)
             .IsRequired();
+
+        builder.Property(user => user.ReferralCode)
+            .HasMaxLength(16)
+            .IsRequired(false);
+
+        builder.Property(user => user.ReferredByUserId)
+            .IsRequired(false);
+
+        builder.HasIndex(user => user.ReferralCode)
+            .IsUnique()
+            .HasFilter("\"ReferralCode\" IS NOT NULL");
 
         builder.HasIndex(user => user.EmailConfirmationToken)
             .IsUnique()

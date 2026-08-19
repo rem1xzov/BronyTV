@@ -38,6 +38,16 @@ public class UserRepository : IUserRepository
     public Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default) =>
         _context.Users.AnyAsync(user => user.Email == email, cancellationToken);
 
+    public Task<bool> ReferralCodeExistsAsync(string referralCode, CancellationToken cancellationToken = default) =>
+        _context.Users.AnyAsync(
+            user => user.ReferralCode != null && user.ReferralCode == referralCode,
+            cancellationToken);
+
+    public Task<UserEntity?> GetByReferralCodeAsync(string referralCode, CancellationToken cancellationToken = default) =>
+        _context.Users.FirstOrDefaultAsync(
+            user => user.ReferralCode == referralCode && user.IsEmailConfirmed,
+            cancellationToken);
+
     public async Task<IReadOnlyList<UserEntity>> SearchByUsernameOrEmailAsync(
         string query,
         CancellationToken cancellationToken = default)

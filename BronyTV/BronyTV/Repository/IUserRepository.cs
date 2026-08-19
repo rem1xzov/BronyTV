@@ -10,6 +10,8 @@ public interface IUserRepository
     Task<bool> UsernameExistsForOtherUserAsync(string username, Guid userId, CancellationToken cancellationToken = default);
     Task<bool> UsernameExistsAsync(string username, CancellationToken cancellationToken = default);
     Task<bool> EmailExistsAsync(string email, CancellationToken cancellationToken = default);
+    Task<bool> ReferralCodeExistsAsync(string referralCode, CancellationToken cancellationToken = default);
+    Task<UserEntity?> GetByReferralCodeAsync(string referralCode, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<UserEntity>> SearchByUsernameOrEmailAsync(
         string query,
         CancellationToken cancellationToken = default);

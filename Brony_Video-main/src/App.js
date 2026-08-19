@@ -27,7 +27,7 @@ import {
   VolumeX,
   X
 } from "lucide-react";
-import { Link, Route, Routes, useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { apiFetch, apiUrl } from "./auth/api";
 import { useI18n } from "./i18n";
 import { useAuth } from "./auth/AuthContext";
@@ -37,6 +37,7 @@ import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
 import NewsPage from "./components/NewsPage";
 import AiChatPage from "./components/AiChatPage";
+import VpnModal from "./components/VpnModal";
 import logoPng from "./assets/logo2.png";
 
 const SEASON_INFO = [
@@ -525,58 +526,6 @@ function EpisodePlaceholderIcon({ episodeNumber }) {
   );
 }
 
-function VpnModal({ isOpen, onClose }) {
-  const { t } = useI18n();
-
-  useEffect(() => {
-    if (!isOpen) {
-      return undefined;
-    }
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [isOpen, onClose]);
-
-  if (!isOpen) {
-    return null;
-  }
-
-  return createPortal(
-    <div className="vpn-modal-overlay" onClick={onClose} role="presentation">
-      <div
-        className="vpn-modal"
-        role="dialog"
-        aria-modal="true"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <button type="button" className="vpn-modal-close" onClick={onClose} aria-label={t("vpn.close")}>
-          <X size={20} />
-        </button>
-        <div className="vpn-modal-icon" aria-hidden="true">
-          <Shield size={30} />
-        </div>
-        <h2>{t("vpn.modalTitle")}</h2>
-        <p className="vpn-modal-text">{t("vpn.text")}</p>
-        <div className="vpn-modal-actions">
-          <button type="button" className="primary-btn vpn-modal-close-btn" onClick={onClose}>
-            <span>{t("vpn.close")}</span>
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body
-  );
-}
-
 function LanguageSwitcher({ className }) {
   const { language, setLanguage } = useI18n();
   return (
@@ -602,12 +551,18 @@ function LanguageSwitcher({ className }) {
 
 function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
   const { t } = useI18n();
+  const { isAuthenticated } = useAuth();
   const [vpnOpen, setVpnOpen] = useState(false);
 
   const openVpn = () => {
     setVpnOpen(true);
     // Логируем клик по плашке VPN (только факт, для залогиненных — сервер отсеет гостей).
     apiFetch("/activity/vpn-click", { method: "POST" }).catch(() => {});
+  };
+
+  const requestSignIn = () => {
+    setVpnOpen(false);
+    window.dispatchEvent(new CustomEvent("bronytv:open-auth", { detail: { mode: "signin" } }));
   };
 
   return (
@@ -649,7 +604,12 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
           <span>{t("nav.season", { number: season })}</span>
         </Link>
       ))}
-      <VpnModal isOpen={vpnOpen} onClose={() => setVpnOpen(false)} />
+            <VpnModal
+        isOpen={vpnOpen}
+        onClose={() => setVpnOpen(false)}
+        isAuthenticated={isAuthenticated}
+        onRequestSignIn={requestSignIn}
+      />
     </aside>
   );
 }
@@ -2216,10 +2176,33 @@ export default function App() {
     setCurrentPage(getPageFromPath(location.pathname));
   }, [location.pathname]);
 
-  useEffect(() => {
+    useEffect(() => {
     document.body.dataset.theme = theme;
     localStorage.setItem(STORAGE_KEYS.THEME, theme);
   }, [theme]);
+
+  // Реферальная ссылка BronyVPN: при переходе по ?ref=CODE сохраняем код и
+  // подсказываем гостю зарегистрироваться, передавая код в форму регистрации.
+  const [searchParams] = useSearchParams();
+  const referralFromUrl = searchParams.get("ref") || "";
+  const referralAppliedRef = useRef(false);
+  useEffect(() => {
+    if (referralAppliedRef.current || !referralFromUrl) {
+      return;
+    }
+    referralAppliedRef.current = true;
+    const code = referralFromUrl.trim();
+    if (code) {
+      try {
+        localStorage.setItem("bronytv-referral", code);
+      } catch (error) {
+        // Ignore storage failures.
+      }
+      window.dispatchEvent(
+        new CustomEvent("bronytv:open-auth", { detail: { mode: "signup", referral: code } })
+      );
+    }
+  }, [referralFromUrl]);
 
   useEffect(() => {
     const loadSeasons = async () => {

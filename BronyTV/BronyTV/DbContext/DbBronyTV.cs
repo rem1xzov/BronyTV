@@ -20,9 +20,12 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<ForumPostEntity> ForumPosts => Set<ForumPostEntity>();
     public DbSet<SupportTicketEntity> SupportTickets => Set<SupportTicketEntity>();
     public DbSet<SupportMessageEntity> SupportMessages => Set<SupportMessageEntity>();
-        public DbSet<NewsPost> NewsPosts => Set<NewsPost>();
+                public DbSet<NewsPost> NewsPosts => Set<NewsPost>();
         public DbSet<UserActivityEntity> UserActivities => Set<UserActivityEntity>();
     public DbSet<UserFavoriteEntity> UserFavorites => Set<UserFavoriteEntity>();
+    public DbSet<VpnSubscriptionEntity> VpnSubscriptions => Set<VpnSubscriptionEntity>();
+    public DbSet<VpnPromoKeyEntity> VpnPromoKeys => Set<VpnPromoKeyEntity>();
+    public DbSet<ReferralRewardEntity> ReferralRewards => Set<ReferralRewardEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -38,7 +41,10 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new SupportTicketConfiguration());
         modelBuilder.ApplyConfiguration(new SupportMessageConfiguration());
         modelBuilder.ApplyConfiguration(new NewsPostConfiguration());
-        modelBuilder.ApplyConfiguration(new UserActivityConfiguration());
+                modelBuilder.ApplyConfiguration(new UserActivityConfiguration());
         modelBuilder.ApplyConfiguration(new UserFavoriteConfiguration());
+        modelBuilder.ApplyConfiguration(new VpnSubscriptionConfiguration());
+        modelBuilder.ApplyConfiguration(new VpnPromoKeyConfiguration());
+        modelBuilder.ApplyConfiguration(new ReferralRewardConfiguration());
     }
 }

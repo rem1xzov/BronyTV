@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Activity as ActivityIcon, ArrowLeft, Home, LifeBuoy, Star, Upload, Users } from "lucide-react";
+import { Activity as ActivityIcon, ArrowLeft, Home, LifeBuoy, Shield, Star, Upload, Users } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch, apiUpload } from "../auth/api";
@@ -100,9 +100,22 @@ export default function AdminPanelPage() {
 
   const [premiumKeyLoading, setPremiumKeyLoading] = useState(false);
   const [premiumKeyError, setPremiumKeyError] = useState("");
-  const [premiumKeys, setPremiumKeys] = useState([]);
+    const [premiumKeys, setPremiumKeys] = useState([]);
   const [premiumKeysTotal, setPremiumKeysTotal] = useState(0);
   const [premiumKeyCopied, setPremiumKeyCopied] = useState("");
+
+  const [vpnPromoLoading, setVpnPromoLoading] = useState(false);
+  const [vpnPromoError, setVpnPromoError] = useState("");
+  const [vpnPromoKeys, setVpnPromoKeys] = useState([]);
+  const [vpnPromoTotal, setVpnPromoTotal] = useState(0);
+  const [vpnPromoCopied, setVpnPromoCopied] = useState("");
+  const [vpnSubscriptions, setVpnSubscriptions] = useState([]);
+  const [vpnSubsLoading, setVpnSubsLoading] = useState(false);
+  const [vpnSubsError, setVpnSubsError] = useState("");
+  const [vpnReferrals, setVpnReferrals] = useState([]);
+  const [vpnReferralsLoading, setVpnReferralsLoading] = useState(false);
+  const [vpnReferralsError, setVpnReferralsError] = useState("");
+
 
   useEffect(() => {
     if (loading) {
@@ -281,10 +294,18 @@ export default function AdminPanelPage() {
     }
   };
 
-  useEffect(() => {
+    useEffect(() => {
     if (activeTab === "users") {
       loadUsers(1);
       loadPremiumKeys();
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === "vpn") {
+      loadVpnPromoKeys();
+      loadVpnSubscriptions();
+      loadVpnReferrals();
     }
   }, [activeTab]);
 
@@ -482,7 +503,7 @@ export default function AdminPanelPage() {
     }
   };
 
-  const handleCopyPremiumKey = async (key) => {
+    const handleCopyPremiumKey = async (key) => {
     if (!key) return;
     try {
       await navigator.clipboard.writeText(key);
@@ -492,6 +513,98 @@ export default function AdminPanelPage() {
       setPremiumKeyError("Не удалось скопировать ключ в буфер обмена.");
     }
   };
+
+  const loadVpnPromoKeys = async () => {
+    setVpnPromoError("");
+    try {
+      const response = await fetch("/api/admin/vpn/promo-keys/list", {
+        credentials: "include"
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.message || `Сервер ответил: ${response.status}`);
+      }
+      const items = Array.isArray(payload.items ?? payload.Items)
+        ? payload.items ?? payload.Items
+        : [];
+      setVpnPromoKeys(items);
+      setVpnPromoTotal(Number(payload.total ?? payload.Total ?? items.length));
+    } catch (error) {
+      setVpnPromoError(error.message || "Не удалось загрузить VPN промо-ключи.");
+    }
+  };
+
+  const handleGenerateVpnPromo = async () => {
+    setVpnPromoLoading(true);
+    setVpnPromoError("");
+    try {
+      const response = await fetch("/api/admin/vpn/promo-keys/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: "{}"
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.message || `Сервер ответил: ${response.status}`);
+      }
+      await loadVpnPromoKeys();
+    } catch (error) {
+      setVpnPromoError(error.message || "Не удалось сгенерировать VPN промо-ключ.");
+    } finally {
+      setVpnPromoLoading(false);
+    }
+  };
+
+  const handleCopyVpnPromo = async (key) => {
+    if (!key) return;
+    try {
+      await navigator.clipboard.writeText(key);
+      setVpnPromoCopied(key);
+      setTimeout(() => setVpnPromoCopied(""), 2000);
+    } catch {
+      setVpnPromoError("Не удалось скопировать ключ в буфер обмена.");
+    }
+  };
+
+  const loadVpnSubscriptions = async () => {
+    setVpnSubsLoading(true);
+    setVpnSubsError("");
+    try {
+      const response = await fetch("/api/admin/vpn/subscriptions?page=1&pageSize=50", {
+        credentials: "include"
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.message || `Сервер ответил: ${response.status}`);
+      }
+      setVpnSubscriptions(Array.isArray(payload.items ?? payload.Items) ? payload.items ?? payload.Items : []);
+    } catch (error) {
+      setVpnSubsError(error.message || "Не удалось загрузить подписки VPN.");
+    } finally {
+      setVpnSubsLoading(false);
+    }
+  };
+
+  const loadVpnReferrals = async () => {
+    setVpnReferralsLoading(true);
+    setVpnReferralsError("");
+    try {
+      const response = await fetch("/api/admin/vpn/referral-rewards", {
+        credentials: "include"
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.message || `Сервер ответил: ${response.status}`);
+      }
+      setVpnReferrals(Array.isArray(payload.items ?? payload.Items) ? payload.items ?? payload.Items : []);
+    } catch (error) {
+      setVpnReferralsError(error.message || "Не удалось загрузить реферальные начисления.");
+    } finally {
+      setVpnReferralsLoading(false);
+    }
+  };
+
 
   if (loading || !isPlatformAdmin(user)) {
     return (
@@ -551,7 +664,7 @@ export default function AdminPanelPage() {
           <LifeBuoy size={16} aria-hidden="true" />
           <span>Обращения в поддержку</span>
         </button>
-        <button
+                <button
           type="button"
           role="tab"
           aria-selected={activeTab === "activity"}
@@ -561,9 +674,161 @@ export default function AdminPanelPage() {
           <ActivityIcon size={16} aria-hidden="true" />
           <span>Активность</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "vpn"}
+          className={`admin-panel-tab${activeTab === "vpn" ? " is-active" : ""}`}
+          onClick={() => setActiveTab("vpn")}
+        >
+          <Shield size={16} aria-hidden="true" />
+          <span>VPN</span>
+        </button>
       </div>
 
-      {activeTab === "activity" ? (
+      {activeTab === "vpn" ? (
+        <div className="admin-panel-grid">
+          {/* Генерация VPN промо-ключей */}
+          <article className="admin-card admin-card--premium-key">
+            <h2>
+              <Shield size={20} aria-hidden="true" />
+              <span>Сгенерировать VPN промо-ключ</span>
+            </h2>
+            <p className="muted">
+              Создаёт одноразовый ключ для активации VPN-подписки. Скопируйте его покупателю.
+            </p>
+
+            {vpnPromoError ? (
+              <p className="admin-message admin-message--error" role="alert">
+                {vpnPromoError}
+              </p>
+            ) : null}
+
+            <div className="admin-users-header">
+              <span className="admin-premium-key-list-title">VPN промо-ключи</span>
+              <p className="muted">Всего: {vpnPromoTotal}</p>
+            </div>
+
+            {vpnPromoKeys.length === 0 ? (
+              <p className="muted">Неиспользованных ключей пока нет.</p>
+            ) : (
+              <ul className="admin-premium-key-list">
+                {vpnPromoKeys.map((key) => (
+                  <li key={key.code} className="admin-premium-key-box">
+                    <div className="admin-premium-key-row">
+                      <code className="admin-premium-key">{key.code}</code>
+                      <button
+                        type="button"
+                        className="secondary-btn"
+                        onClick={() => handleCopyVpnPromo(key.code)}
+                      >
+                        {vpnPromoCopied === key.code ? "Скопировано ✓" : "Скопировать"}
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button
+              type="button"
+              className="primary-btn admin-submit-btn"
+              onClick={handleGenerateVpnPromo}
+              disabled={vpnPromoLoading}
+            >
+              {vpnPromoLoading ? "Генерация..." : "Сгенерировать VPN промо-ключ"}
+            </button>
+          </article>
+
+          {/* Список подписок VPN */}
+          <article className="admin-card admin-card--subscriptions">
+            <div className="admin-users-header">
+              <h2>Подписки VPN</h2>
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={loadVpnSubscriptions}
+                disabled={vpnSubsLoading}
+              >
+                {vpnSubsLoading ? "Загрузка…" : "Обновить"}
+              </button>
+            </div>
+            {vpnSubsError ? (
+              <p className="admin-message admin-message--error" role="alert">
+                {vpnSubsError}
+              </p>
+            ) : null}
+            {vpnSubsLoading && vpnSubscriptions.length === 0 ? (
+              <p className="muted">Загрузка подписок…</p>
+            ) : vpnSubscriptions.length === 0 ? (
+              <p className="muted">Подписок пока нет.</p>
+            ) : (
+              <ul className="admin-user-results admin-user-results--scroll">
+                {vpnSubscriptions.map((sub) => (
+                  <li key={sub.subscriptionId} className="admin-sub-card">
+                    <div className="admin-user-card-meta">
+                      <strong>{sub.username ? `@${sub.username}` : sub.email || sub.userId}</strong>
+                      <span className="muted">
+                        {sub.planName || sub.kind}
+                        {sub.expiresAtUtc ? ` · до ${new Date(sub.expiresAtUtc).toLocaleDateString()}` : ""}
+                      </span>
+                      <span className="admin-user-role-badge">{sub.kind}</span>
+                      {sub.isRevoked ? (
+                        <span className="admin-user-ban-badge">Отключена</span>
+                      ) : (
+                        <span className="admin-user-ok-badge">Активна</span>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+
+          {/* Реферальные начисления */}
+          <article className="admin-card admin-card--referrals">
+            <div className="admin-users-header">
+              <h2>Реферальные начисления</h2>
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={loadVpnReferrals}
+                disabled={vpnReferralsLoading}
+              >
+                {vpnReferralsLoading ? "Загрузка…" : "Обновить"}
+              </button>
+            </div>
+            {vpnReferralsError ? (
+              <p className="admin-message admin-message--error" role="alert">
+                {vpnReferralsError}
+              </p>
+            ) : null}
+            {vpnReferralsLoading && vpnReferrals.length === 0 ? (
+              <p className="muted">Загрузка начислений…</p>
+            ) : vpnReferrals.length === 0 ? (
+              <p className="muted">Начислений пока нет.</p>
+            ) : (
+              <ul className="admin-user-results admin-user-results--scroll">
+                {vpnReferrals.map((reward, index) => (
+                  <li key={`${reward.referrerId}-${reward.referralUserId}-${index}`} className="admin-sub-card">
+                    <div className="admin-user-card-meta">
+                      <strong>
+                        {reward.referrerUsername ? `@${reward.referrerUsername}` : reward.referrerId} →
+                        {reward.referralUsername ? `@${reward.referralUsername}` : reward.referralUserId}
+                      </strong>
+                      <span className="muted">
+                        +{reward.bonusDays} дней · {reward.reason}
+                        {reward.isRedeemed ? " · выдано" : " · ожидает"}
+                      </span>
+                      <span className="muted">{new Date(reward.createdAtUtc).toLocaleDateString()}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </article>
+        </div>
+      ) : activeTab === "activity" ? (
         <AdminActivityPanel onBack={() => setActiveTab("users")} />
       ) : activeTab === "support" ? (
         <AdminSupportPanel />

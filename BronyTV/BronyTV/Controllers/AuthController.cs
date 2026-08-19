@@ -47,11 +47,12 @@ public class AuthController : ControllerBase
     [EnableRateLimiting("email")]
     public async Task<IActionResult> Register([FromBody] RegisterRequest request, CancellationToken cancellationToken)
     {
-        var (response, error) = await _userAuthService.RegisterAsync(
+                var (response, error) = await _userAuthService.RegisterAsync(
             request.Email,
             request.Password,
             request.Race,
             request.Username,
+            request.ReferralCode,
             cancellationToken);
 
         if (response == null)
