@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Net;
 using System.Security.Claims;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -61,7 +62,18 @@ builder.Services.AddScoped<IUserFavoriteService, UserFavoriteService>();
 builder.Services.AddScoped<IVpnRepository, VpnRepository>();
 builder.Services.AddScoped<IVpnService, VpnService>();
 builder.Services.AddScoped<IVpnAdminService, VpnAdminService>();
+builder.Services.AddScoped<IVpn3xUiClient, Vpn3xUiClient>();
+builder.Services.AddHttpClient("vpn3xui")
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+    {
+        CookieContainer = new CookieContainer(),
+        UseCookies = true,
+        AllowAutoRedirect = true,
+        UseDefaultCredentials = false
+    });
+builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient("vpn3xui"));
 builder.Services.AddSingleton<IEmailService, EmailService>();
+builder.Services.AddHostedService<VpnExpiryCleanupHostedService>();
 builder.Services.Configure<AdminAccessOptions>(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
 builder.Services.Configure<VpnOptions>(builder.Configuration.GetSection(VpnOptions.SectionName));
 builder.Services.AddSingleton<IAdminAccessService, AdminAccessService>();

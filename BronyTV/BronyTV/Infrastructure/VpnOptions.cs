@@ -24,8 +24,21 @@ public class VpnOptions
     /// <summary>Базовый URL панели 3X-UI (для перехода на клиентский кабинет).</summary>
     public string? PanelBaseUrl { get; set; }
 
+    /// <summary>Полный URL API панели 3X-UI (например https://panel:2053/7qnu.../panel).</summary>
+    public string? PanelApiUrl { get; set; }
+
+    /// <summary>Логин администратора панели 3X-UI.</summary>
+    public string? PanelUsername { get; set; }
+
+    /// <summary>Пароль администратора панели 3X-UI.</summary>
+    public string? PanelPassword { get; set; }
+
+    /// <summary>ID инбаунда (VLESS) на 3X-UI, куда добавляются клиенты.</summary>
+    public long? PanelInboundId { get; set; }
+
     /// <summary>Домен панели 3X-UI (для ссылки на скачивание клиентов).</summary>
     public string? ClientDomain { get; set; }
+
 
     /// <summary>Длительность trial-подписки в днях (по умолчанию 7).</summary>
     public int TrialDays { get; set; } = 7;

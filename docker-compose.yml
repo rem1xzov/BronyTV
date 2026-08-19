@@ -63,7 +63,11 @@ services:
       - Vpn__ServerHost=${VPN_SERVER_HOST:-}
       - Vpn__ServerPort=${VPN_SERVER_PORT:-443}
       - Vpn__VlessParameters=${VPN_VLESS_PARAMETERS:-}
-      - Vpn__PanelBaseUrl=${VPN_PANEL_BASE_URL:-}
+            - Vpn__PanelBaseUrl=${VPN_PANEL_BASE_URL:-}
+      - Vpn__PanelApiUrl=${VPN_PANEL_API_URL:-}
+      - Vpn__PanelUsername=${VPN_PANEL_USERNAME:-}
+      - Vpn__PanelPassword=${VPN_PANEL_PASSWORD:-}
+      - Vpn__PanelInboundId=${VPN_PANEL_INBOUND_ID:-}
       - Vpn__ClientDomain=${VPN_CLIENT_DOMAIN:-}
       - Vpn__TrialDays=${VPN_TRIAL_DAYS:-7}
       - Cors__AllowedOrigins__0=${FRONTEND_ORIGIN:-https://bronytv.ru}
