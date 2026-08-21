@@ -1,8 +1,5 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Security.Cryptography;
-using System.Text;
 
 namespace BronyTV.Models;
 
@@ -54,12 +51,16 @@ public static class VpnConfig
 /// </summary>
 public static class VlessLinkBuilder
 {
+    private const string DefaultPublicKey = "1T9mTOWKnoaac7x0u5e8Ipt3QiyznLjxoOg1F2LjECo";
+    private const string DefaultSni = "www.samsung.com";
+    private const string DefaultShortId = "8556ec";
+
     /// <summary>
-    /// Собирает строку подключения для gRPC Reality:
+    /// Собирает строку подключения для gRPC Reality строго детерминированно:
     /// <c>vless://{UUID}@{HOST}:{PORT}?type=grpc&amp;serviceName=grpc-service&amp;security=reality&amp;pbk={PUBLIC_KEY}&amp;fp=chrome&amp;sni={SNI}&amp;sid={SHORT_ID}#BronyVPN</c>
-    /// База параметров берётся из конфигурации, а обязательные для Reality gRPC
-    /// поля (type, serviceName, security, fp) гарантированно добавляются принудительно.
-    /// flow не используется, так как транспорт — gRPC.
+    /// Значения pbk/sni/sid берутся из переданных параметров (VlessParameters) либо
+    /// из безопасных дефолтов с корректными длинами (sid — короткий hex, pbk — публичный
+    /// ключ Reality). Разделитель query-параметров — строго одиночный символ '&'.
     /// </summary>
     public static string Build(
         string uuid,
@@ -73,91 +74,57 @@ public static class VlessLinkBuilder
             throw new ArgumentException("UUID не может быть пустым.", nameof(uuid));
         }
 
-        var hostCleaned = (host ?? "127.0.0.1").Trim();
-        if (hostCleaned.Length == 0)
-        {
-            hostCleaned = "127.0.0.1";
-        }
-        if (port <= 0 || port > 65535)
-        {
-            port = 443;
-        }
+        var pbk = ExtractParam(parameters, "pbk", DefaultPublicKey);
+        var sni = ExtractParam(parameters, "sni", DefaultSni);
+        var sid = ExtractParam(parameters, "sid", DefaultShortId);
 
-        var builder = new StringBuilder();
-        builder.Append("vless://");
-        builder.Append(Uri.EscapeDataString(uuid.Trim()));
-        builder.Append('@');
-        builder.Append(Uri.EscapeDataString(hostCleaned));
-        builder.Append(':');
-        builder.Append(port);
-
-        // Гарантируем корректный набор параметров gRPC Reality даже при неполной конфигурации.
-        var normalized = NormalizeRealityParams(parameters ?? string.Empty);
-        if (normalized.Length > 0)
-        {
-            builder.Append('?');
-            builder.Append(normalized);
-        }
-
+        var safeHost = string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();
+        var safePort = port > 0 && port <= 65535 ? port : 443;
         var safeRemark = string.IsNullOrWhiteSpace(remark) ? "BronyVPN" : remark.Trim();
-        builder.Append('#');
-        builder.Append(Uri.EscapeDataString(safeRemark));
 
-        return builder.ToString();
+        var query = "type=grpc&serviceName=grpc-service&security=reality"
+                    + "&pbk=" + pbk
+                    + "&fp=chrome"
+                    + "&sni=" + sni
+                    + "&sid=" + sid;
+
+        return "vless://" + Uri.EscapeDataString(uuid.Trim())
+               + "@" + Uri.EscapeDataString(safeHost)
+               + ":" + safePort
+               + "?" + query
+               + "#" + Uri.EscapeDataString(safeRemark);
     }
 
     /// <summary>
-    /// Приводит параметры к каноническому виду gRPC Reality: гарантирует наличие
-    /// <c>type=grpc</c>, <c>serviceName=grpc-service</c>, <c>security=reality</c>
-    /// и дефолтного <c>fp=chrome</c> (если fingerprint не задан). Параметр
-    /// <c>flow</c> НЕ добавляется — для gRPC он не используется. Не дублирует уже
-    /// заданные параметры, а каждому ключу сохраняет первое (приоритетное) значение.
+    /// Достаёт значение параметра <paramref name="key"/> из строки query-параметров
+    /// (простое разбиение по '&' и '=', без регулярок). Если параметр отсутствует или
+    /// имеет пустое значение — возвращается дефолт.
     /// </summary>
-    private static string NormalizeRealityParams(string raw)
+    private static string ExtractParam(string? raw, string key, string fallback)
     {
         if (string.IsNullOrWhiteSpace(raw))
         {
-            raw = string.Empty;
+            return fallback;
         }
-
-        var parts = new List<string>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var token in raw.Split('&', StringSplitOptions.RemoveEmptyEntries))
         {
             var idx = token.IndexOf('=');
-            var key = idx >= 0 ? token[..idx] : token;
-            if (string.IsNullOrWhiteSpace(key))
+            if (idx <= 0)
             {
                 continue;
             }
 
-            // flow явно исключаем: транспорт gRPC не поддерживает xtls-rprx-vision.
-            if (string.Equals(key, "flow", StringComparison.OrdinalIgnoreCase))
+            var k = token[..idx];
+            if (!string.Equals(k, key, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
 
-            if (seen.Add(key))
-            {
-                parts.Add(token);
-            }
+            var v = token[(idx + 1)..].Trim();
+            return string.IsNullOrWhiteSpace(v) ? fallback : v;
         }
 
-        void Ensure(string key, string value)
-        {
-            if (seen.Add(key))
-            {
-                parts.Add($"{key}={value}");
-            }
-        }
-
-        // Для Reality всегда gRPC-транспорт с дефолтным serviceName и chrome-отпечатком.
-        Ensure("type", "grpc");
-        Ensure("serviceName", "grpc-service");
-        Ensure("security", "reality");
-        Ensure("fp", "chrome");
-
-        return string.Join("&", parts);
+        return fallback;
     }
 }
