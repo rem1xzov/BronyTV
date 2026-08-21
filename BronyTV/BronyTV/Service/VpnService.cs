@@ -7,6 +7,7 @@ using BronyTV.DbContext.Entity;
 using BronyTV.Infrastructure;
 using BronyTV.Models;
 using BronyTV.Repository;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 namespace BronyTV.Service;
@@ -14,10 +15,22 @@ namespace BronyTV.Service;
 public interface IVpnService
 {
     Task<VpnStatusResponse> GetStatusAsync(Guid userId, CancellationToken cancellationToken = default);
-    Task<(bool Success, string? Error, VpnTrialStartResponse? Response)> StartTrialAsync(
+
+    /// <summary>
+    /// <para>Aктивация trial-подписки.</para>
+    /// <para><b>ServerError</b> = true означает сбой внешнего VPN-провайдера (3X-UI),
+    /// который должен транслироваться на фронт как HTTP 502/500, а не как 400.</para>
+    /// </summary>
+    Task<(bool Success, string? Error, VpnTrialStartResponse? Response, bool ServerError)> StartTrialAsync(
         Guid userId,
         CancellationToken cancellationToken = default);
-    Task<(bool Success, string? Error, VpnPromoActivateResponse? Response)> ActivatePromoCodeAsync(
+
+    /// <summary>
+    /// <para>Aктивация промо-кода.</para>
+    /// <para><b>ServerError</b> = true означает сбой внешнего VPN-провайдера (3X-UI),
+    /// который должен транслироваться на фронт как HTTP 502/500, а не как 400.</para>
+    /// </summary>
+    Task<(bool Success, string? Error, VpnPromoActivateResponse? Response, bool ServerError)> ActivatePromoCodeAsync(
         Guid userId,
         string code,
         CancellationToken cancellationToken = default);
@@ -30,17 +43,20 @@ public class VpnService : IVpnService
     private readonly IUserRepository _userRepository;
     private readonly IOptions<VpnOptions> _optionsAccessor;
     private readonly IVpn3xUiClient _panelClient;
+    private readonly ILogger<VpnService> _logger;
 
     public VpnService(
         IVpnRepository vpnRepository,
         IUserRepository userRepository,
         IOptions<VpnOptions> options,
-        IVpn3xUiClient panelClient)
+        IVpn3xUiClient panelClient,
+        ILogger<VpnService> logger)
     {
         _vpnRepository = vpnRepository;
         _userRepository = userRepository;
         _optionsAccessor = options;
         _panelClient = panelClient;
+        _logger = logger;
     }
 
     public async Task<VpnStatusResponse> GetStatusAsync(
@@ -70,6 +86,10 @@ public class VpnService : IVpnService
 
         if (isActive && active != null)
         {
+            // Восстанавливаем клиента на панели 3X-UI, если он пропал (удалён вручную,
+            // сбой синхронизации) — чтобы не отдавать «мёртвую» ссылку.
+            await EnsurePanelClientAsync(active, cancellationToken);
+
             status.PlanName = active.PlanName;
             status.ExpiresAtUtc = active.ExpiresAtUtc;
 
@@ -86,19 +106,65 @@ public class VpnService : IVpnService
         return status;
     }
 
-    public async Task<(bool Success, string? Error, VpnTrialStartResponse? Response)> StartTrialAsync(
+    /// <summary>
+    /// Гарантирует наличие клиента на панели 3X-UI для активной подписки.
+    /// Если интеграция с панелью не настроена — просто выходит (dev-режим).
+    /// Если клиент отсутствует на панели — пересоздаёт его.
+    /// </summary>
+    private async Task EnsurePanelClientAsync(
+        VpnSubscriptionEntity subscription,
+        CancellationToken cancellationToken)
+    {
+        if (!_panelClient.IsConfigured || string.IsNullOrWhiteSpace(subscription.ClientUuid))
+        {
+            return;
+        }
+
+        try
+        {
+            var exists = await _panelClient.ClientExistsAsync(subscription.ClientUuid, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (exists)
+            {
+                return;
+            }
+
+            var expiresAt = subscription.ExpiresAtUtc
+                ?? DateTime.UtcNow.AddDays(Math.Max(1, _optionsAccessor.Value.TrialDays));
+            var email = $"bronytv-{subscription.Kind}-{subscription.UserId:N}";
+
+            _logger.LogInformation(
+                "3X-UI: клиент {Uuid} отсутствует на панели, восстанавливаю (subscription {SubId}).",
+                subscription.ClientUuid,
+                subscription.Id);
+
+            await _panelClient.UpsertClientAsync(
+                subscription.ClientUuid,
+                email,
+                expiresAt,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Восстановление не критично для отображения статуса — логируем и продолжаем.
+            _logger.LogWarning(ex, "3X-UI: не удалось восстановить клиента {Uuid}.", subscription.ClientUuid);
+        }
+    }
+
+    public async Task<(bool Success, string? Error, VpnTrialStartResponse? Response, bool ServerError)> StartTrialAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
         var options = _optionsAccessor.Value;
         if (!options.Enabled)
         {
-            return (false, "VPN-сервис временно недоступен.", null);
+            return (false, "VPN-сервис временно недоступен.", null, false);
         }
 
         if (await _vpnRepository.TrialUsedAsync(userId, cancellationToken))
         {
-            return (false, "Trial-подписка уже была использована.", null);
+            return (false, "Trial-подписка уже была использована.", null, false);
         }
 
         // Отключаем предыдущие активные подписки (например, если вдруг остались).
@@ -116,23 +182,48 @@ public class VpnService : IVpnService
             PanelPlanNameId = "trial"
         };
 
-        await _vpnRepository.CreateSubscriptionAsync(subscription, cancellationToken);
+        // ===== АТОМАРНОСТЬ =====
+        // Сначала провижионируем клиента на панели 3X-UI. Только при успехе 3X-UI
+        // (success=true) сохраняем запись в PostgreSQL. Если панель упала или ответила
+        // ошибкой — НЕ сохраняем подписку, НЕ помечаем триал использованным и
+        // возвращаем на фронт понятную ошибку (HTTP 502).
+        if (_panelClient.IsConfigured)
+        {
+            bool provisioned;
+            try
+            {
+                provisioned = await _panelClient.UpsertClientAsync(
+                    subscription.ClientUuid,
+                    $"bronytv-{subscription.Kind}-{userId:N}",
+                    subscription.ExpiresAtUtc.Value,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "3X-UI: сбой при создании trial-клиента для пользователя {UserId}.", userId);
+                return (false, "Не удалось активировать trial: VPN-провайдер недоступен.", null, true);
+            }
 
-        // Реальное провижионирование клиента на панели 3X-UI.
-        await _panelClient.UpsertClientAsync(
-            subscription.ClientUuid,
-            $"bronytv-{subscription.Kind}-{userId:N}",
-            subscription.ExpiresAtUtc.Value,
-            cancellationToken);
+            if (!provisioned)
+            {
+                _logger.LogWarning(
+                    "3X-UI: не удалось создать trial-клиента (success=false) для пользователя {UserId}.",
+                    userId);
+                return (false, "Не удалось активировать trial: ошибка VPN-провайдера.", null, true);
+            }
+        }
+
+        // 3X-UI успешно провижионировал клиента — теперь сохраняем в БД.
+        await _vpnRepository.CreateSubscriptionAsync(subscription, cancellationToken);
 
         return (true, null, new VpnTrialStartResponse
         {
             Success = true,
             ExpiresAtUtc = subscription.ExpiresAtUtc
-        });
+        }, false);
     }
 
-    public async Task<(bool Success, string? Error, VpnPromoActivateResponse? Response)> ActivatePromoCodeAsync(
+    public async Task<(bool Success, string? Error, VpnPromoActivateResponse? Response, bool ServerError)> ActivatePromoCodeAsync(
         Guid userId,
         string code,
         CancellationToken cancellationToken = default)
@@ -140,19 +231,19 @@ public class VpnService : IVpnService
         var options = _optionsAccessor.Value;
         if (!options.Enabled)
         {
-            return (false, "VPN-сервис временно недоступен.", null);
+            return (false, "VPN-сервис временно недоступен.", null, false);
         }
 
         var normalized = code?.Trim();
         if (string.IsNullOrWhiteSpace(normalized))
         {
-            return (false, "Укажите промо-код.", null);
+            return (false, "Укажите промо-код.", null, false);
         }
 
         var promo = await _vpnRepository.GetByCodeAsync(normalized, cancellationToken);
         if (promo == null || promo.IsUsed)
         {
-            return (false, "Неверный или уже использованный промо-код.", null);
+            return (false, "Неверный или уже использованный промо-код.", null, false);
         }
 
         // Длительность ключа в месяцах (по умолчанию 1).
@@ -165,20 +256,7 @@ public class VpnService : IVpnService
 
         if (active == null || active.IsRevoked || (active.ExpiresAtUtc != null && active.ExpiresAtUtc <= DateTime.UtcNow))
         {
-            var subscription = new VpnSubscriptionEntity
-            {
-                Id = Guid.NewGuid(),
-                UserId = userId,
-                Kind = "promo",
-                PlanName = $"BronyVPN {months} мес.",
-                StartedAtUtc = DateTime.UtcNow,
-                ExpiresAtUtc = DateTime.UtcNow.AddMonths(months),
-                ClientUuid = clientUuid,
-                PanelPlanNameId = $"{months}-month"
-            };
-            await _vpnRepository.CreateSubscriptionAsync(subscription, cancellationToken);
-            promo.SubscriptionId = subscription.Id;
-            expiresAtUtc = subscription.ExpiresAtUtc.Value;
+            expiresAtUtc = DateTime.UtcNow.AddMonths(months);
         }
         else
         {
@@ -188,23 +266,71 @@ public class VpnService : IVpnService
             {
                 baseTime = DateTime.UtcNow;
             }
-            active.ExpiresAtUtc = baseTime.AddMonths(months);
             clientUuid = active.ClientUuid ?? clientUuid;
+            expiresAtUtc = baseTime.AddMonths(months);
+        }
+
+        // ===== АТОМАРНОСТЬ =====
+        // Сначала провижионируем/продлеваем клиента на панели 3X-UI. Только при
+        // успехе 3X-UI сохраняем изменения в PostgreSQL (активируем промо).
+        // Если панель недоступна — промо НЕ помечается использованным и подписка
+        // НЕ создаётся/не продлевается, на фронт уходит HTTP 502.
+        if (_panelClient.IsConfigured)
+        {
+            bool provisioned;
+            try
+            {
+                provisioned = await _panelClient.UpsertClientAsync(
+                    clientUuid,
+                    $"bronytv-{userId:N}",
+                    expiresAtUtc,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "3X-UI: сбой при активации промо-кода для пользователя {UserId}.", userId);
+                return (false, "Не удалось активировать промо-код: VPN-провайдер недоступен.", null, true);
+            }
+
+            if (!provisioned)
+            {
+                _logger.LogWarning(
+                    "3X-UI: не удалось активировать клиента по промо-коду (success=false) для пользователя {UserId}.",
+                    userId);
+                return (false, "Не удалось активировать промо-код: ошибка VPN-провайдера.", null, true);
+            }
+        }
+
+        // Панель успешно провижионировала клиента — теперь сохраняем в БД.
+        var newSubscriptionId = promo.SubscriptionId;
+        if (active == null || active.IsRevoked || (active.ExpiresAtUtc != null && active.ExpiresAtUtc <= DateTime.UtcNow))
+        {
+            var subscription = new VpnSubscriptionEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Kind = "promo",
+                PlanName = $"BronyVPN {months} мес.",
+                StartedAtUtc = DateTime.UtcNow,
+                ExpiresAtUtc = expiresAtUtc,
+                ClientUuid = clientUuid,
+                PanelPlanNameId = $"{months}-month"
+            };
+            await _vpnRepository.CreateSubscriptionAsync(subscription, cancellationToken);
+            newSubscriptionId = subscription.Id;
+        }
+        else
+        {
+            // Продлеваем действующую подписку.
+            active.ExpiresAtUtc = expiresAtUtc;
             active.ClientUuid = clientUuid;
-            expiresAtUtc = active.ExpiresAtUtc.Value;
         }
 
         promo.IsUsed = true;
         promo.UsedAtUtc = DateTime.UtcNow;
         promo.UsedByUserId = userId;
+        promo.SubscriptionId = newSubscriptionId;
         await _vpnRepository.SavePromoKeyAsync(promo, cancellationToken);
-
-        // Реальное провижионирование/продление клиента на панели 3X-UI.
-        await _panelClient.UpsertClientAsync(
-            clientUuid,
-            $"bronytv-{userId:N}",
-            expiresAtUtc,
-            cancellationToken);
 
         var result = await GetStatusAsync(userId, cancellationToken);
         return (true, null, new VpnPromoActivateResponse
@@ -212,7 +338,7 @@ public class VpnService : IVpnService
             Success = true,
             PlanName = result.PlanName,
             ExpiresAtUtc = result.ExpiresAtUtc
-        });
+        }, false);
     }
 
     public async Task RevokeAsync(Guid userId, CancellationToken cancellationToken = default)

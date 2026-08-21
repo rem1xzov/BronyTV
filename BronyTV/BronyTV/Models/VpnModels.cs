@@ -50,19 +50,22 @@ public static class VpnConfig
 
 /// <summary>
 /// Помощник для сборки ссылки VLESS (xray / v2ray). UUID покупателя приходит
-/// из внешнего источника; строим только валидный URI-хост с параметрами.
+/// из внешнего источника; строим валидный URI-хост с параметрами Reality TCP.
 /// </summary>
 public static class VlessLinkBuilder
 {
     /// <summary>
-    /// Собирает строку подключения вида vless://uuid@host:port?security=reality...
+    /// Собирает строку подключения для Reality TCP:
+    /// <c>vless://{UUID}@{HOST}:{PORT}?type=tcp&amp;security=reality&amp;pbk={PUBLIC_KEY}&amp;fp=chrome&amp;sni={SNI}&amp;sid={SHORT_ID}&amp;flow=xtls-rprx-vision#BronyVPN</c>
+    /// База параметров берётся из конфигурации, а обязательные для Reality
+    /// поля (type, security, flow, fp) гарантированно добавляются принудительно.
     /// </summary>
     public static string Build(
         string uuid,
         string host,
         int port,
         string? parameters,
-        string remark = "")
+        string remark = "BronyVPN")
     {
         if (string.IsNullOrWhiteSpace(uuid))
         {
@@ -87,26 +90,65 @@ public static class VlessLinkBuilder
         builder.Append(':');
         builder.Append(port);
 
-        if (!string.IsNullOrWhiteSpace(parameters))
+        // Гарантируем корректный набор параметров Reality TCP даже при неполной конфигурации.
+        var normalized = NormalizeRealityParams(parameters ?? string.Empty);
+        if (normalized.Length > 0)
         {
-            var trimmed = parameters.Trim().TrimStart('?');
-            if (trimmed.Length > 0)
+            builder.Append('?');
+            builder.Append(normalized);
+        }
+
+        var safeRemark = string.IsNullOrWhiteSpace(remark) ? "BronyVPN" : remark.Trim();
+        builder.Append('#');
+        builder.Append(Uri.EscapeDataString(safeRemark));
+
+        return builder.ToString();
+    }
+
+    /// <summary>
+    /// Приводит параметры к каноническому виду Reality TCP: гарантирует наличие
+    /// <c>type=tcp</c>, <c>security=reality</c>, <c>flow=xtls-rprx-vision</c> и
+    /// дефолтного <c>fp=chrome</c> (если fingerprint не задан). Не дублирует уже
+    /// заданные параметры, а каждому ключу сохраняет первое (приоритетное) значение.
+    /// </summary>
+    private static string NormalizeRealityParams(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            raw = string.Empty;
+        }
+
+        var parts = new List<string>();
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var token in raw.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var idx = token.IndexOf('=');
+            var key = idx >= 0 ? token[..idx] : token;
+            if (string.IsNullOrWhiteSpace(key))
             {
-                builder.Append('?');
-                builder.Append(trimmed);
+                continue;
+            }
+            if (seen.Add(key))
+            {
+                parts.Add(token);
             }
         }
 
-        if (string.IsNullOrWhiteSpace(remark))
+        void Ensure(string key, string value)
         {
-            builder.Append("#BronyVPN");
-        }
-        else
-        {
-            builder.Append('#');
-            builder.Append(Uri.EscapeDataString(remark));
+            if (seen.Add(key))
+            {
+                parts.Add($"{key}={value}");
+            }
         }
 
-        return builder.ToString();
+        // Для Reality всегда TCP-транспорт, xtls-vision flow и chrome-отпечаток.
+        Ensure("type", "tcp");
+        Ensure("security", "reality");
+        Ensure("flow", "xtls-rprx-vision");
+        Ensure("fp", "chrome");
+
+        return string.Join("&", parts);
     }
 }

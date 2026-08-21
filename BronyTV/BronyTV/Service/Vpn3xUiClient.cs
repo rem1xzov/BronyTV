@@ -21,12 +21,18 @@ namespace BronyTV.Service;
 /// </summary>
 public interface IVpn3xUiClient
 {
+    /// <summary>Настроена ли панель (webhook-интеграция активна и все параметры заполнены).</summary>
+    bool IsConfigured { get; }
+
     /// <summary>Создаёт или продлевает клиента с заданным UUID до <paramref name="expiresAtUtc"/>.</summary>
     Task<bool> UpsertClientAsync(
         string clientUuid,
         string email,
         DateTime expiresAtUtc,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Проверяет наличие клиента с заданным UUID на панели.</summary>
+    Task<bool> ClientExistsAsync(string clientUuid, CancellationToken cancellationToken = default);
 
     /// <summary>Полностью удаляет клиента с панели (например, при отключении подписки).</summary>
     Task<bool> RemoveClientAsync(string clientUuid, CancellationToken cancellationToken = default);
@@ -72,7 +78,7 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
 
     private VpnOptions Options => _options.Value;
 
-    private bool IsConfigured => Options.Enabled
+    public bool IsConfigured => Options.Enabled
         && !string.IsNullOrWhiteSpace(Options.PanelApiUrl)
         && !string.IsNullOrWhiteSpace(Options.PanelUsername)
         && !string.IsNullOrWhiteSpace(Options.PanelPassword);
@@ -149,6 +155,39 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
         catch (Exception ex)
         {
             _logger.LogError(ex, "Ошибка 3X-UI при удалении клиента {Uuid}.", clientUuid);
+            return false;
+        }
+    }
+
+    public async Task<bool> ClientExistsAsync(
+        string clientUuid,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(clientUuid) || !IsConfigured)
+        {
+            return false;
+        }
+
+        try
+        {
+            var inboundId = await FindInboundIdAsync(cancellationToken).ConfigureAwait(false);
+            if (!inboundId.HasValue)
+            {
+                return false;
+            }
+
+            var inbounds = await ListInboundsAsync(cancellationToken).ConfigureAwait(false);
+            var inbound = inbounds.FirstOrDefault(i => i != null && i.Id == inboundId.Value);
+            if (inbound == null)
+            {
+                return false;
+            }
+
+            return ParseClients(inbound).Any(c => string.Equals(c.Id, clientUuid, StringComparison.OrdinalIgnoreCase));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка 3X-UI при проверке существования клиента {Uuid}.", clientUuid);
             return false;
         }
     }

@@ -44,10 +44,12 @@ public class VpnController : ControllerBase
             return Unauthorized();
         }
 
-        var (success, error, response) = await _vpnService.StartTrialAsync(userId, cancellationToken);
+        var (success, error, response, serverError) = await _vpnService.StartTrialAsync(userId, cancellationToken);
         if (!success)
         {
-            return BadRequest(new { message = error ?? "Не удалось активировать trial." });
+            return serverError
+                ? StatusCode(StatusCodes.Status502BadGateway, new { message = error ?? "Ошибка VPN-провайдера." })
+                : BadRequest(new { message = error ?? "Не удалось активировать trial." });
         }
 
         return Ok(response);
@@ -62,13 +64,15 @@ public class VpnController : ControllerBase
             return Unauthorized();
         }
 
-        var (success, error, response) = await _vpnService.ActivatePromoCodeAsync(
+        var (success, error, response, serverError) = await _vpnService.ActivatePromoCodeAsync(
             userId,
             request?.Code ?? string.Empty,
             cancellationToken);
         if (!success)
         {
-            return BadRequest(new { message = error ?? "Не удалось активировать промо-код." });
+            return serverError
+                ? StatusCode(StatusCodes.Status502BadGateway, new { message = error ?? "Ошибка VPN-провайдера." })
+                : BadRequest(new { message = error ?? "Не удалось активировать промо-код." });
         }
 
         return Ok(response);
