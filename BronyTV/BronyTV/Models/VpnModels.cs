@@ -19,8 +19,8 @@ public static class VpnConfig
 
     public const int PromoCodeLength = 12;
 
-    // Стандартное время жизни trial-подписки (7 дней).
-    public static readonly TimeSpan TrialDuration = TimeSpan.FromDays(7);
+    // Стандартное время жизни trial-подписки (14 дней).
+    public static readonly TimeSpan TrialDuration = TimeSpan.FromDays(14);
     public const int TrialNameId = 1; // 1 месяц на 3X-UI.
 
     /// <summary>
@@ -35,6 +35,17 @@ public static class VpnConfig
         }
         return new string(chars);
     }
+
+    /// <summary>
+    /// Допустимые длительности промо-ключа в месяцах.
+    /// </summary>
+    public static readonly int[] AllowedPromoDurations = { 1, 3, 6, 12 };
+
+    /// <summary>
+    /// Проверяет, что переданная длительность промо-ключа — одна из допустимых (1, 3, 6, 12).
+    /// </summary>
+    public static bool IsValidPromoDuration(int durationMonths) =>
+        Array.IndexOf(AllowedPromoDurations, durationMonths) >= 0;
 }
 
 /// <summary>

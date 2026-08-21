@@ -104,11 +104,12 @@ export default function AdminPanelPage() {
   const [premiumKeysTotal, setPremiumKeysTotal] = useState(0);
   const [premiumKeyCopied, setPremiumKeyCopied] = useState("");
 
-  const [vpnPromoLoading, setVpnPromoLoading] = useState(false);
+    const [vpnPromoLoading, setVpnPromoLoading] = useState(false);
   const [vpnPromoError, setVpnPromoError] = useState("");
   const [vpnPromoKeys, setVpnPromoKeys] = useState([]);
   const [vpnPromoTotal, setVpnPromoTotal] = useState(0);
   const [vpnPromoCopied, setVpnPromoCopied] = useState("");
+  const [vpnPromoDuration, setVpnPromoDuration] = useState("1");
   const [vpnSubscriptions, setVpnSubscriptions] = useState([]);
   const [vpnSubsLoading, setVpnSubsLoading] = useState(false);
   const [vpnSubsError, setVpnSubsError] = useState("");
@@ -538,11 +539,12 @@ export default function AdminPanelPage() {
     setVpnPromoLoading(true);
     setVpnPromoError("");
     try {
+            const duration = Number.parseInt(vpnPromoDuration, 10) || 1;
       const response = await fetch("/api/admin/vpn/promo-keys/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: "{}"
+        body: JSON.stringify({ durationMonths: duration })
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -713,10 +715,13 @@ export default function AdminPanelPage() {
               <p className="muted">Неиспользованных ключей пока нет.</p>
             ) : (
               <ul className="admin-premium-key-list">
-                {vpnPromoKeys.map((key) => (
+                                {vpnPromoKeys.map((key) => (
                   <li key={key.code} className="admin-premium-key-box">
                     <div className="admin-premium-key-row">
-                      <code className="admin-premium-key">{key.code}</code>
+                                            <code className="admin-premium-key">{key.code}</code>
+                      <span style={{ marginLeft: 8, opacity: 0.75, whiteSpace: "nowrap" }}>
+                        {key.durationMonths ? `${key.durationMonths} мес.` : "—"}
+                      </span>
                       <button
                         type="button"
                         className="secondary-btn"
@@ -729,6 +734,19 @@ export default function AdminPanelPage() {
                 ))}
               </ul>
             )}
+
+                        <label className="admin-field">
+              <span>Срок ключа</span>
+              <select
+                value={vpnPromoDuration}
+                onChange={(event) => setVpnPromoDuration(event.target.value)}
+              >
+                <option value="1">1 месяц</option>
+                <option value="3">3 месяца</option>
+                <option value="6">6 месяцев</option>
+                <option value="12">12 месяцев</option>
+              </select>
+            </label>
 
             <button
               type="button"

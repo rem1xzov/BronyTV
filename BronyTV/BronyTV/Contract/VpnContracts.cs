@@ -16,6 +16,9 @@ public class VpnStatusResponse
     public string? ClientDownloadUrl { get; set; }
     public string? ReferralCode { get; set; }
     public int ReferralBonusDays { get; set; }
+
+    /// <summary>Длительность trial-подписки в днях (для отображения в UI).</summary>
+    public int TrialDays { get; set; }
 }
 
 /// <summary>Ответ о результате активации промо-кода.</summary>
@@ -73,6 +76,13 @@ public class VpnAdminSubscriptionListResponse
     public bool HasMore { get; set; }
 }
 
+/// <summary>Запрос на генерацию промо-ключа в админке.</summary>
+public class VpnAdminGeneratePromoKeyRequest
+{
+    /// <summary>Длительность подписки в месяцах (1, 3, 6 или 12).</summary>
+    public int DurationMonths { get; set; } = 1;
+}
+
 /// <summary>Промо-ключ в списке админки.</summary>
 public class VpnAdminPromoKeyItem
 {
@@ -81,6 +91,7 @@ public class VpnAdminPromoKeyItem
     public DateTime CreatedAtUtc { get; set; }
     public string? UsedByUsername { get; set; }
     public DateTime? UsedAtUtc { get; set; }
+    public int DurationMonths { get; set; }
 }
 
 /// <summary>Список промо-ключей (для админки).</summary>

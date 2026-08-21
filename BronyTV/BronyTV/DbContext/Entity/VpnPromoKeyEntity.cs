@@ -16,4 +16,7 @@ public class VpnPromoKeyEntity
 
     /// <summary>UUID клиента из панели, который должен быть привязан к активируемой подписке.</summary>
     public string? ClientUuid { get; set; }
+
+    /// <summary>Длительность подписки в месяцах (1, 3, 6 или 12).</summary>
+    public int DurationMonths { get; set; } = 1;
 }

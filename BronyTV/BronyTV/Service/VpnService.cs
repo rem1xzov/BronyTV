@@ -64,6 +64,7 @@ public class VpnService : IVpnService
             IsActive = isActive,
             IsTrialUsed = await _vpnRepository.TrialUsedAsync(userId, cancellationToken),
             ReferralBonusDays = options.TrialDays / 2 > 0 ? options.TrialDays / 2 : 3,
+            TrialDays = options.TrialDays,
             ReferralCode = user?.ReferralCode
         };
 
@@ -154,6 +155,9 @@ public class VpnService : IVpnService
             return (false, "Неверный или уже использованный промо-код.", null);
         }
 
+        // Длительность ключа в месяцах (по умолчанию 1).
+        var months = promo.DurationMonths > 0 ? promo.DurationMonths : 1;
+
         // Расширяем текущую активную подписку; если её нет — создаём новую.
         var active = await _vpnRepository.GetActiveAsync(userId, cancellationToken);
         var clientUuid = promo.ClientUuid ?? Guid.NewGuid().ToString();
@@ -166,11 +170,11 @@ public class VpnService : IVpnService
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 Kind = "promo",
-                PlanName = "BronyVPN (промо)",
+                PlanName = $"BronyVPN {months} мес.",
                 StartedAtUtc = DateTime.UtcNow,
-                ExpiresAtUtc = DateTime.UtcNow.AddDays(30),
+                ExpiresAtUtc = DateTime.UtcNow.AddMonths(months),
                 ClientUuid = clientUuid,
-                PanelPlanNameId = "1-month"
+                PanelPlanNameId = $"{months}-month"
             };
             await _vpnRepository.CreateSubscriptionAsync(subscription, cancellationToken);
             promo.SubscriptionId = subscription.Id;
@@ -184,7 +188,7 @@ public class VpnService : IVpnService
             {
                 baseTime = DateTime.UtcNow;
             }
-            active.ExpiresAtUtc = baseTime.AddDays(30);
+            active.ExpiresAtUtc = baseTime.AddMonths(months);
             clientUuid = active.ClientUuid ?? clientUuid;
             active.ClientUuid = clientUuid;
             expiresAtUtc = active.ExpiresAtUtc.Value;

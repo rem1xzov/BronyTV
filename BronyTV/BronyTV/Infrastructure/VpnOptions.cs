@@ -40,8 +40,8 @@ public class VpnOptions
     public string? ClientDomain { get; set; }
 
 
-    /// <summary>Длительность trial-подписки в днях (по умолчанию 7).</summary>
-    public int TrialDays { get; set; } = 7;
+    /// <summary>Длительность trial-подписки в днях (по умолчанию 14).</summary>
+    public int TrialDays { get; set; } = 14;
 
     /// <summary>Максимум промо-кодов, отображаемых в админке за раз.</summary>
     public int AdminPromoPageSize { get; set; } = 100;

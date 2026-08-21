@@ -14,7 +14,7 @@ namespace BronyTV.Service;
 
 public interface IVpnAdminService
 {
-    Task<string> GeneratePromoKeyAsync(CancellationToken cancellationToken = default);
+    Task<string> GeneratePromoKeyAsync(int durationMonths = 1, CancellationToken cancellationToken = default);
     Task<VpnAdminPromoKeyListResponse> ListPromoKeysAsync(CancellationToken cancellationToken = default);
     Task<VpnAdminSubscriptionListResponse> ListSubscriptionsAsync(
         int page,
@@ -43,8 +43,15 @@ public class VpnAdminService : IVpnAdminService
         _options = options;
     }
 
-    public async Task<string> GeneratePromoKeyAsync(CancellationToken cancellationToken = default)
+    public async Task<string> GeneratePromoKeyAsync(
+        int durationMonths = 1,
+        CancellationToken cancellationToken = default)
     {
+        if (!VpnConfig.IsValidPromoDuration(durationMonths))
+        {
+            throw new ArgumentException("Неверная длительность промо-ключа: допустимы 1, 3, 6 или 12 месяцев.", nameof(durationMonths));
+        }
+
         string code;
         do
         {
@@ -56,7 +63,8 @@ public class VpnAdminService : IVpnAdminService
         {
             Code = code,
             IsUsed = false,
-            CreatedAtUtc = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow,
+            DurationMonths = durationMonths
         }, cancellationToken);
 
         return code;
@@ -84,7 +92,8 @@ public class VpnAdminService : IVpnAdminService
                 IsUsed = key.IsUsed,
                 CreatedAtUtc = key.CreatedAtUtc,
                 UsedAtUtc = key.UsedAtUtc,
-                UsedByUsername = usedByUsername
+                UsedByUsername = usedByUsername,
+                DurationMonths = key.DurationMonths
             });
         }
 

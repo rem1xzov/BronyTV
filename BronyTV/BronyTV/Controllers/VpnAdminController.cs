@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using BronyTV.Contract;
 using BronyTV.Service;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -23,10 +24,13 @@ public class VpnAdminController : ControllerBase
 
     /// <summary>Генерирует один промо-ключ для выдачи покупателю.</summary>
     [HttpPost("promo-keys/generate")]
-    public async Task<IActionResult> GeneratePromoKey(CancellationToken cancellationToken)
+    public async Task<IActionResult> GeneratePromoKey(
+        [FromBody] VpnAdminGeneratePromoKeyRequest? request,
+        CancellationToken cancellationToken)
     {
-        var code = await _vpnAdminService.GeneratePromoKeyAsync(cancellationToken);
-        return Ok(new { Code = code });
+        var durationMonths = request?.DurationMonths ?? 1;
+        var code = await _vpnAdminService.GeneratePromoKeyAsync(durationMonths, cancellationToken);
+        return Ok(new { Code = code, DurationMonths = durationMonths });
     }
 
     /// <summary>Список промо-ключей.</summary>

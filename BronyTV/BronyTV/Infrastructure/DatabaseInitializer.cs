@@ -350,8 +350,11 @@ public static class DatabaseInitializer
                 CREATE INDEX IF NOT EXISTS "IX_VpnPromoKeys_IsUsed"
             ON public."VpnPromoKeys" ("IsUsed");
 
-        ALTER TABLE public."VpnPromoKeys"
+                ALTER TABLE public."VpnPromoKeys"
             ADD COLUMN IF NOT EXISTS "ClientUuid" character varying(64);
+
+        ALTER TABLE public."VpnPromoKeys"
+            ADD COLUMN IF NOT EXISTS "DurationMonths" integer NOT NULL DEFAULT 1;
 
         CREATE TABLE IF NOT EXISTS public."ReferralRewards" (
             "Id" uuid NOT NULL,

@@ -272,7 +272,7 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
                 disabled={trialBusy || status.isTrialUsed}
               >
                 <Gift size={16} />
-                <span>{status.isTrialUsed ? t("vpn.trialUsed") : t("vpn.trialStart", { days: status.referralBonusDays ?? 7 })}</span>
+                <span>{status.isTrialUsed ? t("vpn.trialUsed") : t("vpn.trialStart", { days: status.trialDays ?? 14 })}</span>
               </button>
             </div>
 

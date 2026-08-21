@@ -28,6 +28,9 @@ public class VpnPromoKeyConfiguration : IEntityTypeConfiguration<VpnPromoKeyEnti
         builder.Property(promo => promo.ClientUuid)
             .HasMaxLength(64);
 
+        builder.Property(promo => promo.DurationMonths)
+            .IsRequired();
+
         builder.HasIndex(promo => promo.IsUsed);
 
         builder.HasOne(promo => promo.UsedByUser)
