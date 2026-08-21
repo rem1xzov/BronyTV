@@ -83,12 +83,40 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
         && !string.IsNullOrWhiteSpace(Options.PanelUsername)
         && !string.IsNullOrWhiteSpace(Options.PanelPassword);
 
-    private string ApiBase
+        private string ApiBase
     {
         get
         {
             var url = Options.PanelApiUrl?.Trim().TrimEnd('/');
             return string.IsNullOrWhiteSpace(url) ? string.Empty : url;
+        }
+    }
+
+    /// <summary>
+    /// Базовый путь API инбаундов 3X-UI. Все эндпоинты инбаундов живут строго
+    /// по префиксу <c>/panel/api/inbounds/...</c>, в отличие от логина
+    /// (<c>{base}/login</c>). Нормализуем базовый URL так, чтобы префикс
+    /// присутствовал всегда, независимо от того, заканчивается ли
+    /// <c>VPN_PANEL_API_URL</c> на <c>/panel</c> или на слэш.
+    /// </summary>
+    private string ApiInboundsBase
+    {
+        get
+        {
+            var baseUrl = ApiBase;
+            if (string.IsNullOrEmpty(baseUrl))
+            {
+                return string.Empty;
+            }
+
+            // Если в конфигурации базовый URL уже заканчивается на /panel — не дублируем.
+            const string panelSuffix = "/panel";
+            if (baseUrl.EndsWith(panelSuffix, StringComparison.OrdinalIgnoreCase))
+            {
+                baseUrl = baseUrl[..^panelSuffix.Length].TrimEnd('/');
+            }
+
+            return $"{baseUrl}/panel/api/inbounds";
         }
     }
 
@@ -136,7 +164,7 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
                 return false;
             }
 
-            var url = $"{ApiBase}/inbounds/{inboundId.Value}/{WebUtility.UrlEncode(clientUuid)}/delClient";
+            var url = $"{ApiInboundsBase}/{inboundId.Value}/{WebUtility.UrlEncode(clientUuid)}/delClient";
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
             await EnsureCookieAsync(request, cancellationToken).ConfigureAwait(false);
 
@@ -262,7 +290,7 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
         });
 
         // Пробуем сначала обновить, если клиент уже существует; иначе создаём.
-        var updateUrl = $"{ApiBase}/inbounds/{inboundId.Value}/updateClient/{WebUtility.UrlEncode(clientUuid)}";
+        var updateUrl = $"{ApiInboundsBase}/{inboundId.Value}/updateClient/{WebUtility.UrlEncode(clientUuid)}";
         using (var updateRequest = new HttpRequestMessage(HttpMethod.Post, updateUrl))
         {
             updateRequest.Content = new StringContent(payload, Encoding.UTF8, "application/json");
@@ -278,7 +306,7 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
             }
         }
 
-        var addUrl = $"{ApiBase}/inbounds/{inboundId.Value}/addClient";
+        var addUrl = $"{ApiInboundsBase}/{inboundId.Value}/addClient";
         using (var addRequest = new HttpRequestMessage(HttpMethod.Post, addUrl))
         {
             addRequest.Content = new StringContent(payload, Encoding.UTF8, "application/json");
@@ -305,7 +333,7 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
 
     private async Task<IReadOnlyList<XuiInbound?>> ListInboundsAsync(CancellationToken cancellationToken)
     {
-        var url = $"{ApiBase}/inbounds/list";
+        var url = $"{ApiInboundsBase}/list";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         await EnsureCookieAsync(request, cancellationToken).ConfigureAwait(false);
 
