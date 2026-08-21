@@ -5,13 +5,13 @@ namespace BronyTV.Service;
 
 public interface IUserAuthService
 {
-        Task<(RegistrationPendingResponse? Response, string? Error)> RegisterAsync(
-        string email,
-        string password,
-        string race,
-        string username,
-        string? referralCode = null,
-        CancellationToken cancellationToken = default);
+    Task<(RegistrationPendingResponse? Response, string? Error)> RegisterAsync(
+    string email,
+    string password,
+    string race,
+    string username,
+    string? referralCode = null,
+    CancellationToken cancellationToken = default);
 
     Task<UserEntity?> AuthenticateAsync(
         string email,

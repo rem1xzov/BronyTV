@@ -19,21 +19,21 @@ public interface IForumService
         string currentUserRole,
         CancellationToken cancellationToken = default);
 
-        Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
-        Guid threadId,
-        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
+    Guid threadId,
+    CancellationToken cancellationToken = default);
 
     Task<string?> GetThreadTitleByIdAsync(
         Guid threadId,
         CancellationToken cancellationToken = default);
 
-        Task<(ForumPostResponse? Response, string? Error, int StatusCode)> CreatePostAsync(
-        Guid threadId,
-        Guid authorId,
-        string content,
-        List<string>? images,
-        Guid? replyToPostId,
-        CancellationToken cancellationToken = default);
+    Task<(ForumPostResponse? Response, string? Error, int StatusCode)> CreatePostAsync(
+    Guid threadId,
+    Guid authorId,
+    string content,
+    List<string>? images,
+    Guid? replyToPostId,
+    CancellationToken cancellationToken = default);
 
     Task<(ForumPostResponse? Response, string? Error, int StatusCode)> ToggleLikeAsync(
         Guid postId,

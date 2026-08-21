@@ -16,7 +16,7 @@ public class UserEntity
     // Stores a BCrypt hash of the one-time email code, never the code itself.
     public string? EmailConfirmationToken { get; set; }
     public DateTime? EmailConfirmationExpiresAtUtc { get; set; }
-        public DateTime? EmailConfirmationLastSentAtUtc { get; set; }
+    public DateTime? EmailConfirmationLastSentAtUtc { get; set; }
     public int EmailConfirmationFailedAttempts { get; set; }
 
     // Реферальная система BronyVPN: уникальный код для приглашения друзей

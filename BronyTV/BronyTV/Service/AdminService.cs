@@ -31,7 +31,7 @@ public class AdminService : IAdminService
         {
             return null;
         }
-        
+
         return GenerateJwtToken(admin);
     }
 
@@ -42,7 +42,7 @@ public class AdminService : IAdminService
             new Claim(ClaimTypes.Name, admin.Login),
             new Claim(ClaimTypes.Role, "Admin")
         };
-        
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["JWT:Key"]!));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -52,7 +52,7 @@ public class AdminService : IAdminService
             claims: claims,
             expires: DateTime.Now.AddDays(7),
             signingCredentials: creds);
-        
+
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 }

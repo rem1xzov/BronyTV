@@ -9,7 +9,7 @@ public class VideoConfiguration : IEntityTypeConfiguration<VideoEntity>
     public void Configure(EntityTypeBuilder<VideoEntity> builder)
     {
         builder.HasKey(x => x.Id);
-        
+
         builder.Property(v => v.Title)
             .HasMaxLength(255)
             .IsRequired();

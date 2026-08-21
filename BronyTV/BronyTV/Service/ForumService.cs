@@ -111,9 +111,9 @@ public class ForumService : IForumService
         return (false, "Недостаточно прав для удаления темы.", 403);
     }
 
-        public async Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
-        Guid threadId,
-        CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<ForumPostResponse>> GetPostsAsync(
+    Guid threadId,
+    CancellationToken cancellationToken = default)
     {
         var posts = await _forumRepository.GetPostsByThreadIdAsync(threadId, cancellationToken);
         return posts.Select(PostToResponse).ToList();
@@ -129,13 +129,13 @@ public class ForumService : IForumService
 
 
 
-        public async Task<(ForumPostResponse? Response, string? Error, int StatusCode)> CreatePostAsync(
-        Guid threadId,
-        Guid authorId,
-        string content,
-        List<string>? images,
-        Guid? replyToPostId,
-        CancellationToken cancellationToken = default)
+    public async Task<(ForumPostResponse? Response, string? Error, int StatusCode)> CreatePostAsync(
+    Guid threadId,
+    Guid authorId,
+    string content,
+    List<string>? images,
+    Guid? replyToPostId,
+    CancellationToken cancellationToken = default)
     {
         var hasContent = !string.IsNullOrWhiteSpace(content);
         var hasImages = images != null && images.Count > 0;
@@ -156,7 +156,7 @@ public class ForumService : IForumService
             return (null, "Тема не найдена.", 404);
         }
 
-                var user = await _userRepository.GetByIdAsync(authorId, cancellationToken);
+        var user = await _userRepository.GetByIdAsync(authorId, cancellationToken);
         if (user == null)
         {
             return (null, "Пользователь не найден.", 404);
@@ -232,7 +232,7 @@ public class ForumService : IForumService
         post.LikedUserIds = likedIds.Count > 0 ? JsonSerializer.Serialize(likedIds) : null;
         await _forumRepository.UpdatePostAsync(post, cancellationToken);
 
-                var postResponse = new ForumPostResponse
+        var postResponse = new ForumPostResponse
         {
             Id = post.Id,
             Content = post.Content ?? string.Empty,
@@ -300,7 +300,7 @@ public class ForumService : IForumService
             Images = DeserializeImages(thread.Images)
         };
 
-        private static ForumPostResponse PostToResponse(ForumPostEntity post)
+    private static ForumPostResponse PostToResponse(ForumPostEntity post)
     {
         var likedIds = DeserializeLikedUserIds(post.LikedUserIds);
         return new ForumPostResponse

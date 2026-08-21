@@ -8,7 +8,7 @@ public class Video
     public string FilePath { get; set; } = string.Empty;//Путь,где лежит видео на сервере
     public string? PreviewImageUrl { get; set; } //Ссылка на кадр из серии (превью)
     public string Description { get; set; } = string.Empty;
-    
+
     //Ссылка на сезон
     public Guid SeasonId { get; set; }
 }

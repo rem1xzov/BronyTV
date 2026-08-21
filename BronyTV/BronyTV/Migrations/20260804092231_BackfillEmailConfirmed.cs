@@ -9,7 +9,7 @@ namespace BronyTV.Migrations
     public partial class BackfillEmailConfirmed : Migration
     {
         /// <inheritdoc />
-                protected override void Up(MigrationBuilder migrationBuilder)
+        protected override void Up(MigrationBuilder migrationBuilder)
         {
             // Разовый бэкфилл: все существующие на момент применения миграции
             // пользователи получают подтверждение email, чтобы старые аккаунты

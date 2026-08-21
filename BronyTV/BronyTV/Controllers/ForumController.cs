@@ -10,7 +10,7 @@ namespace BronyTV.Controllers;
 [Route("api/forum")]
 public class ForumController : ControllerBase
 {
-        private readonly IForumService _forumService;
+    private readonly IForumService _forumService;
     private readonly IUserActivityService _userActivityService;
 
     public ForumController(
@@ -79,7 +79,7 @@ public class ForumController : ControllerBase
         return NoContent();
     }
 
-        [HttpGet("threads/{threadId:guid}/posts")]
+    [HttpGet("threads/{threadId:guid}/posts")]
     public async Task<IActionResult> GetPosts(Guid threadId, CancellationToken cancellationToken)
     {
         var posts = await _forumService.GetPostsAsync(threadId, cancellationToken);
@@ -113,15 +113,15 @@ public class ForumController : ControllerBase
             return Unauthorized();
         }
 
-                var (response, error, statusCode) = await _forumService.CreatePostAsync(
-            threadId,
-            userId,
-            request.Content,
-            request.Images,
-            request.ReplyToPostId,
-            cancellationToken);
+        var (response, error, statusCode) = await _forumService.CreatePostAsync(
+    threadId,
+    userId,
+    request.Content,
+    request.Images,
+    request.ReplyToPostId,
+    cancellationToken);
 
-                if (response == null)
+        if (response == null)
         {
             return StatusCode(statusCode, new { message = error });
         }

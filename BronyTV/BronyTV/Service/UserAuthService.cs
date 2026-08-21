@@ -17,7 +17,7 @@ public class UserAuthService : IUserAuthService
     private const int ConfirmationResendCooldownSeconds = 60;
     private const int MaxConfirmationAttempts = 5;
 
-        private readonly IUserRepository _userRepository;
+    private readonly IUserRepository _userRepository;
     private readonly IAdminAccessService _adminAccessService;
     private readonly IEmailService _emailService;
     private readonly IVpnRepository _vpnRepository;
@@ -37,13 +37,13 @@ public class UserAuthService : IUserAuthService
         _configuration = configuration;
     }
 
-        public async Task<(RegistrationPendingResponse? Response, string? Error)> RegisterAsync(
-        string email,
-        string password,
-        string race,
-        string username,
-        string? referralCode = null,
-        CancellationToken cancellationToken = default)
+    public async Task<(RegistrationPendingResponse? Response, string? Error)> RegisterAsync(
+    string email,
+    string password,
+    string race,
+    string username,
+    string? referralCode = null,
+    CancellationToken cancellationToken = default)
     {
         var normalizedEmail = NormalizeEmail(email);
         if (string.IsNullOrEmpty(normalizedEmail))
@@ -308,7 +308,7 @@ public class UserAuthService : IUserAuthService
                 : "Неверный код подтверждения.");
         }
 
-                user.IsEmailConfirmed = true;
+        user.IsEmailConfirmed = true;
         user.EmailConfirmationToken = null;
         user.EmailConfirmationExpiresAtUtc = null;
         user.EmailConfirmationLastSentAtUtc = null;
@@ -483,8 +483,8 @@ public class UserAuthService : IUserAuthService
         }
     }
 
-        private static string CreateEmailConfirmationCode() =>
-        RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
+    private static string CreateEmailConfirmationCode() =>
+    RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 
     // Генерирует уникальный (пока ещё не занятый) реферальный код.
     private async Task<string> GenerateUniqueReferralCodeAsync(CancellationToken cancellationToken)

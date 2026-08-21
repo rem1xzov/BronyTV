@@ -9,7 +9,7 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
     public DbBronyTV(DbContextOptions<DbBronyTV> options) : base(options)
     {
     }
-    
+
     public DbSet<SeasonEntity> Seasons => Set<SeasonEntity>();
     public DbSet<VideoEntity> Videos => Set<VideoEntity>();
     public DbSet<AdminEntity> Admins => Set<AdminEntity>();
@@ -20,8 +20,8 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<ForumPostEntity> ForumPosts => Set<ForumPostEntity>();
     public DbSet<SupportTicketEntity> SupportTickets => Set<SupportTicketEntity>();
     public DbSet<SupportMessageEntity> SupportMessages => Set<SupportMessageEntity>();
-                public DbSet<NewsPost> NewsPosts => Set<NewsPost>();
-        public DbSet<UserActivityEntity> UserActivities => Set<UserActivityEntity>();
+    public DbSet<NewsPost> NewsPosts => Set<NewsPost>();
+    public DbSet<UserActivityEntity> UserActivities => Set<UserActivityEntity>();
     public DbSet<UserFavoriteEntity> UserFavorites => Set<UserFavoriteEntity>();
     public DbSet<VpnSubscriptionEntity> VpnSubscriptions => Set<VpnSubscriptionEntity>();
     public DbSet<VpnPromoKeyEntity> VpnPromoKeys => Set<VpnPromoKeyEntity>();
@@ -41,7 +41,7 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new SupportTicketConfiguration());
         modelBuilder.ApplyConfiguration(new SupportMessageConfiguration());
         modelBuilder.ApplyConfiguration(new NewsPostConfiguration());
-                modelBuilder.ApplyConfiguration(new UserActivityConfiguration());
+        modelBuilder.ApplyConfiguration(new UserActivityConfiguration());
         modelBuilder.ApplyConfiguration(new UserFavoriteConfiguration());
         modelBuilder.ApplyConfiguration(new VpnSubscriptionConfiguration());
         modelBuilder.ApplyConfiguration(new VpnPromoKeyConfiguration());

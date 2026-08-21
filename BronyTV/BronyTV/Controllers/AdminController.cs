@@ -31,7 +31,7 @@ public class AdminController : ControllerBase
         return Ok(users);
     }
 
-        /// <summary>
+    /// <summary>
     /// История последних действий пользователя (последние 10 записей, по убыванию времени).
     /// Доступно только владельцу/администратору.
     /// </summary>

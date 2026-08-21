@@ -92,7 +92,7 @@ public class VideoService : IVideoService
 
         var webRootPath = _env.WebRootPath ?? Path.Combine(_env.ContentRootPath, "wwwroot");
         var fileName = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-        var directoryPath = Path.Combine([webRootPath, ..folderSegments]);
+        var directoryPath = Path.Combine([webRootPath, .. folderSegments]);
         Directory.CreateDirectory(directoryPath);
         var path = Path.Combine(directoryPath, fileName);
 
@@ -118,7 +118,7 @@ public class VideoService : IVideoService
             SeasonId = v.SeasonId
         });
     }
-    
+
     public async Task<Video?> GetVideoByIdAsync(Guid id)
     {
         var v = await _videoRepository.GetVideoByIdAsync(id);
@@ -135,6 +135,6 @@ public class VideoService : IVideoService
         };
     }
 
-    public async Task DeleteVideoAsync(Guid id) 
+    public async Task DeleteVideoAsync(Guid id)
         => await _videoRepository.DeleteVideoAsync(id);
 }

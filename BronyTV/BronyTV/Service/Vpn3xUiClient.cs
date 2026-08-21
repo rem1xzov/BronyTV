@@ -15,9 +15,9 @@ using Microsoft.Extensions.Options;
 namespace BronyTV.Service;
 
 /// <summary>
-/// Тонкий HTTP-клиент панели 3X-UI (x-ui). Умеет логиниться и держит
-/// сессионную куку, находит нужный инбаунд, создаёт/продлевает клиентов
-/// и удаляет их. Используется только для реального предоставления доступа.
+/// HTTP-клиент панели 3X-UI (x-ui). Авторизуется по API-токену (Bearer),
+/// находит нужный инбаунд, создаёт/продлевает клиентов и удаляет их.
+/// Используется только для реального предоставления доступа.
 /// </summary>
 public interface IVpn3xUiClient
 {
@@ -62,9 +62,6 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
     private readonly IOptions<VpnOptions> _options;
     private readonly ILogger<Vpn3xUiClient> _logger;
     private readonly HttpClient _http;
-    private readonly object _sync = new object();
-    private DateTime _cookieExpiresUtc;
-    private string? _cookie;
 
     public Vpn3xUiClient(
         IOptions<VpnOptions> options,
@@ -80,10 +77,9 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
 
     public bool IsConfigured => Options.Enabled
         && !string.IsNullOrWhiteSpace(Options.PanelApiUrl)
-        && !string.IsNullOrWhiteSpace(Options.PanelUsername)
-        && !string.IsNullOrWhiteSpace(Options.PanelPassword);
+        && !string.IsNullOrWhiteSpace(Options.PanelApiToken);
 
-        private string ApiBase
+    private string ApiBase
     {
         get
         {
@@ -94,9 +90,8 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
 
     /// <summary>
     /// Базовый путь API инбаундов 3X-UI. Все эндпоинты инбаундов живут строго
-    /// по префиксу <c>/panel/api/inbounds/...</c>, в отличие от логина
-    /// (<c>{base}/login</c>). Нормализуем базовый URL так, чтобы префикс
-    /// присутствовал всегда, независимо от того, заканчивается ли
+    /// по префиксу <c>/panel/api/inbounds/...</c>. Нормализуем базовый URL так,
+    /// чтобы префикс присутствовал всегда, независимо от того, заканчивается ли
     /// <c>VPN_PANEL_API_URL</c> на <c>/panel</c> или на слэш.
     /// </summary>
     private string ApiInboundsBase
@@ -118,6 +113,18 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
 
             return $"{baseUrl}/panel/api/inbounds";
         }
+    }
+
+    /// <summary>
+    /// Подписывает запрос Bearer-токеном из конфигурации (VPN_PANEL_API_TOKEN).
+    /// Все запросы к <c>{base}/panel/api/inbounds/...</c> отправляются с заголовком
+    /// <c>Authorization: Bearer &lt;token&gt;</c>, без CookieContainer и логина.
+    /// </summary>
+    private void Authorize(HttpRequestMessage request)
+    {
+        request.Headers.Authorization = new AuthenticationHeaderValue(
+            "Bearer",
+            Options.PanelApiToken);
     }
 
     public Task<bool> UpsertClientAsync(
@@ -166,7 +173,7 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
 
             var url = $"{ApiInboundsBase}/{inboundId.Value}/{WebUtility.UrlEncode(clientUuid)}/delClient";
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
-            await EnsureCookieAsync(request, cancellationToken).ConfigureAwait(false);
+            Authorize(request);
 
             using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
@@ -276,25 +283,15 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
             return false;
         }
 
-        var payload = JsonSerializer.Serialize(new
-        {
-            id = clientUuid,
-            email,
-            limitIp = 0,
-            totalGB = 0,
-            expiryTime = ToUnixTimeMs(expiresAtUtc),
-            enable = true,
-            tgId = string.Empty,
-            subId = clientUuid,
-            reset = 0
-        });
+        var expiryTimestampMs = ToUnixTimeMs(expiresAtUtc);
 
         // Пробуем сначала обновить, если клиент уже существует; иначе создаём.
         var updateUrl = $"{ApiInboundsBase}/{inboundId.Value}/updateClient/{WebUtility.UrlEncode(clientUuid)}";
+        var updatePayload = BuildClientPayload(inboundId.Value, clientUuid, email, expiryTimestampMs);
         using (var updateRequest = new HttpRequestMessage(HttpMethod.Post, updateUrl))
         {
-            updateRequest.Content = new StringContent(payload, Encoding.UTF8, "application/json");
-            await EnsureCookieAsync(updateRequest, cancellationToken).ConfigureAwait(false);
+            updateRequest.Content = new StringContent(updatePayload, Encoding.UTF8, "application/json");
+            Authorize(updateRequest);
             var updateResponse = await _http.SendAsync(updateRequest, cancellationToken).ConfigureAwait(false);
             var updateBody = updateResponse.IsSuccessStatusCode
                 ? await updateResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)
@@ -307,16 +304,33 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
         }
 
         var addUrl = $"{ApiInboundsBase}/{inboundId.Value}/addClient";
+        var addPayload = BuildClientPayload(inboundId.Value, clientUuid, email, expiryTimestampMs);
         using (var addRequest = new HttpRequestMessage(HttpMethod.Post, addUrl))
         {
-            addRequest.Content = new StringContent(payload, Encoding.UTF8, "application/json");
-            await EnsureCookieAsync(addRequest, cancellationToken).ConfigureAwait(false);
+            addRequest.Content = new StringContent(addPayload, Encoding.UTF8, "application/json");
+            Authorize(addRequest);
             var addResponse = await _http.SendAsync(addRequest, cancellationToken).ConfigureAwait(false);
             var addBody = await addResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var ok = addResponse.IsSuccessStatusCode && IsSuccessPayload(addBody);
             _logger.LogInformation("3X-UI клиент {Uuid} создан: {Ok}.", clientUuid, ok);
             return ok;
         }
+    }
+
+    /// <summary>
+    /// Собирает тело запроса 3X-UI в требуемом формате:
+    /// <c>{"id": inboundId, "settings": "{\"clients\":[{...}]}"}</c>.
+    /// <c>settings</c> — это строка, содержащая вложенный JSON (clients-массив),
+    /// а не объект. Для gRPC Reality поле <c>flow</c> передаётся пустым.
+    /// </summary>
+    private static string BuildClientPayload(long inboundId, string clientUuid, string email, long expiryTimestampMs)
+    {
+        var settings = "{\"clients\":[{\"id\":\"" + clientUuid
+                       + "\",\"email\":\"" + email
+                       + "\",\"expiryTime\":" + expiryTimestampMs
+                       + ",\"enable\":true,\"flow\":\"\"}]}";
+
+        return "{\"id\":" + inboundId + ",\"settings\":\"" + settings + "\"}";
     }
 
     private async Task<long?> FindInboundIdAsync(CancellationToken cancellationToken)
@@ -335,7 +349,7 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
     {
         var url = $"{ApiInboundsBase}/list";
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        await EnsureCookieAsync(request, cancellationToken).ConfigureAwait(false);
+        Authorize(request);
 
         using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
         if (!response.IsSuccessStatusCode)
@@ -432,58 +446,5 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
     private static long ToUnixTimeMs(DateTime utc)
     {
         return new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
-    }
-
-    private async Task EnsureCookieAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-    {
-        bool needLogin;
-        lock (_sync)
-        {
-            needLogin = string.IsNullOrEmpty(_cookie) || DateTime.UtcNow >= _cookieExpiresUtc;
-        }
-
-        if (needLogin)
-        {
-            await LoginAsync().ConfigureAwait(false);
-        }
-
-        // Сама кука отправляется автоматически внутренним CookieContainer клиента.
-    }
-
-    private async Task<string?> LoginAsync()
-    {
-        var url = $"{ApiBase}/login";
-        using var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = new FormUrlEncodedContent(new Dictionary<string, string>
-            {
-                ["username"] = Options.PanelUsername ?? string.Empty,
-                ["password"] = Options.PanelPassword ?? string.Empty
-            })
-        };
-
-        using var response = await _http.SendAsync(request, CancellationToken.None).ConfigureAwait(false);
-        if (!response.IsSuccessStatusCode)
-        {
-            _logger.LogWarning("3X-UI логин не удался: {Status}.", response.StatusCode);
-            return null;
-        }
-
-        var cookieHeader = response.Headers.TryGetValues("Set-Cookie", out var setCookies)
-            ? string.Join(";", setCookies)
-            : string.Empty;
-        if (string.IsNullOrWhiteSpace(cookieHeader))
-        {
-            // Кука уже сохранена внутренним CookieContainer клиента; просто помечаем сессию активной.
-            // Последующие запросы отправят куку автоматически.
-            cookieHeader = "bronytv-xui-session=1";
-        }
-
-        lock (_sync)
-        {
-            _cookie = cookieHeader;
-            _cookieExpiresUtc = DateTime.UtcNow.AddHours(5);
-        }
-        return _cookie;
     }
 }
