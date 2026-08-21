@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using BronyTV.Infrastructure;
@@ -15,8 +16,9 @@ using Microsoft.Extensions.Options;
 namespace BronyTV.Service;
 
 /// <summary>
-/// HTTP-клиент панели 3X-UI (x-ui). Авторизуется по API-токену (Bearer),
-/// находит нужный инбаунд, создаёт/продлевает клиентов и удаляет их.
+/// HTTP-клиент панели 3X-UI (x-ui) v3.x. Авторизуется по API-токену (Bearer)
+/// и управляет клиентами напрямую через роуты <c>/panel/api/clients/*</c>
+/// (клиенты — сущности первого класса, а не часть настроек инбаунда).
 /// Используется только для реального предоставления доступа.
 /// </summary>
 public interface IVpn3xUiClient
@@ -41,7 +43,7 @@ public interface IVpn3xUiClient
     Task<int> DisableExpiredAsync(CancellationToken cancellationToken = default);
 }
 
-/// <summary>Внутренняя модель клиента из настроек инбаунда.</summary>
+/// <summary>Модель клиента 3X-UI v3.x из ответа <c>/panel/api/clients/list</c>.</summary>
 internal sealed class XuiClientEntry
 {
     public string Id { get; set; } = string.Empty;
@@ -53,7 +55,6 @@ internal sealed class XuiInbound
 {
     public long Id { get; set; }
     public string? Protocol { get; set; }
-    public string? Settings { get; set; }
 }
 
 /// <inheritdoc cref="IVpn3xUiClient"/>
@@ -89,12 +90,10 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
     }
 
     /// <summary>
-    /// Базовый путь API инбаундов 3X-UI. Все эндпоинты инбаундов живут строго
-    /// по префиксу <c>/panel/api/inbounds/...</c>. Нормализуем базовый URL так,
-    /// чтобы префикс присутствовал всегда, независимо от того, заканчивается ли
-    /// <c>VPN_PANEL_API_URL</c> на <c>/panel</c> или на слэш.
+    /// Нормализует базовый URL панели до <c>{base}/panel</c>, независимо от того,
+    /// передан ли <c>VPN_PANEL_API_URL</c> уже с суффиксом <c>/panel</c> или без него.
     /// </summary>
-    private string ApiInboundsBase
+    private string ApiPanelBase
     {
         get
         {
@@ -104,20 +103,31 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
                 return string.Empty;
             }
 
-            // Если в конфигурации базовый URL уже заканчивается на /panel — не дублируем.
             const string panelSuffix = "/panel";
             if (baseUrl.EndsWith(panelSuffix, StringComparison.OrdinalIgnoreCase))
             {
                 baseUrl = baseUrl[..^panelSuffix.Length].TrimEnd('/');
             }
 
-            return $"{baseUrl}/panel/api/inbounds";
+            return $"{baseUrl}/panel";
         }
     }
 
     /// <summary>
+    /// Базовый путь API клиентов 3X-UI v3.x: <c>{base}/panel/api/clients</c>.
+    /// Клиенты — сущности первого класса и управляются напрямую этими роутами.
+    /// </summary>
+    private string ApiClientsBase => $"{ApiPanelBase}/api/clients";
+
+    /// <summary>
+    /// Базовый путь API инбаундов: <c>{base}/panel/api/inbounds</c>.
+    /// Нужен только чтобы найти ID инбаунда для назначения нового клиента.
+    /// </summary>
+    private string ApiInboundsBase => $"{ApiPanelBase}/api/inbounds";
+
+    /// <summary>
     /// Подписывает запрос Bearer-токеном из конфигурации (VPN_PANEL_API_TOKEN).
-    /// Все запросы к <c>{base}/panel/api/inbounds/...</c> отправляются с заголовком
+    /// Все запросы к <c>{base}/panel/api/...</c> отправляются с заголовком
     /// <c>Authorization: Bearer &lt;token&gt;</c>, без CookieContainer и логина.
     /// </summary>
     private void Authorize(HttpRequestMessage request)
@@ -165,26 +175,26 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
 
         try
         {
-            var inboundId = await FindInboundIdAsync(cancellationToken).ConfigureAwait(false);
-            if (!inboundId.HasValue)
+            var email = await ResolveEmailByUuidAsync(clientUuid, cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(email))
             {
                 return false;
             }
 
-            var url = $"{ApiInboundsBase}/{inboundId.Value}/{WebUtility.UrlEncode(clientUuid)}/delClient";
+            var url = $"{ApiClientsBase}/del/{WebUtility.UrlEncode(email)}";
             using var request = new HttpRequestMessage(HttpMethod.Post, url);
             Authorize(request);
 
             using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("3X-UI вернул {Status} при удалении клиента {Uuid}.", response.StatusCode, clientUuid);
+                _logger.LogWarning("3X-UI вернул {Status} при удалении клиента {Email}.", response.StatusCode, email);
                 return false;
             }
 
             var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var success = IsSuccessPayload(body);
-            _logger.LogInformation("3X-UI удаление клиента {Uuid}: {Ok}", clientUuid, success);
+            _logger.LogInformation("3X-UI удаление клиента {Email}: {Ok}", email, success);
             return success;
         }
         catch (Exception ex)
@@ -205,20 +215,26 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
 
         try
         {
-            var inboundId = await FindInboundIdAsync(cancellationToken).ConfigureAwait(false);
-            if (!inboundId.HasValue)
+            var email = await ResolveEmailByUuidAsync(clientUuid, cancellationToken).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(email))
             {
                 return false;
             }
 
-            var inbounds = await ListInboundsAsync(cancellationToken).ConfigureAwait(false);
-            var inbound = inbounds.FirstOrDefault(i => i != null && i.Id == inboundId.Value);
-            if (inbound == null)
+            // GET /panel/api/clients/get/{email} -> HTTP 200 означает, что клиент существует.
+            var url = $"{ApiClientsBase}/get/{WebUtility.UrlEncode(email)}";
+            using var request = new HttpRequestMessage(HttpMethod.Get, url);
+            Authorize(request);
+
+            using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
             {
                 return false;
             }
 
-            return ParseClients(inbound).Any(c => string.Equals(c.Id, clientUuid, StringComparison.OrdinalIgnoreCase));
+            // Дополнительно проверяем флаг success в теле, если он присутствует.
+            var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return IsSuccessPayload(body);
         }
         catch (Exception ex)
         {
@@ -238,27 +254,29 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
         {
             var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var removed = 0;
-            var inbounds = await ListInboundsAsync(cancellationToken).ConfigureAwait(false);
+            var clients = await ListClientsAsync(cancellationToken).ConfigureAwait(false);
 
-            foreach (var inbound in inbounds.Where(i => i != null))
+            foreach (var client in clients)
             {
-                var clients = ParseClients(inbound!);
-                foreach (var client in clients)
+                // При expiryTime <= 0 клиент считается бессрочным — не трогаем.
+                if (client.ExpiryTime <= 0)
                 {
-                    // При expiryTime <= 0 клиент считается бессрочным — не трогаем.
-                    if (client.ExpiryTime <= 0)
-                    {
-                        continue;
-                    }
-                    if (client.ExpiryTime >= nowMs)
-                    {
-                        continue;
-                    }
-
-                    _logger.LogInformation("3X-UI: срок действия клиента {Uuid}|{Email} истёк, удаляю.", client.Id, client.Email);
-                    await RemoveClientAsync(client.Id, cancellationToken).ConfigureAwait(false);
-                    removed++;
+                    continue;
                 }
+                if (client.ExpiryTime >= nowMs)
+                {
+                    continue;
+                }
+
+                var email = client.Email;
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    continue;
+                }
+
+                _logger.LogInformation("3X-UI: срок действия клиента {Email} истёк, удаляю.", email);
+                await DeleteClientByEmailAsync(email, cancellationToken).ConfigureAwait(false);
+                removed++;
             }
 
             return removed;
@@ -276,63 +294,87 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
         DateTime expiresAtUtc,
         CancellationToken cancellationToken)
     {
-        var inboundId = await FindInboundIdAsync(cancellationToken).ConfigureAwait(false);
-        if (!inboundId.HasValue)
-        {
-            _logger.LogWarning("3X-UI: инбаунд не найден, клиент {Uuid} не создан.", clientUuid);
-            return false;
-        }
-
         var expiryTimestampMs = ToUnixTimeMs(expiresAtUtc);
 
-        // Пробуем сначала обновить, если клиент уже существует; иначе создаём.
-        var updateUrl = $"{ApiInboundsBase}/{inboundId.Value}/updateClient/{WebUtility.UrlEncode(clientUuid)}";
-        var updatePayload = BuildClientPayload(inboundId.Value, clientUuid, email, expiryTimestampMs);
+        // Сначала пробуем обновить по email: POST /panel/api/clients/update/{email}.
+        var updateUrl = $"{ApiClientsBase}/update/{WebUtility.UrlEncode(email)}";
         using (var updateRequest = new HttpRequestMessage(HttpMethod.Post, updateUrl))
         {
-            updateRequest.Content = new StringContent(updatePayload, Encoding.UTF8, "application/json");
+            updateRequest.Content = new StringContent(
+                BuildUpdatePayload(clientUuid, email, expiryTimestampMs),
+                Encoding.UTF8,
+                "application/json");
             Authorize(updateRequest);
-            var updateResponse = await _http.SendAsync(updateRequest, cancellationToken).ConfigureAwait(false);
-            var updateBody = updateResponse.IsSuccessStatusCode
-                ? await updateResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false)
-                : string.Empty;
-            if (updateResponse.IsSuccessStatusCode && IsSuccessPayload(updateBody))
+
+            using var updateResponse = await _http.SendAsync(updateRequest, cancellationToken).ConfigureAwait(false);
+            if (updateResponse.IsSuccessStatusCode)
             {
-                _logger.LogInformation("3X-UI клиент {Uuid} продлён до {Expires}.", clientUuid, expiresAtUtc);
-                return true;
+                var updateBody = await updateResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+                if (IsSuccessPayload(updateBody))
+                {
+                    _logger.LogInformation("3X-UI клиент {Email} продлён до {Expires}.", email, expiresAtUtc);
+                    return true;
+                }
             }
         }
 
-        var addUrl = $"{ApiInboundsBase}/{inboundId.Value}/addClient";
-        var addPayload = BuildClientPayload(inboundId.Value, clientUuid, email, expiryTimestampMs);
+        // Если клиент не существовал — создаём: POST /panel/api/clients/add.
+        var inboundId = await FindInboundIdAsync(cancellationToken).ConfigureAwait(false);
+        if (!inboundId.HasValue)
+        {
+            _logger.LogWarning("3X-UI: инбаунд не найден, клиент {Email} не создан.", email);
+            return false;
+        }
+
+        var addUrl = $"{ApiClientsBase}/add";
         using (var addRequest = new HttpRequestMessage(HttpMethod.Post, addUrl))
         {
-            addRequest.Content = new StringContent(addPayload, Encoding.UTF8, "application/json");
+            addRequest.Content = new StringContent(
+                BuildAddPayload(inboundId.Value, clientUuid, email, expiryTimestampMs),
+                Encoding.UTF8,
+                "application/json");
             Authorize(addRequest);
-            var addResponse = await _http.SendAsync(addRequest, cancellationToken).ConfigureAwait(false);
+
+            using var addResponse = await _http.SendAsync(addRequest, cancellationToken).ConfigureAwait(false);
             var addBody = await addResponse.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
             var ok = addResponse.IsSuccessStatusCode && IsSuccessPayload(addBody);
-            _logger.LogInformation("3X-UI клиент {Uuid} создан: {Ok}.", clientUuid, ok);
+            _logger.LogInformation("3X-UI клиент {Email} создан: {Ok}.", email, ok);
             return ok;
         }
     }
 
     /// <summary>
-    /// Собирает тело запроса 3X-UI в требуемом формате:
-    /// <c>{"id": inboundId, "settings": "{\"clients\":[{...}]}"}</c>.
-    /// <c>settings</c> — это строка, содержащая вложенный JSON (clients-массив),
-    /// а не объект. Для gRPC Reality поле <c>flow</c> передаётся пустым.
+    /// Тело запроса на создание клиента:
+    /// <c>{"client": {id, email, enable, expiryTime, flow}, "inboundIds": [inboundId]}</c>.
     /// </summary>
-    private static string BuildClientPayload(long inboundId, string clientUuid, string email, long expiryTimestampMs)
+    private static string BuildAddPayload(long inboundId, string clientUuid, string email, long expiryTimestampMs)
     {
-        var settings = "{\"clients\":[{\"id\":\"" + clientUuid
-                       + "\",\"email\":\"" + email
-                       + "\",\"expiryTime\":" + expiryTimestampMs
-                       + ",\"enable\":true,\"flow\":\"\"}]}";
-
-        return "{\"id\":" + inboundId + ",\"settings\":\"" + settings + "\"}";
+        var client = BuildClientBody(clientUuid, email, expiryTimestampMs);
+        return "{\"client\":" + client + ",\"inboundIds\":[" + inboundId + "]}";
     }
 
+    /// <summary>
+    /// Тело запроса на обновление клиента: <c>{"client": {id, email, enable, expiryTime, flow}}</c>.
+    /// Формат объекта client такой же, как при создании.
+    /// </summary>
+    private static string BuildUpdatePayload(string clientUuid, string email, long expiryTimestampMs)
+    {
+        var client = BuildClientBody(clientUuid, email, expiryTimestampMs);
+        return "{\"client\":" + client + "}";
+    }
+
+    private static string BuildClientBody(string clientUuid, string email, long expiryTimestampMs)
+    {
+        return "{\"id\":\"" + clientUuid
+               + "\",\"email\":\"" + email
+               + "\",\"enable\":true"
+               + ",\"expiryTime\":" + expiryTimestampMs
+               + ",\"flow\":\"\"}";
+    }
+
+    /// <summary>
+    /// Ищет ID инбаунда: из конфигурации <c>PanelInboundId</c> либо первый VLESS-инбаунд.
+    /// </summary>
     private async Task<long?> FindInboundIdAsync(CancellationToken cancellationToken)
     {
         if (Options.PanelInboundId.HasValue && Options.PanelInboundId.Value > 0)
@@ -341,10 +383,105 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
         }
 
         var inbounds = await ListInboundsAsync(cancellationToken).ConfigureAwait(false);
-        // Отдаём предпочтение VLESS-инбаунду.
-        return inbounds.FirstOrDefault(i => i != null && string.Equals(i.Protocol, "vless", StringComparison.OrdinalIgnoreCase))?.Id;
+        return inbounds.FirstOrDefault(
+            i => i != null && string.Equals(i.Protocol, "vless", StringComparison.OrdinalIgnoreCase)
+        )?.Id;
     }
 
+    /// <summary>
+    /// Возвращает email клиента по его UUID (id) через список <c>/panel/api/clients/list</c>.
+    /// </summary>
+    private async Task<string?> ResolveEmailByUuidAsync(string clientUuid, CancellationToken cancellationToken)
+    {
+        var clients = await ListClientsAsync(cancellationToken).ConfigureAwait(false);
+        var match = clients.FirstOrDefault(
+            c => string.Equals(c.Id, clientUuid, StringComparison.OrdinalIgnoreCase)
+        );
+        return match?.Email;
+    }
+
+    private async Task<bool> DeleteClientByEmailAsync(string email, CancellationToken cancellationToken)
+    {
+        var url = $"{ApiClientsBase}/del/{WebUtility.UrlEncode(email)}";
+        using var request = new HttpRequestMessage(HttpMethod.Post, url);
+        Authorize(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("3X-UI вернул {Status} при удалении клиента {Email}.", response.StatusCode, email);
+            return false;
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        return IsSuccessPayload(body);
+    }
+
+    /// <summary>
+    /// Получает список клиентов: GET <c>/panel/api/clients/list</c>.
+    /// </summary>
+    private async Task<IReadOnlyList<XuiClientEntry>> ListClientsAsync(CancellationToken cancellationToken)
+    {
+        var url = $"{ApiClientsBase}/list";
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        Authorize(request);
+
+        using var response = await _http.SendAsync(request, cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            return Array.Empty<XuiClientEntry>();
+        }
+
+        var body = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+        if (!IsSuccessPayload(body))
+        {
+            return Array.Empty<XuiClientEntry>();
+        }
+
+        return ParseClientList(body);
+    }
+
+    /// <summary>
+    /// Разбирает ответ <c>GET /panel/api/clients/list</c>.
+    /// Ожидается структура <c>{success: true, obj: [{id, email, enable, expiryTime, ...}]}</c>.
+    /// </summary>
+    private static IReadOnlyList<XuiClientEntry> ParseClientList(string body)
+    {
+        var result = new List<XuiClientEntry>();
+        try
+        {
+            var doc = JsonNode.Parse(body);
+            var arr = doc?["obj"]?.AsArray();
+            if (arr == null)
+            {
+                return result;
+            }
+
+            foreach (var node in arr)
+            {
+                if (node == null)
+                {
+                    continue;
+                }
+                result.Add(new XuiClientEntry
+                {
+                    Id = node["id"]?.GetValue<string>() ?? string.Empty,
+                    Email = node["email"]?.GetValue<string>(),
+                    ExpiryTime = node["expiryTime"]?.GetValue<long>() ?? 0
+                });
+            }
+        }
+        catch (Exception)
+        {
+            // Некорректный ответ — возвращаем пустой список.
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Получает список инбаундов (для поиска ID по протоколу): GET <c>/panel/api/inbounds/list</c>.
+    /// </summary>
     private async Task<IReadOnlyList<XuiInbound?>> ListInboundsAsync(CancellationToken cancellationToken)
     {
         var url = $"{ApiInboundsBase}/list";
@@ -363,7 +500,7 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
             return Array.Empty<XuiInbound?>();
         }
 
-        var doc = System.Text.Json.Nodes.JsonNode.Parse(body);
+        var doc = JsonNode.Parse(body);
         var arr = doc?["obj"]?.AsArray();
         if (arr == null)
         {
@@ -380,48 +517,9 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
             result.Add(new XuiInbound
             {
                 Id = node["id"]?.GetValue<long>() ?? 0,
-                Protocol = node["protocol"]?.GetValue<string>(),
-                Settings = node["settings"]?.GetValue<string>()
+                Protocol = node["protocol"]?.GetValue<string>()
             });
         }
-        return result;
-    }
-
-    private static List<XuiClientEntry> ParseClients(XuiInbound inbound)
-    {
-        var result = new List<XuiClientEntry>();
-        if (string.IsNullOrWhiteSpace(inbound.Settings))
-        {
-            return result;
-        }
-
-        try
-        {
-            var doc = System.Text.Json.Nodes.JsonNode.Parse(inbound.Settings!);
-            var clients = doc?["clients"]?.AsArray();
-            if (clients == null)
-            {
-                return result;
-            }
-            foreach (var node in clients)
-            {
-                if (node == null)
-                {
-                    continue;
-                }
-                result.Add(new XuiClientEntry
-                {
-                    Id = node["id"]?.GetValue<string>() ?? string.Empty,
-                    ExpiryTime = node["expiryTime"]?.GetValue<long>() ?? 0,
-                    Email = node["email"]?.GetValue<string>()
-                });
-            }
-        }
-        catch (Exception)
-        {
-            // Некорректный settings — пропускаем.
-        }
-
         return result;
     }
 
@@ -433,7 +531,7 @@ public partial class Vpn3xUiClient : IVpn3xUiClient
         }
         try
         {
-            var doc = System.Text.Json.Nodes.JsonNode.Parse(body);
+            var doc = JsonNode.Parse(body);
             var success = doc?["success"]?.GetValue<bool>() ?? false;
             return success;
         }
