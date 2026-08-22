@@ -13,11 +13,23 @@ public class VideoService : IVideoService
     private readonly IWebHostEnvironment _env;
 
     /// <summary>
+    /// Имя папки на диске для номера сезона/категории.
+    /// Сезоны 1-9 живут в «сезон N», категории фильмов — в своих подпапках media/.
+    /// Сезон 10 = категория «Фильм MLP» (папка film mlp), сезон 11 = категория «Equestria Girls».
+    /// </summary>
+    public static string GetFolderName(int seasonOrCategoryNumber) => seasonOrCategoryNumber switch
+    {
+        10 => "film mlp",
+        11 => "equestria girls",
+        _ => $"сезон {seasonOrCategoryNumber}"
+    };
+
+    /// <summary>
     /// Публичный URL для файлов на диске: физически {root}/сезон N/файл.mp4 → HTTP /videos/сезон N/файл.mp4
     /// </summary>
     private static string ToPublicVideoPath(string? filePath, int seasonNumber)
     {
-        var folder = $"сезон {seasonNumber}";
+        var folder = GetFolderName(seasonNumber);
         if (string.IsNullOrWhiteSpace(filePath))
         {
             return $"/videos/{folder}/";
@@ -118,6 +130,12 @@ public class VideoService : IVideoService
             SeasonId = v.SeasonId
         });
     }
+
+    public async Task<IEnumerable<Video>> GetFilmVideosAsync()
+        => await GetVideosBySeasonAsync(10);
+
+    public async Task<IEnumerable<Video>> GetEquestriaGirlsVideosAsync()
+        => await GetVideosBySeasonAsync(11);
 
     public async Task<Video?> GetVideoByIdAsync(Guid id)
     {

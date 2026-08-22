@@ -74,6 +74,9 @@ const ru = {
   "nav.light": "Тьма",
   "nav.dark": "Свет",
   "nav.season": "С{number}",
+  "nav.seasons": "Сезоны 1-9",
+  "nav.film": "Фильм MLP",
+  "nav.eg": "Equestria Girls",
 
   // === VPN ===
   "vpn.label": "VPN от BronyTV",
@@ -201,6 +204,9 @@ const en = {
   "nav.light": "Dark",
   "nav.dark": "Light",
   "nav.season": "S{number}",
+  "nav.seasons": "Seasons 1-9",
+  "nav.film": "Film MLP",
+  "nav.eg": "Equestria Girls",
 
   "vpn.label": "BronyTV VPN",
   "vpn.modalTitle": "BronyVPN",

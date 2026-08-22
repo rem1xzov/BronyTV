@@ -49,4 +49,24 @@ public class VideoController : ControllerBase
         var videos = await _videoService.GetVideosBySeasonAsync(number);
         return Ok(videos);
     }
+
+    /// <summary>
+    /// Категория «Фильм MLP» (псевдо-сезон 10, папка media/film mlp).
+    /// </summary>
+    [HttpGet("film")]
+    public async Task<IActionResult> GetFilm()
+    {
+        var videos = await _videoService.GetFilmVideosAsync();
+        return Ok(videos);
+    }
+
+    /// <summary>
+    /// Категория «Equestria Girls» (псевдо-сезон 11, папка media/equestria girls).
+    /// </summary>
+    [HttpGet("equestria-girls")]
+    public async Task<IActionResult> GetEquestriaGirls()
+    {
+        var videos = await _videoService.GetEquestriaGirlsVideosAsync();
+        return Ok(videos);
+    }
 }

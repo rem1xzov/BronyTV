@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  ArrowLeft,
   Bookmark,
   BookmarkCheck,
   Bot,
@@ -132,10 +133,84 @@ const buildSeasonData = () =>
     return acc;
   }, {});
 
+// =============================================================================
+// КАТЕГОРИИ (псевдо-сезоны 10/11): «Фильм MLP» и «Equestria Girls».
+// Метаданные (title/imdbId/IMDb-рейтинг) живут на клиенте; файлы приходят с
+// сервера из api/video/film и api/video/equestria-girls по episodeNumber.
+// =============================================================================
+const FILM_MOVIES = [
+  {
+    id: 1,
+    title: "My Little Pony: The Movie (2017)",
+    imdbId: "tt4131800",
+    imdbRating: "6.1",
+    duration: "99 мин",
+    genre: "Приключения",
+    description: "Полнометражный фильм по мотивам My Little Pony: Friendship Is Magic — приключение Твайлайт и её друзей вдали от Эквестрии."
+  }
+];
+
+const EG_MOVIES = [
+  {
+    id: 1,
+    title: "Девочки из Эквестрии",
+    imdbId: "tt2908228",
+    imdbRating: "6.4",
+    duration: "73 мин",
+    genre: "Приключения",
+    description: "Первый фильм о человеческих версиях героинь и их первых днях в средней школе Кантерлота-Хай."
+  },
+  {
+    id: 2,
+    title: "Девочки из Эквестрии: Радужный Рок",
+    imdbId: "tt3529198",
+    imdbRating: "7.1",
+    duration: "72 мин",
+    genre: "Музыкальный",
+    description: "Музыкальное противостояние с сёстрами Сиренами за сердца учеников школы."
+  },
+  {
+    id: 3,
+    title: "Девочки из Эквестрии: Игры Дружбы",
+    imdbId: "tt4450396",
+    imdbRating: "6.6",
+    duration: "73 мин",
+    genre: "Спорт",
+    description: "Межшкольные спортивные состязания, вражда и портал между мирами."
+  },
+  {
+    id: 4,
+    title: "Девочки из Эквестрии: Легенды Вечнозелёного Леса",
+    imdbId: "tt5474644",
+    imdbRating: "6.5",
+    duration: "73 мин",
+    genre: "Фэнтези",
+    description: "Лагерь для героинь и испытание, в котором каждая открывает магию внутри себя."
+  }
+];
+
+const CATEGORY_SEASONS = {
+  10: {
+    title: "Фильм MLP",
+    shortTitle: "Фильм",
+    description: "Полнометражный фильм по вселенной My Little Pony.",
+    categoryKey: "film",
+    episodes: FILM_MOVIES
+  },
+  11: {
+    title: "Equestria Girls",
+    shortTitle: "EG",
+    description: "Фильмы вселенной Equestria Girls — приключения человеческих версий наших любимых героинь.",
+    categoryKey: "eg",
+    episodes: EG_MOVIES
+  }
+};
+
 const CONSTANTS = {
   APP_NAME: "BronyTV",
-  TOTAL_SEASONS: 9,
-  SEASONS: buildSeasonData()
+  TOTAL_SEASONS: 11,
+  SEASONS: { ...buildSeasonData(), ...CATEGORY_SEASONS },
+  CATEGORY_SEASONS
 };
 
 const RATING_VALUES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -594,16 +669,18 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
         <Bot size={16} />
         <span>{t("nav.bots")}</span>
       </Link>
-      {Array.from({ length: CONSTANTS.TOTAL_SEASONS }, (_, index) => index + 1).map((season) => (
-        <Link
-          key={season}
-          to={`/season/${season}`}
-          className={`nav-pill ${currentSeason === season && currentPage === "season" ? "active" : ""}`}
-        >
-          <Tv size={16} />
-          <span>{t("nav.season", { number: season })}</span>
-        </Link>
-      ))}
+                        <Link to="/seasons" className={`nav-pill ${currentPage === "season" && currentSeason >= 1 && currentSeason <= 9 ? "active" : ""}`}>
+        <Tv size={16} />
+        <span>{t("nav.seasons")}</span>
+      </Link>
+      <Link to="/season/10" className={`nav-pill ${currentSeason === 10 && currentPage === "season" ? "active" : ""}`}>
+        <Tv size={16} />
+        <span>{t("nav.film")}</span>
+      </Link>
+            <Link to="/season/11" className={`nav-pill nav-pill--eg ${currentSeason === 11 && currentPage === "season" ? "active" : ""}`}>
+        <Tv size={16} />
+        <span>{t("nav.eg")}</span>
+      </Link>
             <VpnModal
         isOpen={vpnOpen}
         onClose={() => setVpnOpen(false)}
@@ -634,8 +711,8 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
             <LanguageSwitcher className="hero-lang-switcher" />
           </div>
           <p className="description">{t("home.tagline")}</p>
-          <div className="button-row">
-            <Link className="primary-btn" to="/season/1">
+                    <div className="button-row">
+            <Link className="primary-btn" to="/seasons">
               {t("home.openSeasons")}
             </Link>
             <Link className="primary-btn" to="/forum">
@@ -692,7 +769,42 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
           );
         })}
             </section>
-    </div>
+            </div>
+  );
+}
+
+function SeasonsListPage() {
+  const { t } = useI18n();
+  return (
+            <section className="panel season-page">
+              <div className="season-banner">
+                <div
+                  className="season-banner-bg"
+                  aria-hidden="true"
+                />
+                <div className="season-banner-content">
+                  <h2>{t("nav.seasons")}</h2>
+                  <p className="muted">
+                    Выберите сезон, чтобы открыть список его серий.
+                  </p>
+                </div>
+              </div>
+              <div className="seasons-grid">
+                {SEASON_INFO.map((season) => (
+                  <Link className="season-card" key={season.number} to={`/season/${season.number}`}>
+                    <div className="season-card-number">
+                      <span className="season-card-tag">Сезон</span>
+                      <span className="season-card-num">{season.number}</span>
+                    </div>
+                    <div className="season-card-main">
+                      <h3>{season.title}</h3>
+                      <p className="muted">{season.description}</p>
+                    </div>
+                    <ChevronRight size={18} className="season-card-chevron" />
+                  </Link>
+                ))}
+              </div>
+            </section>
   );
 }
 
@@ -741,22 +853,32 @@ function SeasonPage({
         }
       : {})
   };
-  const remoteVideos = apiVideosBySeason[safeSeason] || [];
+    const remoteVideos = apiVideosBySeason[safeSeason] || [];
+  const isCategory = safeSeason === 10 || safeSeason === 11;
   const episodes = (localSeasonData?.episodes || []).map((episode) => {
     const remote = remoteVideos.find((video) => video.episodeNumber === episode.id);
     return remote
       ? {
           ...episode,
-          title: remote.title || episode.title,
-          description: remote.description || episode.description,
+          title: isCategory ? episode.title : remote.title || episode.title,
+          description: isCategory ? episode.description : remote.description || episode.description,
           filePath: remote.filePath || "",
           previewImageUrl: remote.previewImageUrl || ""
         }
       : episode;
   });
 
-  return (
-    <section className="panel season-page">
+    return (
+        <section className="panel season-page">
+      <div className="season-back-row">
+        <Link
+          className="season-back-btn"
+          to={isCategory ? "/" : "/seasons"}
+        >
+          <ArrowLeft size={16} />
+          <span>{isCategory ? "На главную" : "Назад к сезонам"}</span>
+        </Link>
+      </div>
       <div className={`season-banner ${seasonPreviewUrl ? "has-season-preview" : ""}`}>
         <div
           className="season-banner-bg"
@@ -765,25 +887,27 @@ function SeasonPage({
         />
         <div className="season-banner-content">
           <h2>{seasonData?.title || `Сезон ${safeSeason}`}</h2>
-          <p className="muted">{seasonData?.description}</p>
-          <div className="button-row season-banner-actions">
-            <div className="season-rating-anchor">
-              <RatingButton
-                variant="header"
-                value={seasonRatings[String(safeSeason)]}
-                label="Оценить сезон"
-                popoverId={`season-${safeSeason}`}
-                openPopoverId={openRatingId}
-                onOpenPopoverId={setOpenRatingId}
-                onRate={(score) => onRateSeason(safeSeason, score)}
-              />
+                    <p className="muted">{seasonData?.description}</p>
+          {!isCategory ? (
+            <div className="button-row season-banner-actions">
+              <div className="season-rating-anchor">
+                <RatingButton
+                  variant="header"
+                  value={seasonRatings[String(safeSeason)]}
+                  label="Оценить сезон"
+                  popoverId={`season-${safeSeason}`}
+                  openPopoverId={openRatingId}
+                  onOpenPopoverId={setOpenRatingId}
+                  onRate={(score) => onRateSeason(safeSeason, score)}
+                />
+              </div>
+              {seasonRatings[String(safeSeason)] ? (
+                <button type="button" className="secondary-btn" onClick={() => onClearSeasonRating(safeSeason)}>
+                  Удалить оценку сезона
+                </button>
+              ) : null}
             </div>
-            {seasonRatings[String(safeSeason)] ? (
-              <button type="button" className="secondary-btn" onClick={() => onClearSeasonRating(safeSeason)}>
-                Удалить оценку сезона
-              </button>
-            ) : null}
-          </div>
+          ) : null}
         </div>
       </div>
       <div className="episode-list episode-grid scrollable">
@@ -844,6 +968,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const season = Number(seasonId || 1);
   const episode = Number(episodeId || 1);
   const safeSeason = season >= 1 && season <= CONSTANTS.TOTAL_SEASONS ? season : 1;
+    const isCategory = safeSeason === 10 || safeSeason === 11;
   const localEpisodes = CONSTANTS.SEASONS[safeSeason]?.episodes || [];
   const remoteVideos = apiVideosBySeason[safeSeason] || [];
   const episodes = localEpisodes.map((item) => {
@@ -851,8 +976,8 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     return remote
       ? {
           ...item,
-          title: remote.title || item.title,
-          description: remote.description || item.description,
+          title: isCategory ? item.title : remote.title || item.title,
+          description: isCategory ? item.description : remote.description || item.description,
           filePath: remote.filePath || "",
           previewImageUrl: remote.previewImageUrl || ""
         }
@@ -2224,12 +2349,20 @@ export default function App() {
     loadSeasons();
   }, []);
 
-  const ensureSeasonVideos = useCallback(async (seasonNumber) => {
+    const ensureSeasonVideos = useCallback(async (seasonNumber) => {
     if (apiVideosBySeason[seasonNumber]) {
       return;
     }
+    // Категории (псевдо-сезоны 10/11) отдают свои фильмы отдельными эндпоинтами,
+    // а не /api/video/season/{number}.
+    const endpoint =
+      seasonNumber === 10
+        ? "/api/video/film"
+        : seasonNumber === 11
+          ? "/api/video/equestria-girls"
+          : `/api/video/season/${seasonNumber}`;
     try {
-      const response = await apiFetch(`/api/video/season/${seasonNumber}`);
+      const response = await apiFetch(endpoint);
       if (!response.ok) {
         return;
       }
@@ -2291,7 +2424,8 @@ export default function App() {
         <Route path="/forum/:threadId" element={<ForumPage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/bots" element={<AiChatPage />} />
-        <Route path="/admin" element={<AdminPanelPage />} />
+                <Route path="/admin" element={<AdminPanelPage />} />
+        <Route path="/seasons" element={<SeasonsListPage />} />
         <Route
           path="/season/:seasonId"
           element={

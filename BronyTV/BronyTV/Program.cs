@@ -337,10 +337,40 @@ await using (var scope = app.Services.CreateAsyncScope())
                 || season.PosterPath.Contains("placeholder", StringComparison.OrdinalIgnoreCase)
                 || season.PosterPath.Contains("default_season", StringComparison.OrdinalIgnoreCase)
                 || season.PosterPath.StartsWith("/api/content/", StringComparison.OrdinalIgnoreCase))
-            {
+                        {
                 season.PosterPath = BuildPosterPath(season.Number);
             }
         }
+    }
+
+    // Категории фильмов как псевдо-сезоны (переиспользуют схему Seasons/Videos без миграций БД).
+    // 10 = «Фильм MLP» (media/film mlp), 11 = «Equestria Girls» (media/equestria girls).
+    var filmMlpSeason = await context.Seasons.FirstOrDefaultAsync(s => s.Number == 10);
+    if (filmMlpSeason is null)
+    {
+        context.Seasons.Add(new SeasonEntity
+        {
+            Id = Guid.NewGuid(),
+            Number = 10,
+            Title = "Фильм MLP",
+            Description = "Полнометражный фильм My Little Pony.",
+            PosterPath = BuildPosterPath(10)
+        });
+        startupLogger.LogInformation("Добавлена категория «Фильм MLP» (сезон 10).");
+    }
+
+    var eqGirlsSeason = await context.Seasons.FirstOrDefaultAsync(s => s.Number == 11);
+    if (eqGirlsSeason is null)
+    {
+        context.Seasons.Add(new SeasonEntity
+        {
+            Id = Guid.NewGuid(),
+            Number = 11,
+            Title = "Equestria Girls",
+            Description = "Фильмы вселенной Equestria Girls.",
+            PosterPath = BuildPosterPath(11)
+        });
+        startupLogger.LogInformation("Добавлена категория «Equestria Girls» (сезон 11).");
     }
 
     if (context.ChangeTracker.HasChanges())
@@ -407,38 +437,58 @@ static void SyncVideosFromDisk(DbBronyTV context, string videosRoot, ILogger log
     var allExistingVideos = context.Videos.ToList();
     logger.LogInformation("Загружено {Count} существующих видео из базы для синхронизации.", allExistingVideos.Count);
 
-    var hasChanges = false;
+        var hasChanges = false;
+
+    // Фильмы/категории не содержат номера в имени файла — присваиваем номер по подстроке имени.
+    static int? ResolveEpisodeNumber(int seasonNumber, string fileName, Regex numberRuns)
+    {
+        if (seasonNumber == 10)
+        {
+            // Категория «Фильм MLP» — единственный фильм в папке media/film mlp/.
+            return 1;
+        }
+        if (seasonNumber == 11)
+        {
+            // Категория «Equestria Girls» — порядок определяется подстроками имён файлов.
+            if (fileName.Contains("Легенды", StringComparison.OrdinalIgnoreCase)) return 4;
+            if (fileName.Contains("Радужный рок", StringComparison.OrdinalIgnoreCase)) return 2;
+            if (fileName.Contains("Игры", StringComparison.OrdinalIgnoreCase)) return 3;
+            return 1; // базовые «Девочки из Эквестрии»
+        }
+
+        var numbers = numberRuns.Matches(fileName)
+            .Cast<Match>()
+            .Select(m => int.Parse(m.Value, CultureInfo.InvariantCulture))
+            .ToList();
+        if (numbers.Count == 0) return null;
+        return numbers.Count >= 2 ? numbers[1] : numbers[0];
+    }
+
+    static bool IsVideoFile(string path)
+        => new[] { ".mp4", ".mkv", ".webm", ".m4v" }.Contains(Path.GetExtension(path).ToLowerInvariant());
 
     foreach (var season in seasons)
     {
-        var seasonDir = Path.Combine(videosRoot, $"сезон {season.Number}");
+        var seasonDir = Path.Combine(videosRoot, VideoService.GetFolderName(season.Number));
         if (!Directory.Exists(seasonDir))
         {
             continue;
         }
 
-        foreach (var fullPath in Directory.EnumerateFiles(seasonDir, "*.mp4", SearchOption.TopDirectoryOnly))
+                var isCategory = season.Number is 10 or 11;
+        foreach (var fullPath in Directory.EnumerateFiles(seasonDir).Where(IsVideoFile))
         {
             var name = Path.GetFileName(fullPath);
-            var numbers = numberRuns.Matches(name)
-                .Cast<Match>()
-                .Select(m => int.Parse(m.Value, CultureInfo.InvariantCulture))
-                .ToList();
+            var episodeNumber = ResolveEpisodeNumber(season.Number, name, numberRuns);
 
-            if (numbers.Count == 0)
+            if (episodeNumber is null or < 1 or > 999)
             {
                 continue;
             }
 
-            int episodeNumber = numbers.Count >= 2 ? numbers[1] : numbers[0];
-
-            if (episodeNumber is < 1 or > 999)
-            {
-                continue;
-            }
 
             // Ищем видео в памяти локально, вместо постоянных запросов к БД
-            var existing = allExistingVideos.FirstOrDefault(v => v.SeasonId == season.Id && v.EpisodeNumber == episodeNumber);
+            var existing = allExistingVideos.FirstOrDefault(v => v.SeasonId == season.Id && v.EpisodeNumber == episodeNumber.Value);
 
             if (existing != null)
             {
@@ -454,8 +504,8 @@ static void SyncVideosFromDisk(DbBronyTV context, string videosRoot, ILogger log
                 {
                     Id = Guid.NewGuid(),
                     SeasonId = season.Id,
-                    EpisodeNumber = episodeNumber,
-                    Title = $"Серия {episodeNumber}",
+                                        EpisodeNumber = episodeNumber.Value,
+                    Title = isCategory ? Path.GetFileNameWithoutExtension(name) : $"Серия {episodeNumber.Value}",
                     Description = string.Empty,
                     FilePath = name,
                     PreviewImageUrl = null
