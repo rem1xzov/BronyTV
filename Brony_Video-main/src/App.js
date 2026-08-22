@@ -969,6 +969,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const episode = Number(episodeId || 1);
   const safeSeason = season >= 1 && season <= CONSTANTS.TOTAL_SEASONS ? season : 1;
     const isCategory = safeSeason === 10 || safeSeason === 11;
+  const isFilm = safeSeason === 10;
   const localEpisodes = CONSTANTS.SEASONS[safeSeason]?.episodes || [];
   const remoteVideos = apiVideosBySeason[safeSeason] || [];
   const episodes = localEpisodes.map((item) => {
@@ -1059,7 +1060,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     return segment.includes(".") ? segment : `${segment}.mp4`;
   }, [selectedEpisode?.filePath, selectedEpisode?.id, safeSeason, videoSrc]);
 
-  const showNextEpisodeOverlay = Boolean(nextEpisode && videoSrc && (videoEnded || nearEpisodeEnd));
+  const showNextEpisodeOverlay = Boolean(!isCategory && nextEpisode && videoSrc && (videoEnded || nearEpisodeEnd));
 
   useEffect(() => {
     setCurrentSeason(safeSeason);
@@ -1966,7 +1967,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
             <video
               key={videoSrc}
               ref={playerRef}
-              className="video-player video-large"
+              className={`video-player video-large${isFilm ? " video-player--cover" : ""}`}
               playsInline
               webkit-playsinline="true"
               preload="metadata"

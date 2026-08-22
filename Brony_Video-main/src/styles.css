@@ -7222,9 +7222,25 @@ body.no-scroll {
     padding: 12px;
   }
 
-  .season-card-number {
+    .season-card-number {
     width: 56px;
     height: 56px;
     border-radius: 16px;
   }
+}
+
+/* ==== Player: category season 10 (Фильм MLP) video framing ====
+   Правка 2: только для категории «Фильм MLP» (псевдо-сезон 10). Кадрируем по
+   вертикали (object-fit: cover) вместо чёрных полос сверху/снизу. Сезоны 1-9 и
+   категория «Equestria Girls» не затронуты — там остаётся contain. */
+.player-shell .video-player.video-player--cover,
+.player-shell video.video-player--cover,
+.player-shell:fullscreen .video-player.video-player--cover,
+.player-shell:-webkit-full-screen .video-player.video-player--cover,
+.player-shell:fullscreen video.video-player--cover,
+.player-shell:-webkit-full-screen video.video-player--cover,
+.player-shell:fullscreen .player-media-stage .video-player.video-player--cover,
+.player-shell:-webkit-full-screen .player-media-stage .video-player.video-player--cover {
+  object-fit: cover !important;
+  object-position: center center;
 }
