@@ -97,11 +97,37 @@ public class InternalActivityController : ControllerBase
     }
 
     /// <summary>
+    /// Возвращает список ВСЕХ аккаунтов системы (userId + email) для подтверждённых
+    /// пользователей. Используется одноразовой миграцией премиум-подписок из AI-сервиса,
+    /// которая должна охватывать НЕ только Owner/Admin, но и всех обычных пользователей,
+    /// у которых осталась "осиротевшая" legacy-запись (переход sessionId → userId затронул
+    /// всех). Соединять потенциально тысячную выборку здесь безопасно: отдаются только
+    /// userId + email.
+    /// </summary>
+    [HttpGet("all-users")]
+    public async Task<IActionResult> GetAllUsers(CancellationToken cancellationToken)
+    {
+        if (!Request.Headers.TryGetValue("X-Internal-Key", out var supplied)
+            || string.IsNullOrWhiteSpace(_internalKey)
+            || !string.Equals(supplied, _internalKey, StringComparison.Ordinal))
+        {
+            return Unauthorized(new { message = "Недопустимый внутренний ключ." });
+        }
+
+        var users = await _context.Users
+            .AsNoTracking()
+            .Where(user => user.IsEmailConfirmed)
+            .OrderBy(user => user.CreatedAtUtc)
+            .Select(user => new { userId = user.Id.ToString(), email = user.Email })
+            .ToListAsync(cancellationToken);
+
+        return Ok(new { users, total = users.Count });
+    }
+
+    /// <summary>
     /// Возвращает список всех аккаунтов с ролью Owner или Admin (userId + email).
-    /// Используется одноразовой миграцией премиум-подписок из AI-сервиса, которая должна
-    /// охватывать не только единственного владельца, но и всех администраторов — у каждого
-    /// из них тоже могла остаться "осиротевшая" legacy-запись. Обычные пользователи сюда
-    /// не попадают. Если подходящих аккаунтов нет — пустой список.
+    /// Держим для обратной совместимости; современная миграция legacy-премиума использует
+    /// /api/internal/all-users (см. выше).
     /// </summary>
     [HttpGet("admin-users")]
     public async Task<IActionResult> GetAdminUsers(CancellationToken cancellationToken)
@@ -124,6 +150,41 @@ public class InternalActivityController : ControllerBase
             .ToList();
 
         return Ok(new { users = admins, total = admins.Count });
+    }
+
+    /// <summary>
+    /// Возвращает userId подтверждённого пользователя по email. Используется точечной
+    /// миграцией legacy-премиума (/api/admin/migrate-legacy-premium/assign) для резолва
+    /// email -> userId. Если пользователя нет или email не подтверждён — 404.
+    /// </summary>
+    [HttpGet("user-by-email")]
+    public async Task<IActionResult> GetUserByEmail(
+        [FromQuery] string? email,
+        CancellationToken cancellationToken)
+    {
+        if (!Request.Headers.TryGetValue("X-Internal-Key", out var supplied)
+            || string.IsNullOrWhiteSpace(_internalKey)
+            || !string.Equals(supplied, _internalKey, StringComparison.Ordinal))
+        {
+            return Unauthorized(new { message = "Недопустимый внутренний ключ." });
+        }
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return BadRequest(new { message = "Email обязателен." });
+        }
+
+        var normalized = email.Trim().ToLowerInvariant();
+        var user = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Email == normalized && u.IsEmailConfirmed, cancellationToken);
+
+        if (user == null)
+        {
+            return NotFound(new { message = "Пользователь не найден или email не подтверждён." });
+        }
+
+        return Ok(new { userId = user.Id.ToString(), email = user.Email });
     }
 }
 
