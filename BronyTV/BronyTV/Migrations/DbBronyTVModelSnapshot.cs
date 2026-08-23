@@ -204,6 +204,43 @@ namespace BronyTV.Migrations
                     b.ToTable("NewsPosts", "public");
                 });
 
+            modelBuilder.Entity("BronyTV.DbContext.Entity.ReferralRewardEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("BonusDays")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRedeemed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<Guid>("ReferralUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ReferrerId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReferralUserId");
+
+                    b.HasIndex("ReferrerId");
+
+                    b.ToTable("ReferralRewards", "public");
+                });
+
             modelBuilder.Entity("BronyTV.DbContext.Entity.SeasonEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -296,6 +333,43 @@ namespace BronyTV.Migrations
                     b.ToTable("SupportTickets", "public");
                 });
 
+            modelBuilder.Entity("BronyTV.DbContext.Entity.UserActivityEntity", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ActivityType")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("HiddenFromAdmin")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime>("Timestamp")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Timestamp");
+
+                    b.ToTable("UserActivities", "public");
+                });
+
             modelBuilder.Entity("BronyTV.DbContext.Entity.UserEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -344,6 +418,21 @@ namespace BronyTV.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<DateTime?>("PasswordResetExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PasswordResetFailedAttempts")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.Property<DateTime?>("PasswordResetLastSentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PasswordResetToken")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<string>("PlatformRole")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -351,7 +440,7 @@ namespace BronyTV.Migrations
                         .HasColumnType("character varying(16)")
                         .HasDefaultValue("User");
 
-                                        b.Property<string>("Race")
+                    b.Property<string>("Race")
                         .IsRequired()
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
@@ -375,7 +464,7 @@ namespace BronyTV.Migrations
                     b.HasIndex("Email")
                         .IsUnique();
 
-                                        b.HasIndex("EmailConfirmationToken")
+                    b.HasIndex("EmailConfirmationToken")
                         .IsUnique()
                         .HasFilter("\"EmailConfirmationToken\" IS NOT NULL");
 
@@ -388,6 +477,33 @@ namespace BronyTV.Migrations
                         .HasFilter("\"Username\" IS NOT NULL");
 
                     b.ToTable("Users", "public");
+                });
+
+            modelBuilder.Entity("BronyTV.DbContext.Entity.UserFavoriteEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AddedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("now()");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("VideoId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VideoId");
+
+                    b.HasIndex("UserId", "VideoId")
+                        .IsUnique();
+
+                    b.ToTable("UserFavorites", "public");
                 });
 
             modelBuilder.Entity("BronyTV.DbContext.Entity.VideoEntity", b =>
@@ -423,6 +539,94 @@ namespace BronyTV.Migrations
                     b.HasIndex("SeasonId");
 
                     b.ToTable("Videos", "public");
+                });
+
+            modelBuilder.Entity("BronyTV.DbContext.Entity.VpnPromoKeyEntity", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("ClientUuid")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DurationMonths")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("SubscriptionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UsedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UsedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Code");
+
+                    b.HasIndex("IsUsed");
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.HasIndex("UsedByUserId");
+
+                    b.ToTable("VpnPromoKeys", "public");
+                });
+
+            modelBuilder.Entity("BronyTV.DbContext.Entity.VpnSubscriptionEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ClientUuid")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsRevoked")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("PanelPlanNameId")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("PlanName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTime>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("VpnSubscriptions", "public");
                 });
 
             modelBuilder.Entity("BronyTV.DbContext.Entity.CommentEntity", b =>
@@ -507,6 +711,25 @@ namespace BronyTV.Migrations
                     b.Navigation("Author");
                 });
 
+            modelBuilder.Entity("BronyTV.DbContext.Entity.ReferralRewardEntity", b =>
+                {
+                    b.HasOne("BronyTV.DbContext.Entity.UserEntity", "ReferralUser")
+                        .WithMany()
+                        .HasForeignKey("ReferralUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BronyTV.DbContext.Entity.UserEntity", "Referrer")
+                        .WithMany()
+                        .HasForeignKey("ReferrerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ReferralUser");
+
+                    b.Navigation("Referrer");
+                });
+
             modelBuilder.Entity("BronyTV.DbContext.Entity.SupportMessageEntity", b =>
                 {
                     b.HasOne("BronyTV.DbContext.Entity.UserEntity", "Sender")
@@ -537,6 +760,25 @@ namespace BronyTV.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("BronyTV.DbContext.Entity.UserFavoriteEntity", b =>
+                {
+                    b.HasOne("BronyTV.DbContext.Entity.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("BronyTV.DbContext.Entity.VideoEntity", "Video")
+                        .WithMany()
+                        .HasForeignKey("VideoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("Video");
+                });
+
             modelBuilder.Entity("BronyTV.DbContext.Entity.VideoEntity", b =>
                 {
                     b.HasOne("BronyTV.DbContext.Entity.SeasonEntity", "Season")
@@ -546,6 +788,34 @@ namespace BronyTV.Migrations
                         .IsRequired();
 
                     b.Navigation("Season");
+                });
+
+            modelBuilder.Entity("BronyTV.DbContext.Entity.VpnPromoKeyEntity", b =>
+                {
+                    b.HasOne("BronyTV.DbContext.Entity.VpnSubscriptionEntity", "Subscription")
+                        .WithMany()
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("BronyTV.DbContext.Entity.UserEntity", "UsedByUser")
+                        .WithMany()
+                        .HasForeignKey("UsedByUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Subscription");
+
+                    b.Navigation("UsedByUser");
+                });
+
+            modelBuilder.Entity("BronyTV.DbContext.Entity.VpnSubscriptionEntity", b =>
+                {
+                    b.HasOne("BronyTV.DbContext.Entity.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("BronyTV.DbContext.Entity.CommentEntity", b =>

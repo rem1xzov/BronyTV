@@ -126,4 +126,11 @@ public class UserActivityService : IUserActivityService
     {
         return await _repository.HideFromAdminAsync(id, cancellationToken);
     }
+
+    public async Task<int> HideAllAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _repository.HideAllFromAdminAsync(userId, cancellationToken);
+    }
 }

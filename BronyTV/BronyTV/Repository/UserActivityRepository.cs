@@ -93,6 +93,21 @@ public class UserActivityRepository : IUserActivityRepository
         return updated > 0;
     }
 
+    /// <summary>
+    /// Мягко скрывает ВСЕ записи активности указанного пользователя из админ-ленты
+    /// (без физического удаления). Возвращает количество скрытых записей.
+    /// </summary>
+    public async Task<int> HideAllFromAdminAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.UserActivities
+            .Where(activity => activity.UserId == userId && !activity.HiddenFromAdmin)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(activity => activity.HiddenFromAdmin, true),
+                cancellationToken);
+    }
+
     public async Task<int> DeleteOlderThanAsync(
         TimeSpan maxAge,
         CancellationToken cancellationToken = default)

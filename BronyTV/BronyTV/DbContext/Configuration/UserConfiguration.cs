@@ -67,9 +67,23 @@ public class UserConfiguration : IEntityTypeConfiguration<UserEntity>
         builder.Property(user => user.EmailConfirmationLastSentAtUtc)
             .IsRequired(false);
 
-        builder.Property(user => user.EmailConfirmationFailedAttempts)
+                builder.Property(user => user.EmailConfirmationFailedAttempts)
     .HasDefaultValue(0)
     .IsRequired();
+
+        builder.Property(user => user.PasswordResetToken)
+            .HasMaxLength(128)
+            .IsRequired(false);
+
+        builder.Property(user => user.PasswordResetExpiresAtUtc)
+            .IsRequired(false);
+
+        builder.Property(user => user.PasswordResetLastSentAtUtc)
+            .IsRequired(false);
+
+        builder.Property(user => user.PasswordResetFailedAttempts)
+            .HasDefaultValue(0)
+            .IsRequired();
 
         builder.Property(user => user.ReferralCode)
             .HasMaxLength(16)

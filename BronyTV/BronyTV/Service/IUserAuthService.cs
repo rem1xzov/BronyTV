@@ -42,7 +42,28 @@ public interface IUserAuthService
         string token,
         CancellationToken cancellationToken = default);
 
-    Task<(bool Success, string? Error)> ResendEmailConfirmationAsync(
+        Task<(bool Success, string? Error)> ResendEmailConfirmationAsync(
         string email,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Запрашивает 6-значный код для сброса пароля. Возвращает false с явным сообщением,
+    /// если аккаунт с таким email не найден. Код привязан к отдельному "контексту сброса"
+    /// и не совпадает с кодом подтверждения регистрации.
+    /// </summary>
+    Task<(bool Success, string? Error)> RequestPasswordResetAsync(
+        string email,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Проверяет код сброса пароля (отдельная история попыток, как у регистрации) и меняет
+    /// пароль на новый. Возвращает false с сообщением об ошибке при неверном/просроченном
+    /// коде или невалидном пароле.
+    /// </summary>
+    Task<(bool Success, string? Error)> ConfirmPasswordResetAsync(
+        string email,
+        string code,
+        string newPassword,
+        string confirmPassword,
         CancellationToken cancellationToken = default);
 }

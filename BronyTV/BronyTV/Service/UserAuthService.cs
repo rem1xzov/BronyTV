@@ -465,6 +465,139 @@ public class UserAuthService : IUserAuthService
         return (MapUserResponse(user), null);
     }
 
+        public async Task<(bool Success, string? Error)> RequestPasswordResetAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        if (string.IsNullOrEmpty(normalizedEmail))
+        {
+            return (false, "Укажите корректный email.");
+        }
+
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+
+        // Осознанное UX-решение владельца продукта: явно сообщаем пользователю, что
+        // аккаунта с такой почтой нет, вместо "нейтрального" ответа.
+        if (user == null || !user.IsEmailConfirmed)
+        {
+            return (false, "Аккаунт с такой почтой не найден.");
+        }
+
+        var now = DateTime.UtcNow;
+        if (user.PasswordResetLastSentAtUtc is { } lastSent)
+        {
+            var waitSeconds = ConfirmationResendCooldownSeconds - (int)(now - lastSent).TotalSeconds;
+            if (waitSeconds > 0)
+            {
+                return (false, $"Новый код можно запросить через {waitSeconds} сек.");
+            }
+        }
+
+        var resetCode = CreateEmailConfirmationCode();
+        user.PasswordResetToken = BCrypt.Net.BCrypt.HashPassword(resetCode);
+        user.PasswordResetExpiresAtUtc = now.AddMinutes(ConfirmationLifetimeMinutes);
+        user.PasswordResetLastSentAtUtc = now;
+        user.PasswordResetFailedAttempts = 0;
+        await _userRepository.SaveChangesAsync(user, cancellationToken);
+
+        try
+        {
+            await _emailService.SendPasswordResetAsync(
+                normalizedEmail,
+                resetCode,
+                CancellationToken.None);
+        }
+        catch (Exception)
+        {
+            user.PasswordResetLastSentAtUtc = null;
+            await _userRepository.SaveChangesAsync(user, CancellationToken.None);
+            return (false, "Не удалось отправить письмо с кодом. Попробуйте позже.");
+        }
+
+        return (true, null);
+    }
+
+    public async Task<(bool Success, string? Error)> ConfirmPasswordResetAsync(
+        string email,
+        string code,
+        string newPassword,
+        string confirmPassword,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        var normalizedCode = code?.Trim() ?? string.Empty;
+
+        // Тот же формат/валидация кода, что и при подтверждении регистрации.
+        if (string.IsNullOrEmpty(normalizedEmail)
+            || normalizedCode.Length != 6
+            || normalizedCode.Any(character => !char.IsAsciiDigit(character)))
+        {
+            return (false, "Неверный код.");
+        }
+
+        var user = await _userRepository.GetByEmailAsync(normalizedEmail, cancellationToken);
+        if (user == null || !user.IsEmailConfirmed)
+        {
+            return (false, "Аккаунт с такой почтой не найден.");
+        }
+
+        // Код сброса привязан к ПАРОЛЬНОМУ контексту. Если у пользователя не запрашивали
+        // сброс — кода нет, и свежий код регистрации здесь не применится.
+        if (string.IsNullOrWhiteSpace(user.PasswordResetToken)
+            || user.PasswordResetExpiresAtUtc is null
+            || user.PasswordResetExpiresAtUtc <= DateTime.UtcNow)
+        {
+            return (false, "Код недействителен или истёк. Запросите новый код.");
+        }
+
+        if (user.PasswordResetFailedAttempts >= MaxConfirmationAttempts)
+        {
+            return (false, "Слишком много неверных попыток. Запросите новый код.");
+        }
+
+        var isValid = false;
+        try
+        {
+            isValid = BCrypt.Net.BCrypt.Verify(normalizedCode, user.PasswordResetToken);
+        }
+        catch (BCrypt.Net.SaltParseException)
+        {
+            // Treat malformed values as invalid rather than leaking an error.
+        }
+
+        if (!isValid)
+        {
+            user.PasswordResetFailedAttempts++;
+            if (user.PasswordResetFailedAttempts >= MaxConfirmationAttempts)
+            {
+                user.PasswordResetToken = null;
+                user.PasswordResetExpiresAtUtc = null;
+            }
+
+            await _userRepository.SaveChangesAsync(user, cancellationToken);
+            return (false, user.PasswordResetFailedAttempts >= MaxConfirmationAttempts
+                ? "Слишком много неверных попыток. Запросите новый код."
+                : "Неверный код.");
+        }
+
+        // Код верен — меняем пароль. Используем ту же валидацию и хэширование (BCrypt),
+        // что и при смене пароля в личном кабинете.
+        if (!PasswordRules.TryValidateChange(newPassword, confirmPassword, out var validationError))
+        {
+            return (false, validationError);
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+        user.PasswordResetToken = null;
+        user.PasswordResetExpiresAtUtc = null;
+        user.PasswordResetLastSentAtUtc = null;
+        user.PasswordResetFailedAttempts = 0;
+        await _userRepository.SaveChangesAsync(user, cancellationToken);
+
+        return (true, null);
+    }
+
     private void AppendRoleClaims(List<Claim> claims, UserEntity user)
     {
         claims.Add(new Claim(ClaimTypes.Role, PlatformRoles.User));

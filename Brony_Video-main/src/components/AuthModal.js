@@ -5,7 +5,7 @@ import { RACE_OPTIONS, useAuth } from "../auth/AuthContext";
 import { validateUsername } from "../auth/username";
 
 export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
-  const { login, register, confirmEmail, resendEmailConfirmation } = useAuth();
+    const { login, register, confirmEmail, resendEmailConfirmation, forgotPassword, resetPassword } = useAuth();
   const titleId = useId();
   const firstFieldRef = useRef(null);
   const [email, setEmail] = useState("");
@@ -23,6 +23,18 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
   const [confirmSubmitting, setConfirmSubmitting] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [resendSending, setResendSending] = useState(false);
+
+  // Восстановление пароля ("Забыли пароль?"): отдельный многошаговый поток —
+  // email → код → новый пароль. Код сброса отделён от кода подтверждения регистрации.
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotStep, setForgotStep] = useState("email"); // "email" | "reset"
+  const [forgotEmail, setForgotEmail] = useState("");
+    const [forgotCode, setForgotCode] = useState("");
+  const [forgotNewPassword, setForgotNewPassword] = useState("");
+  const [forgotConfirm, setForgotConfirm] = useState("");
+  const [forgotError, setForgotError] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState("");
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
 
   const isSignup = mode === "signup";
 
@@ -43,8 +55,17 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
     setConfirmError("");
     setConfirmSuccess("");
     setConfirmSubmitting(false);
-    setResendCooldown(0);
+        setResendCooldown(0);
     setResendSending(false);
+    setForgotOpen(false);
+    setForgotStep("email");
+    setForgotEmail("");
+        setForgotCode("");
+    setForgotNewPassword("");
+    setForgotConfirm("");
+    setForgotError("");
+    setForgotSuccess("");
+    setForgotSubmitting(false);
 
     const timer = window.setTimeout(() => {
       firstFieldRef.current?.focus();
@@ -173,6 +194,101 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
     }
   };
 
+      const openForgotFlow = () => {
+    setForgotOpen(true);
+    setForgotStep("email");
+    setForgotEmail(email.trim().toLowerCase());
+        setForgotCode("");
+    setForgotNewPassword("");
+    setForgotConfirm("");
+    setForgotError("");
+    setForgotSuccess("");
+    setForgotSubmitting(false);
+  };
+
+  const backFromForgot = () => {
+    setForgotOpen(false);
+    setForgotError("");
+    setForgotSuccess("");
+  };
+
+  // Шаг 1: отправка письма с кодом сброса на указанный email.
+  const handleRequestReset = async (event) => {
+    event.preventDefault();
+    if (!forgotEmail.trim()) {
+      setForgotError("Укажите email, привязанный к аккаунту.");
+      return;
+    }
+    setForgotSubmitting(true);
+    setForgotError("");
+    setForgotSuccess("");
+    try {
+      await forgotPassword(forgotEmail.trim().toLowerCase());
+      setForgotStep("reset");
+      setForgotSuccess("Код восстановления отправлен на почту.");
+    } catch (requestError) {
+      setForgotError(requestError.message || "Не удалось отправить письмо.");
+    } finally {
+      setForgotSubmitting(false);
+    }
+  };
+
+  // Повторная отправка кода сброса (с кулдауном) на шаге ввода кода.
+  const handleResendResetCode = async () => {
+    if (forgotSubmitting) {
+      return;
+    }
+    setForgotSubmitting(true);
+    setForgotError("");
+    setForgotSuccess("");
+    try {
+      await forgotPassword(forgotEmail.trim().toLowerCase());
+      setForgotSuccess("Новый код отправлен. Проверьте почту.");
+    } catch (resendError) {
+      setForgotError(resendError.message || "Не удалось отправить письмо.");
+    } finally {
+      setForgotSubmitting(false);
+    }
+  };
+
+  // Шаг 2: ввод кода и нового пароля — код проверяется и пароль меняется одним запросом.
+  const handleSubmitReset = async (event) => {
+    event.preventDefault();
+    const code = forgotCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      setForgotError("Введите 6-значный код из письма.");
+      return;
+    }
+        if (forgotNewPassword.length < 8) {
+      setForgotError("Пароль должен содержать минимум 8 символов.");
+      return;
+    }
+    if (forgotNewPassword !== forgotConfirm) {
+      setForgotError("Пароли не совпадают.");
+      return;
+    }
+    setForgotSubmitting(true);
+    setForgotError("");
+    setForgotSuccess("");
+    try {
+            await resetPassword({
+        email: forgotEmail.trim().toLowerCase(),
+        token: code,
+        newPassword: forgotNewPassword,
+        confirmPassword: forgotConfirm
+      });
+      setForgotSuccess("Пароль изменён. Теперь вы можете войти с новым паролем.");
+      window.setTimeout(() => {
+        setForgotOpen(false);
+        onClose();
+      }, 1200);
+    } catch (resetError) {
+      setForgotError(resetError.message || "Не удалось восстановить пароль.");
+    } finally {
+      setForgotSubmitting(false);
+    }
+  };
+
   const handleBackdropClick = (event) => {
     if (event.target === event.currentTarget) {
       onClose();
@@ -192,7 +308,149 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
           <X size={20} />
         </button>
 
-        {confirmOpen ? (
+                {forgotOpen ? (
+          <div className="auth-modal-confirm">
+            <div className="auth-modal-icon" aria-hidden="true">
+              <LogIn size={28} />
+            </div>
+            <h2 id={titleId}>Восстановление пароля</h2>
+
+            {forgotStep === "email" ? (
+              <>
+                <p className="auth-modal-subtitle">
+                  Укажите email, привязанный к вашему аккаунту. Мы отправим на него 6-значный код, чтобы вы
+                  могли задать новый пароль.
+                </p>
+
+                <form className="auth-modal-form" onSubmit={handleRequestReset}>
+                  <label className="auth-modal-field">
+                    <span>Email</span>
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      required
+                      autoFocus
+                      value={forgotEmail}
+                      onChange={(event) => {
+                        setForgotEmail(event.target.value);
+                        setForgotError("");
+                        setForgotSuccess("");
+                      }}
+                      placeholder="you@example.com"
+                    />
+                  </label>
+
+                  {forgotError ? (
+                    <div className="auth-modal-message auth-modal-message--error" role="alert">
+                      {forgotError}
+                    </div>
+                  ) : null}
+
+                  {forgotSuccess ? (
+                    <div className="auth-modal-message auth-modal-message--success" role="status">
+                      {forgotSuccess}
+                    </div>
+                  ) : null}
+
+                  <button type="submit" className="primary-btn auth-modal-submit" disabled={forgotSubmitting}>
+                    {forgotSubmitting ? "Отправляем…" : "Получить код"}
+                  </button>
+
+                  <button type="button" className="auth-modal-link auth-modal-back" onClick={backFromForgot}>
+                    ← Назад к входу
+                  </button>
+                </form>
+              </>
+            ) : (
+              <form className="auth-modal-form" onSubmit={handleSubmitReset}>
+                <p className="auth-modal-subtitle">
+                  Мы отправили 6-значный код на вашу почту{" "}
+                  <span className="auth-modal-confirm-email">{forgotEmail}</span>. Введите его и задайте новый
+                  пароль.
+                </p>
+
+                <label className="auth-modal-field">
+                  <span>6-значный код</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    required
+                    minLength={6}
+                    maxLength={6}
+                    value={forgotCode}
+                    onChange={(event) => {
+                      setForgotCode(event.target.value.replace(/\D/g, ""));
+                      setForgotError("");
+                      setForgotSuccess("");
+                    }}
+                    placeholder="••••••"
+                    autoFocus
+                  />
+                </label>
+
+                <label className="auth-modal-field">
+                  <span>Новый пароль</span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={8}
+                                        value={forgotNewPassword}
+                    onChange={(event) => {
+                      setForgotNewPassword(event.target.value);
+                      setForgotError("");
+                      setForgotSuccess("");
+                    }}
+                    placeholder="Минимум 8 символов"
+                  />
+                </label>
+
+                <label className="auth-modal-field">
+                  <span>Повторите новый пароль</span>
+                  <input
+                    type="password"
+                    autoComplete="new-password"
+                    required
+                    minLength={8}
+                    value={forgotConfirm}
+                    onChange={(event) => {
+                      setForgotConfirm(event.target.value);
+                      setForgotError("");
+                      setForgotSuccess("");
+                    }}
+                    placeholder="Минимум 8 символов"
+                  />
+                </label>
+
+                {forgotError ? (
+                  <div className="auth-modal-message auth-modal-message--error" role="alert">
+                    {forgotError}
+                  </div>
+                ) : null}
+
+                {forgotSuccess ? (
+                  <div className="auth-modal-message auth-modal-message--success" role="status">
+                    {forgotSuccess}
+                  </div>
+                ) : null}
+
+                <button type="submit" className="primary-btn auth-modal-submit" disabled={forgotSubmitting}>
+                  {forgotSubmitting ? "Сохраняем…" : "Сбросить пароль"}
+                </button>
+
+                <button
+                  type="button"
+                  className="auth-modal-link auth-modal-resend"
+                  onClick={handleResendResetCode}
+                  disabled={forgotSubmitting}
+                >
+                  Отправить код повторно
+                </button>
+              </form>
+            )}
+          </div>
+        ) : confirmOpen ? (
           <div className="auth-modal-confirm">
             <div className="auth-modal-icon" aria-hidden="true">
               <MailCheck size={28} />
@@ -287,7 +545,7 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
             />
           </label>
 
-          <label className="auth-modal-field">
+            <label className="auth-modal-field">
             <span>Пароль</span>
             <input
               type="password"
@@ -299,6 +557,14 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
               placeholder="Минимум 8 символов"
             />
           </label>
+
+          {!isSignup ? (
+            <div className="auth-modal-forgot-wrap">
+              <button type="button" className="auth-modal-link" onClick={openForgotFlow}>
+                Забыли пароль?
+              </button>
+            </div>
+          ) : null}
 
           {isSignup ? (
             <label className="auth-modal-field">

@@ -48,4 +48,10 @@ public interface IUserActivityService
     /// Мягкое скрытие записи активности из админ-ленты (без удаления из БД).
     /// </summary>
     Task<bool> HideAsync(long id, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Мягкое скрытие ВСЕХ записей активности пользователя из админ-ленты
+    /// (без удаления из БД). Возвращает количество скрытых записей.
+    /// </summary>
+    Task<int> HideAllAsync(Guid userId, CancellationToken cancellationToken = default);
 }

@@ -71,6 +71,20 @@ public static class DatabaseInitializer
             WHERE "EmailConfirmationToken" IS NOT NULL;
         """;
 
+        private const string EnsurePasswordResetColumnsSql = """
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "PasswordResetToken" character varying(128);
+
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "PasswordResetExpiresAtUtc" timestamp with time zone;
+
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "PasswordResetLastSentAtUtc" timestamp with time zone;
+
+        ALTER TABLE public."Users"
+            ADD COLUMN IF NOT EXISTS "PasswordResetFailedAttempts" integer NOT NULL DEFAULT 0;
+        """;
+
     private const string EnsureCommentsTableSql = """
         CREATE TABLE IF NOT EXISTS public."Comments" (
             "Id" uuid NOT NULL,
@@ -156,6 +170,7 @@ public static class DatabaseInitializer
         await EnsureUserCommentBanColumnAsync(context, logger, cancellationToken);
         await EnsureUserPlatformRoleColumnAsync(context, logger, cancellationToken);
         await EnsureEmailConfirmationColumnsAsync(context, logger, cancellationToken);
+        await EnsurePasswordResetColumnsAsync(context, logger, cancellationToken);
         await EnsureUserReferralColumnsAsync(context, logger, cancellationToken);
         await EnsureForumTablesAsync(context, logger, cancellationToken);
         await EnsureNewsPostsTableAsync(context, logger, cancellationToken);
@@ -431,13 +446,22 @@ public static class DatabaseInitializer
         logger.LogInformation("Verified public.\"Users\".\"PlatformRole\" column.");
     }
 
-    public static async Task EnsureEmailConfirmationColumnsAsync(
+        public static async Task EnsureEmailConfirmationColumnsAsync(
         DbBronyTV context,
         ILogger logger,
         CancellationToken cancellationToken = default)
     {
         await context.Database.ExecuteSqlRawAsync(EnsureEmailConfirmationColumnsSql, cancellationToken);
         logger.LogInformation("Verified public.\"Users\" email confirmation columns and unique index.");
+    }
+
+    public static async Task EnsurePasswordResetColumnsAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsurePasswordResetColumnsSql, cancellationToken);
+        logger.LogInformation("Verified public.\"Users\" password reset columns.");
     }
 
     public static async Task EnsureForumTablesAsync(

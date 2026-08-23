@@ -164,7 +164,7 @@ export function AuthProvider({ children }) {
     return payload ?? raw;
   }, []);
 
-  const resendEmailConfirmation = useCallback(async (email) => {
+    const resendEmailConfirmation = useCallback(async (email) => {
     const response = await apiFetch("/auth/resend-email-confirmation", {
       method: "POST",
       body: JSON.stringify({ email })
@@ -172,6 +172,30 @@ export function AuthProvider({ children }) {
     const raw = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(raw.message || "Не удалось отправить письмо.");
+    }
+    return raw;
+  }, []);
+
+  const forgotPassword = useCallback(async (email) => {
+    const response = await apiFetch("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    });
+    const raw = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(raw.message || "Не удалось отправить письмо с кодом.");
+    }
+    return raw;
+  }, []);
+
+  const resetPassword = useCallback(async ({ email, token, newPassword, confirmPassword }) => {
+    const response = await apiFetch("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, token, newPassword, confirmPassword })
+    });
+    const raw = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(raw.message || "Не удалось восстановить пароль.");
     }
     return raw;
   }, []);
@@ -187,9 +211,11 @@ export function AuthProvider({ children }) {
       refreshUser,
       updateUsername,
       updatePassword,
-      updateAvatarEmoji,
+            updateAvatarEmoji,
       confirmEmail,
-      resendEmailConfirmation
+      resendEmailConfirmation,
+      forgotPassword,
+      resetPassword
     }),
     [
       user,
@@ -202,7 +228,9 @@ export function AuthProvider({ children }) {
       updatePassword,
       updateAvatarEmoji,
       confirmEmail,
-      resendEmailConfirmation
+      resendEmailConfirmation,
+      forgotPassword,
+      resetPassword
     ]
   );
 

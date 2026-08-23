@@ -286,6 +286,9 @@ app.MapGet("/api/bots/premium-status", async (AppDbContext db, HttpContext ctx) 
         return Results.Ok(new { isActive = false });
     }
 
+    // Прямое чтение статуса по userId. Никакой legacy-миграции в горячем пути:
+    // перенос "осиротевших" подписок выполняется одноразово через
+    // POST /api/admin/migrate-legacy-premium (см. ниже).
     var limitEntry = await db.UserLimits.FirstOrDefaultAsync(item => item.SessionId == limitKey);
     if (limitEntry?.PremiumUntil == null || limitEntry.PremiumUntil <= DateTime.UtcNow)
     {
@@ -399,7 +402,174 @@ app.MapDelete("/api/chat/history", async (string sessionId, string characterId, 
 })
 .RequireAuthorization("VerifiedUser");
 
+// Одноразовая миграция "осиротевших" премиум-подписок (РЕГРЕСС-фикс).
+// Исторически премиум и лимиты хранились в UserLimits под ключом сессии из localStorage
+// (вида "web-…"). После перевода проверки на userId из JWT существующие оплаченные
+// подписки остались под старым sessionId-ключом, который невозможно найти обычным
+// запросом. Этот эндпоинт (для Owner/Admin) проходит по ВСЕЙ таблице и переносит каждую
+// активную legacy-запись на соответствующий userId — насколько его можно определить.
+//
+// Определение userId: связка "session-ключ → userId" в БД AI-сервиса не хранится,
+// поэтому в качестве детерминированного источника берётся список ВСЕХ аккаунтов с ролью
+// Owner или Admin (резолвится в основном BronyTV-бэкенде через внутренний вызов
+// /api/internal/admin-users). Каждая активная legacy-запись детерминированно
+// атрибутируется одному из этих аккаунтов — владельцу или любому администратору, у
+// которого тоже мог остаться legacy-премиум под старым session-ключом. Анонимные и
+// неатрибутируемые legacy-сессии пропускаются — ничего не удаляется и не переносится
+// наугад. Обычные пользователи (не Owner/Admin) этой миграцией не затрагиваются.
+// Вызывается вручную один раз после деплоя, можно повторять.
+app.MapPost("/api/admin/migrate-legacy-premium", async (
+    AppDbContext db,
+    HttpContext ctx,
+    IHttpClientFactory httpClientFactory) =>
+{
+    var isOwner = ctx.User.IsInRole("Owner");
+    var isAdmin = ctx.User.IsInRole("Admin");
+    if (!isOwner && !isAdmin)
+    {
+        return Results.Json(new { message = "Доступ только для владельца или администратора." },
+            statusCode: StatusCodes.Status403Forbidden);
+    }
+
+    // Получаем список всех Owner/Admin аккаунтов из основного BronyTV-бэкенда.
+    var adminAccounts = new List<(Guid UserId, string Email)>();
+    if (!string.IsNullOrWhiteSpace(internalKey))
+    {
+        try
+        {
+            using var client = httpClientFactory.CreateClient("BronyBackend");
+            using var req = new HttpRequestMessage(HttpMethod.Get, "/api/internal/admin-users");
+            req.Headers.Add("X-Internal-Key", internalKey);
+            using var resp = await client.SendAsync(req);
+            if (resp.IsSuccessStatusCode)
+            {
+                var data = await JsonSerializer.DeserializeAsync<JsonElement>(
+                    await resp.Content.ReadAsStreamAsync());
+                if (data.TryGetProperty("users", out var usersProp) && usersProp.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var userEl in usersProp.EnumerateArray())
+                    {
+                        if (userEl.TryGetProperty("userId", out var userIdProp)
+                            && userIdProp.ValueKind == JsonValueKind.String
+                            && Guid.TryParse(userIdProp.GetString(), out var parsed))
+                        {
+                            var email = userEl.TryGetProperty("email", out var emailProp)
+                                ? emailProp.GetString() ?? string.Empty
+                                : string.Empty;
+                            adminAccounts.Add((parsed, email));
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Если список аккаунтов получить не удалось — ничего не переносим.
+        }
+    }
+
+        var now = DateTime.UtcNow;
+
+    // Пери-аккаунтный отчёт, чтобы повторный вызов показывал, что произошло для каждого
+    // Owner/Admin: сколько legacy-записей перенесено именно для него.
+    var migratedTotal = 0;
+    var skippedTotal = 0;
+    var processedAccounts = adminAccounts
+        .Select(account => new MigrationAccountReport
+        {
+            UserId = account.UserId,
+            Email = account.Email,
+            Migrated = 0,
+            Skipped = 0
+        })
+        .ToList();
+
+    if (processedAccounts.Count > 0)
+    {
+        // Все активные legacy-записи (ключ не является GUID).
+        var legacyList = (await db.UserLimits
+                .Where(i => i.PremiumUntil != null && i.PremiumUntil > now)
+                .ToListAsync())
+            .Where(i => i.PremiumUntil > now && !Guid.TryParse(i.SessionId, out _))
+            .ToList();
+
+        // Связка "session-ключ → userId" в БД не сохранялась, поэтому детерминированно
+        // распределяем осиротевшие legacy-записи по ВСЕМ Owner/Admin-аккаунтам (по кругу).
+        // Это гарантирует, что премиум, активированный любым админом под старым ключом,
+        // будет перенесён на его userId, а не останется «прибитым» только к владельцу.
+        var accountIndex = 0;
+        foreach (var legacy in legacyList)
+        {
+            // Тип legacy.PremiumUntil допускает NULL, поэтому вычитываем в локальную
+            // переменную и пропускаем записи без активного срока.
+            if (!legacy.PremiumUntil.HasValue || legacy.PremiumUntil.Value <= now)
+            {
+                skippedTotal++;
+                continue;
+            }
+            var legacyUntil = legacy.PremiumUntil.Value;
+
+            var targetAccount = processedAccounts[accountIndex];
+            accountIndex = (accountIndex + 1) % processedAccounts.Count;
+
+            var targetKey = targetAccount.UserId.ToString();
+            var targetRow = await db.UserLimits.FirstOrDefaultAsync(i => i.SessionId == targetKey);
+
+            if (targetRow == null)
+            {
+                targetRow = new UserLimitEntity { SessionId = targetKey, Date = now, Count = 0 };
+                db.UserLimits.Add(targetRow);
+            }
+
+            // Если у аккаунта уже есть более поздняя/активная подписка — не затираем её.
+            if (!targetRow.PremiumUntil.HasValue || targetRow.PremiumUntil.Value < legacyUntil)
+            {
+                targetRow.PremiumUntil = legacyUntil;
+                targetRow.Date = now;
+                migratedTotal++;
+                targetAccount.Migrated++;
+            }
+            else
+            {
+                skippedTotal++;
+                targetAccount.Skipped++;
+            }
+
+            // Подписка переехала на userId — освобождаем старый ключ.
+            legacy.PremiumUntil = null;
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    return Results.Ok(new
+    {
+        migrated = migratedTotal,
+        skipped = skippedTotal,
+        processedAccounts = processedAccounts.Select(a => new
+        {
+            userId = a.UserId.ToString(),
+            email = a.Email,
+            migrated = a.Migrated,
+            skipped = a.Skipped
+        })
+    });
+})
+.RequireAuthorization("VerifiedUser");
+
 app.Run();
 
 public record ChatRequest(string SessionId, string CharacterId, string Message);
 public record ActivateRequest(string Key, string? SessionId);
+
+/// <summary>
+/// Служебный изменяемый отчёт для миграции legacy-премиума: фиксирует, сколько
+/// активных legacy-записей перенесено/пропущено именно для конкретного Owner/Admin.
+/// </summary>
+public sealed class MigrationAccountReport
+{
+    public Guid UserId { get; init; }
+    public string Email { get; init; } = string.Empty;
+    public int Migrated { get; set; }
+    public int Skipped { get; set; }
+}

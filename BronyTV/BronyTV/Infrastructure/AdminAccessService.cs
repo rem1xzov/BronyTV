@@ -41,6 +41,16 @@ public class AdminAccessService : IAdminAccessService
             && _ownerEmails.Contains(Normalize(user.Email));
     }
 
+    public bool IsAdminOrOwner(UserEntity user)
+    {
+        // Mirrors the role resolution used when a session is validated in Program.cs:
+        // Owner, or a user whose stored PlatformRole is Admin, or a "privileged" email
+        // that is lifted to Admin without being materialised in the DB.
+        return IsOwnerUser(user)
+            || PlatformRoles.IsAdminOrOwner(user.PlatformRole)
+            || IsPrivilegedUser(user.Username, user.Email);
+    }
+
     public bool IsProtectedOwner(UserEntity user) => IsOwnerUser(user);
 
     public string ResolveInitialRole(string normalizedEmail)

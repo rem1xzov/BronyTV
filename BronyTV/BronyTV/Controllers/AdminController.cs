@@ -60,7 +60,7 @@ public class AdminController : ControllerBase
     /// Мягко скрывает запись активности из админ-ленты (оставляя её нетронутой в БД).
     /// Используется кнопкой «удалить» на странице «Активность».
     /// </summary>
-    [HttpPost("activity/{id:long}/hide")]
+        [HttpPost("activity/{id:long}/hide")]
     public async Task<IActionResult> HideUserActivity(long id, CancellationToken cancellationToken)
     {
         var hidden = await _userActivityService.HideAsync(id, cancellationToken);
@@ -70,6 +70,17 @@ public class AdminController : ControllerBase
         }
 
         return Ok(new { hidden = true });
+    }
+
+    /// <summary>
+    /// Мягко скрывает ВСЮ историю активности указанного пользователя из админ-ленты
+    /// (оставаясь нетронутой в БД). Используется корзинкой у ника пользователя.
+    /// </summary>
+    [HttpPost("activity/user/{userId:guid}/hide-all")]
+    public async Task<IActionResult> HideAllUserActivity(Guid userId, CancellationToken cancellationToken)
+    {
+        var hidden = await _userActivityService.HideAllAsync(userId, cancellationToken);
+        return Ok(new { hidden });
     }
 
 

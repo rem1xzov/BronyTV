@@ -36,6 +36,12 @@ public interface IUserActivityRepository
     Task<bool> HideFromAdminAsync(long id, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Мягко скрывает ВСЕ записи активности указанного пользователя из админ-ленты
+    /// (без физического удаления). Возвращает количество скрытых записей.
+    /// </summary>
+    Task<int> HideAllFromAdminAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Удаляет записи активности старше указанного возраста (окно хранения).
     /// Возвращает количество удалённых строк.
     /// </summary>

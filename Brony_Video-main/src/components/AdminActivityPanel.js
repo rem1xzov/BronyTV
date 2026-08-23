@@ -48,7 +48,7 @@ export default function AdminActivityPanel({ onBack }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [deletingId, setDeletingId] = useState(null);
+  const [deletingUserId, setDeletingUserId] = useState(null);
 
   const loadActivity = useCallback(async () => {
     setLoading(true);
@@ -76,26 +76,29 @@ export default function AdminActivityPanel({ onBack }) {
     loadActivity();
   }, [loadActivity]);
 
-  // Мягкое удаление записи: скрываем из админ-ленты, НЕ трогая её в БД.
-  const hideActivity = useCallback(
-    async (id) => {
-      if (id == null || deletingId != null) return;
-      setDeletingId(id);
+  // Мягкое скрытие ВСЕЙ истории пользователя: скрываем из админ-ленты, НЕ трогая в БД.
+  const hideAllActivity = useCallback(
+    async (userId) => {
+      if (!userId || deletingUserId != null) return;
+      setDeletingUserId(userId);
       setError("");
       try {
-        const response = await apiFetch(`/api/admin/activity/${id}/hide`, { method: "POST" });
+        const response = await apiFetch(
+          `/api/admin/activity/user/${encodeURIComponent(userId)}/hide-all`,
+          { method: "POST" }
+        );
         const raw = await response.json().catch(() => ({}));
         if (!response.ok) {
-          throw new Error(raw.message || "Не удалось скрыть запись.");
+          throw new Error(raw.message || "Не удалось скрыть историю.");
         }
         await loadActivity();
       } catch (hideError) {
-        setError(hideError.message || "Не удалось скрыть запись.");
+        setError(hideError.message || "Не удалось скрыть историю.");
       } finally {
-        setDeletingId(null);
+        setDeletingUserId(null);
       }
     },
-    [deletingId, loadActivity]
+    [deletingUserId, loadActivity]
   );
 
   // Группировка по пользователю (аккаунт → список действий за неделю).
@@ -168,6 +171,16 @@ export default function AdminActivityPanel({ onBack }) {
                   {group.username ? `@${group.username}` : group.email ? group.email : "Пользователь"}
                 </strong>
                 <span className="muted">{group.items.length} действ.</span>
+                <button
+                  type="button"
+                  className="admin-activity-delete admin-activity-delete--user"
+                  onClick={() => hideAllActivity(group.userId)}
+                  disabled={deletingUserId != null}
+                  aria-label="Скрыть всю историю пользователя"
+                  title="Скрыть всю историю пользователя"
+                >
+                  <Trash2 size={16} />
+                </button>
               </div>
               <ul className="admin-activity-list">
                 {group.items.map((activity, index) => (
@@ -183,16 +196,6 @@ export default function AdminActivityPanel({ onBack }) {
                     <span className="admin-activity-time muted">
                       {formatActivityTime(activity.timestamp)}
                     </span>
-                    <button
-                      type="button"
-                      className="admin-activity-delete"
-                      onClick={() => hideActivity(activity.id)}
-                      disabled={deletingId != null}
-                      aria-label="Скрыть запись активности"
-                      title="Скрыть запись"
-                    >
-                      <Trash2 size={14} />
-                    </button>
                   </li>
                 ))}
               </ul>

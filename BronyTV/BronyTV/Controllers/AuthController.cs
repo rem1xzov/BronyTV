@@ -242,6 +242,45 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Письмо с подтверждением отправлено." });
     }
 
+    [HttpPost("forgot-password")]
+    [EnableRateLimiting("email")]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] RequestPasswordResetRequest request,
+        CancellationToken cancellationToken)
+    {
+        var (success, error) = await _userAuthService.RequestPasswordResetAsync(
+            request.Email,
+            cancellationToken);
+
+        if (!success)
+        {
+            return BadRequest(new { message = error ?? "Не удалось отправить письмо." });
+        }
+
+        return Ok(new { message = "Код восстановления отправлен на почту." });
+    }
+
+    [HttpPost("reset-password")]
+    [EnableRateLimiting("auth")]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ConfirmPasswordResetRequest request,
+        CancellationToken cancellationToken)
+    {
+        var (success, error) = await _userAuthService.ConfirmPasswordResetAsync(
+            request.Email,
+            request.Token,
+            request.NewPassword,
+            request.ConfirmPassword,
+            cancellationToken);
+
+        if (!success)
+        {
+            return BadRequest(new { message = error ?? "Не удалось сбросить пароль." });
+        }
+
+        return Ok(new { message = "Пароль успешно изменён. Теперь вы можете войти с новым паролем." });
+    }
+
     private void AppendSessionCookie(DbContext.Entity.UserEntity user)
     {
         var sessionToken = _userAuthService.CreateSessionToken(user);
