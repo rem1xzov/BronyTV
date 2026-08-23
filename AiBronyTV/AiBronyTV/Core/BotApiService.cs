@@ -10,8 +10,8 @@ namespace AiBronyTV.Core;
 
 public partial class BotApiService
 {
-    private const int MessageLimit = 50;
-    private static readonly TimeSpan LimitWindow = TimeSpan.FromHours(5);
+        private const int MessageLimit = 20;
+    private static readonly TimeSpan LimitWindow = TimeSpan.FromHours(24);
 
     private readonly Kernel _kernel;
     private readonly AppDbContext _db;
@@ -61,7 +61,7 @@ public partial class BotApiService
 
         // Premium users get a higher limit; otherwise it's the standard free limit.
         var isPremiumActive = limitEntry.PremiumUntil.HasValue && limitEntry.PremiumUntil.Value > DateTime.UtcNow;
-        int currentMaxLimit = isPremiumActive ? 200 : 50;
+        int currentMaxLimit = isPremiumActive ? 200 : 20;
 
         // Owner and Admin can chat forever without any keys or limits.
         // Never call the paid model after the limit has been reached (for everyone else).
@@ -72,10 +72,9 @@ public partial class BotApiService
             var limitChatHistory = new ChatHistory(BuildSystemPrompt(characterId, userName, role));
             limitChatHistory.AddSystemMessage(
                 "ИНСТРУКЦИЯ СИСТЕМЫ: Пользователь исчерпал лимит сообщений. " +
-                $"Текущий лимит: {currentMaxLimit} сообщений. " +
                 "Ответь ему строго в своём характере, что тебе нужен перерыв/ты устал(а). " +
                 "ОБЯЗАТЕЛЬНО дай ссылку на Boosty: https://boosty.to/bronytvru и скажи, " +
-                "что премиум-ключ оттуда снимет ограничения.");
+                "что премиум-ключ оттуда даёт безлимит всего за 50 рублей в месяц.");
 
             var limitCompletion = _kernel.GetRequiredService<IChatCompletionService>();
             var limitStream = limitCompletion.GetStreamingChatMessageContentsAsync(

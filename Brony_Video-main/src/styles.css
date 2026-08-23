@@ -7004,6 +7004,32 @@ body.no-scroll {
   flex-shrink: 0;
 }
 
+.admin-activity-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.admin-activity-delete:hover:not(:disabled) {
+  color: #b91c1c;
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.admin-activity-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+
 /* Мобильная адаптация страницы «Активность» */
 @media (max-width: 768px) {
   .admin-card--activity {
@@ -7243,4 +7269,6 @@ body.no-scroll {
 .player-shell:-webkit-full-screen .player-media-stage .video-player.video-player--cover {
   object-fit: cover !important;
   object-position: center center;
+  height: 100% !important;
+  width: 100% !important;
 }

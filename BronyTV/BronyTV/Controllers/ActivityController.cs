@@ -80,7 +80,8 @@ public class ActivityController : ControllerBase
 
         await _userActivityService.RecordAsync(
             userId,
-            "video_watch",
+            // "movie_watch" для категорий фильмов (сезоны 10/11), иначе "video_watch".
+            string.IsNullOrWhiteSpace(request?.Type) ? "video_watch" : request.Type,
             string.IsNullOrWhiteSpace(request?.Details) ? null : request.Details,
             cancellationToken);
 
@@ -97,6 +98,7 @@ public class ActivityController : ControllerBase
 
 public class ActivityVideoWatchRequest
 {
+    public string? Type { get; set; }
     public string? Details { get; set; }
 }
 

@@ -23,6 +23,10 @@ public class UserActivityConfiguration : IEntityTypeConfiguration<UserActivityEn
             .HasDefaultValueSql("now()")
             .IsRequired();
 
+        builder.Property(activity => activity.HiddenFromAdmin)
+            .HasDefaultValue(false)
+            .IsRequired();
+
         builder.HasIndex(activity => new { activity.UserId, activity.Timestamp });
     }
 }

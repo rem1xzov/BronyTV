@@ -108,6 +108,7 @@ public class UserActivityService : IUserActivityService
                 usersById.TryGetValue(activity.UserId, out var user);
                 return new UserActivityWithUserResponse
                 {
+                    Id = activity.Id,
                     UserId = activity.UserId,
                     Username = user.Username,
                     Email = user.Email,
@@ -117,5 +118,12 @@ public class UserActivityService : IUserActivityService
                 };
             })
             .ToList();
+    }
+
+    public async Task<bool> HideAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        return await _repository.HideFromAdminAsync(id, cancellationToken);
     }
 }

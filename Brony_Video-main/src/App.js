@@ -1985,21 +1985,31 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
                 setIsPlaying(false);
                 handleVideoPause(event);
               }}
-                            onPlay={() => {
+                                                        onPlay={() => {
                 setIsPlaying(true);
                 setVideoEnded(false);
 
-                // Логируем начало просмотра серии (только для залогиненных — сервер
+                // Логируем начало просмотра (только для залогиненных — сервер
                 // сам отсеет гостей). Один раз на эпизод, чтобы не спамить при
                 // паузе/переключении. Дубль снимает и бэкенд (окно 5 минут).
+                // Для категорий фильмов (сезоны 10/11) пишем «фильм» с названием,
+                // а не «Сезон N — серия M».
                 const episodeKey = `${safeSeason}:${selectedEpisode?.id || 1}`;
                 if (videoLogRef.current !== episodeKey) {
                   videoLogRef.current = episodeKey;
+                  const isMovieCategory = safeSeason === 10 || safeSeason === 11;
                   apiFetch("/activity/video-watch", {
                     method: "POST",
-                    body: JSON.stringify({
-                      details: `Сезон ${safeSeason} — серия ${selectedEpisode?.id || 1}`
-                    })
+                    body: JSON.stringify(
+                      isMovieCategory
+                        ? {
+                            type: "movie_watch",
+                            details: selectedEpisode?.title || `Фильм (сезон ${safeSeason})`
+                          }
+                        : {
+                            details: `Сезон ${safeSeason} — серия ${selectedEpisode?.id || 1}`
+                          }
+                    )
                   }).catch(() => {});
                 }
               }}

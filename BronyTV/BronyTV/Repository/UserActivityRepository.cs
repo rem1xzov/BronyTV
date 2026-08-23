@@ -74,10 +74,23 @@ public class UserActivityRepository : IUserActivityRepository
 
         return await _context.UserActivities
             .AsNoTracking()
-            .Where(activity => activity.Timestamp >= since)
+            .Where(activity => activity.Timestamp >= since && !activity.HiddenFromAdmin)
             .OrderByDescending(activity => activity.Timestamp)
             .Take(safeLimit)
             .ToListAsync(cancellationToken);
+    }
+
+    public async Task<bool> HideFromAdminAsync(
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await _context.UserActivities
+            .Where(activity => activity.Id == id)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(activity => activity.HiddenFromAdmin, true),
+                cancellationToken);
+
+        return updated > 0;
     }
 
     public async Task<int> DeleteOlderThanAsync(

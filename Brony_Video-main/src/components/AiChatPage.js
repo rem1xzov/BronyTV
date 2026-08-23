@@ -450,9 +450,15 @@ function AiChatPage() {
     }
   }, []);
 
+    // Перезапрашиваем статус премиума при смене аккаунта, чтобы статус от прошлого
+  // пользователя не «перетекал» на нового в одной вкладке браузера.
   useEffect(() => {
+    if (!user) {
+      setPremiumStatus(null);
+      return;
+    }
     fetchPremiumStatus();
-  }, [fetchPremiumStatus]);
+  }, [fetchPremiumStatus, user]);
 
   const handleActivate = useCallback(async () => {
     const key = premiumKey.trim();
@@ -474,7 +480,7 @@ function AiChatPage() {
       if (!res.ok) {
         throw new Error(payload.message || `Сервер ответил: ${res.status}`);
       }
-            setPremiumMsg(payload.message || "Премиум активирован на 30 дней! Лимит 200 сообщений.");
+            setPremiumMsg(payload.message || "Премиум активирован! Безлимит всего за 50 рублей в месяц.");
       setPremiumKey("");
       setShowPremiumModal(false);
       fetchPremiumStatus();
@@ -1077,9 +1083,8 @@ function AiChatPage() {
               <Star size={22} />
             </div>
             <h3>Активация Premium</h3>
-            <p className="ai-premium-modal-text">
-              Активируй премиум-ключ с Boosty и получи <strong>200 сообщений на 30 дней</strong> без
-              ограничений.
+                        <p className="ai-premium-modal-text">
+              Активируй премиум-ключ с Boosty и получи <strong>безлимит всего за 50 рублей в месяц</strong>.
             </p>
             <div className="ai-premium-modal-input-row">
               <input

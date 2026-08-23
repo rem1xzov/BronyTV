@@ -46,7 +46,7 @@ public class AdminController : ControllerBase
     /// Активность ВСЕХ пользователей за последние 7 дней (единая хронологическая лента).
     /// Используется отдельной страницей «Активность» в админке.
     /// Параметр <paramref name="days"/> позволяет расширить/сузить окно (по умолчанию 7).
-    /// </summary>
+        /// </summary>
     [HttpGet("activity/week")]
     public async Task<IActionResult> GetRecentAllUsersActivity(
         [FromQuery] int days = 7,
@@ -54,6 +54,22 @@ public class AdminController : ControllerBase
     {
         var items = await _userActivityService.GetRecentAllUsersAsync(days, cancellationToken);
         return Ok(new { activities = items });
+    }
+
+    /// <summary>
+    /// Мягко скрывает запись активности из админ-ленты (оставляя её нетронутой в БД).
+    /// Используется кнопкой «удалить» на странице «Активность».
+    /// </summary>
+    [HttpPost("activity/{id:long}/hide")]
+    public async Task<IActionResult> HideUserActivity(long id, CancellationToken cancellationToken)
+    {
+        var hidden = await _userActivityService.HideAsync(id, cancellationToken);
+        if (!hidden)
+        {
+            return NotFound(new { message = "Запись активности не найдена." });
+        }
+
+        return Ok(new { hidden = true });
     }
 
 

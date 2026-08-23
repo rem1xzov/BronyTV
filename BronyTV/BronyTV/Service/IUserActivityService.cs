@@ -10,6 +10,7 @@ namespace BronyTV.Service;
 /// </summary>
 public class UserActivityWithUserResponse
 {
+    public long Id { get; set; }
     public Guid UserId { get; set; }
     public string? Username { get; set; }
     public string? Email { get; set; }
@@ -42,4 +43,9 @@ public interface IUserActivityService
     Task<IReadOnlyList<UserActivityWithUserResponse>> GetRecentAllUsersAsync(
         int days = 7,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Мягкое скрытие записи активности из админ-ленты (без удаления из БД).
+    /// </summary>
+    Task<bool> HideAsync(long id, CancellationToken cancellationToken = default);
 }

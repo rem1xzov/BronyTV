@@ -262,8 +262,11 @@ public static class DatabaseInitializer
                 REFERENCES public."Users" ("Id") ON DELETE CASCADE
         );
 
-                CREATE INDEX IF NOT EXISTS "IX_UserActivities_UserId_Timestamp"
+                        CREATE INDEX IF NOT EXISTS "IX_UserActivities_UserId_Timestamp"
             ON public."UserActivities" ("UserId", "Timestamp");
+
+        ALTER TABLE public."UserActivities"
+            ADD COLUMN IF NOT EXISTS "HiddenFromAdmin" boolean NOT NULL DEFAULT FALSE;
         """;
 
     private const string EnsureUserFavoritesTableSql = """

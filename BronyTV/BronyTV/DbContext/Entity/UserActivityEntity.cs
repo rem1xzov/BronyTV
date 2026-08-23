@@ -19,4 +19,10 @@ public class UserActivityEntity
 
     [Column(TypeName = "timestamp with time zone")]
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Мягкое удаление: 1 = запись скрыта из админ-ленты активности, но остаётся в БД.
+    /// Не влияет на активность пользователя в остальных местах.
+    /// </summary>
+    public bool HiddenFromAdmin { get; set; }
 }

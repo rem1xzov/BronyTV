@@ -30,6 +30,12 @@ public interface IUserActivityRepository
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Мягко скрывает запись активности из админ-ленты (без физического удаления).
+    /// Возвращает true, если запись найдена и помечена.
+    /// </summary>
+    Task<bool> HideFromAdminAsync(long id, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Удаляет записи активности старше указанного возраста (окно хранения).
     /// Возвращает количество удалённых строк.
     /// </summary>

@@ -93,9 +93,18 @@ export function AuthProvider({ children }) {
     return payload;
   }, []);
 
-  const logout = useCallback(async () => {
+    const logout = useCallback(async () => {
     await apiFetch("/auth/logout", { method: "POST" });
     setUser(null);
+    // Очищаем локальные AI-данные сессии, чтобы следующий аккаунт в том же браузере
+    // не «наследовал» чужой премиум-статус, лимиты и историю чата.
+    try {
+      localStorage.removeItem("bronytv-ai-session");
+      localStorage.removeItem("bronytv-ai-messages");
+      localStorage.removeItem("bronytv-ai-session-meta");
+    } catch (error) {
+      // Ignore storage failures.
+    }
   }, []);
 
   const updateUsername = useCallback(async (username) => {

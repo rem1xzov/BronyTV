@@ -168,19 +168,28 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
                 : null;
 
                 // UserId из JWT (ClaimTypes.NameIdentifier) — основной site-пользователь.
-        var userIdRaw = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
-        Guid.TryParse(userIdRaw, out var bronyUserId);
+                var userIdRaw = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
+                Guid.TryParse(userIdRaw, out var bronyUserId);
 
-        // TEMP-DIAG: временная диагностика логирования активности чата с ботом.
-        // Выводится в docker logs aibronytv, НЕ в ответ пользователю.
-        Console.WriteLine($"[activity-diag] chat/userIdRaw='{userIdRaw}' bronyUserId='{bronyUserId}' internalKeySet='{!string.IsNullOrWhiteSpace(internalKey)}'");
+                // Лимиты и премиум привязаны к userId из JWT, а не к sessionId из localStorage,
+                // чтобы шансы/статус премиума не «протекали» между аккаунтами в одном браузере.
+                var limitKey = userIdRaw;
+                if (string.IsNullOrWhiteSpace(limitKey))
+                {
+                    // Надёжный fallback: если не удалось получить userId из JWT.
+                    limitKey = request.SessionId;
+                }
 
-        var stream = botService.SendMessageStreamAsync(
-            request.SessionId,
-            request.SessionId,
-            request.CharacterId,
-            request.Message,
-            role: role);
+                // TEMP-DIAG: временная диагностика логирования активности чата с ботом.
+                // Выводится в docker logs aibronytv, НЕ в ответ пользователю.
+                Console.WriteLine($"[activity-diag] chat/userIdRaw='{userIdRaw}' bronyUserId='{bronyUserId}' internalKeySet='{!string.IsNullOrWhiteSpace(internalKey)}'");
+
+                var stream = botService.SendMessageStreamAsync(
+                    request.SessionId,
+                    limitKey,
+                    request.CharacterId,
+                    request.Message,
+                    role: role);
         
                 await foreach (var chunk in stream)
         {
@@ -228,7 +237,7 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
 
 // Активация премиум-ключа (Boosty). Пользователь вводит одноразовый ключ,
 // и его лимит на 30 дней повышается до 200 сообщений.
-app.MapPost("/api/bots/activate", async (ActivateRequest request, AppDbContext db) =>
+app.MapPost("/api/bots/activate", async (ActivateRequest request, AppDbContext db, HttpContext ctx) =>
 {
     var key = request.Key?.Trim();
     if (string.IsNullOrWhiteSpace(key))
@@ -242,11 +251,13 @@ app.MapPost("/api/bots/activate", async (ActivateRequest request, AppDbContext d
         return Results.BadRequest(new { message = "Неверный или уже использованный ключ." });
     }
 
-        // Сессия текущего пользователя — ограничения по лимитам привязаны к sessionId.
-    var limitKey = request.SessionId;
+        // Лимиты и премиум привязаны к аккаунту пользователя (JWT userId), а не к
+        // sessionId из localStorage. Это исключает «протечку» премиума между
+        // разными аккаунтами в одном браузере.
+    var limitKey = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
     if (string.IsNullOrWhiteSpace(limitKey))
     {
-        return Results.BadRequest(new { message = "Не указана сессия пользователя." });
+        return Results.BadRequest(new { message = "Не удалось определить пользователя." });
     }
 
     var limitEntry = await db.UserLimits.FirstOrDefaultAsync(item => item.SessionId == limitKey);
@@ -260,19 +271,22 @@ app.MapPost("/api/bots/activate", async (ActivateRequest request, AppDbContext d
     limitEntry.PremiumUntil = DateTime.UtcNow.AddDays(30);
     await db.SaveChangesAsync();
 
-    return Results.Ok(new { message = "Премиум активирован на 30 дней! Лимит 200 сообщений." });
+    return Results.Ok(new { message = "Премиум активирован! Безлимит всего за 50 рублей в месяц." });
 })
 .RequireAuthorization("VerifiedUser");
 
-// Статус премиума для текущей сессии — фронтенд решает, показывать "+" или галочку.
-app.MapGet("/api/bots/premium-status", async (string sessionId, AppDbContext db) =>
+// Статус премиума для текущего аккаунта — фронтенд решает, показывать "+" или галочку.
+// Привязано к userId из JWT, а не к sessionId из localStorage, чтобы статус не
+// «перетекал» между разными аккаунтами в одном браузере.
+app.MapGet("/api/bots/premium-status", async (AppDbContext db, HttpContext ctx) =>
 {
-    if (string.IsNullOrWhiteSpace(sessionId))
+    var limitKey = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+    if (string.IsNullOrWhiteSpace(limitKey))
     {
         return Results.Ok(new { isActive = false });
     }
 
-    var limitEntry = await db.UserLimits.FirstOrDefaultAsync(item => item.SessionId == sessionId);
+    var limitEntry = await db.UserLimits.FirstOrDefaultAsync(item => item.SessionId == limitKey);
     if (limitEntry?.PremiumUntil == null || limitEntry.PremiumUntil <= DateTime.UtcNow)
     {
         return Results.Ok(new { isActive = false });

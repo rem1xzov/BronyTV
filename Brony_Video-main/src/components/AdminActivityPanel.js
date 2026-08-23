@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Activity as ActivityIcon, ArrowLeft, RefreshCw, Users } from "lucide-react";
+import { Activity as ActivityIcon, ArrowLeft, RefreshCw, Trash2, Users } from "lucide-react";
 import { apiFetch } from "../auth/api";
 
 const ACTIVITY_LABELS = {
   video_watch: "Просмотр серии",
+  movie_watch: "Просмотр фильма",
   bot_chat: "Общение с ботом",
   vpn_click: "Клик по VPN",
   forum_view: "Просмотр темы",
@@ -33,6 +34,7 @@ function normalizeActivity(raw) {
     return null;
   }
   return {
+    id: raw.id ?? raw.Id ?? null,
     userId: raw.userId ?? raw.UserId ?? "",
     username: raw.username ?? raw.Username ?? null,
     email: raw.email ?? raw.Email ?? "",
@@ -46,6 +48,7 @@ export default function AdminActivityPanel({ onBack }) {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deletingId, setDeletingId] = useState(null);
 
   const loadActivity = useCallback(async () => {
     setLoading(true);
@@ -72,6 +75,28 @@ export default function AdminActivityPanel({ onBack }) {
   useEffect(() => {
     loadActivity();
   }, [loadActivity]);
+
+  // Мягкое удаление записи: скрываем из админ-ленты, НЕ трогая её в БД.
+  const hideActivity = useCallback(
+    async (id) => {
+      if (id == null || deletingId != null) return;
+      setDeletingId(id);
+      setError("");
+      try {
+        const response = await apiFetch(`/api/admin/activity/${id}/hide`, { method: "POST" });
+        const raw = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(raw.message || "Не удалось скрыть запись.");
+        }
+        await loadActivity();
+      } catch (hideError) {
+        setError(hideError.message || "Не удалось скрыть запись.");
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [deletingId, loadActivity]
+  );
 
   // Группировка по пользователю (аккаунт → список действий за неделю).
   const grouped = activities.reduce((acc, activity) => {
@@ -146,7 +171,7 @@ export default function AdminActivityPanel({ onBack }) {
               </div>
               <ul className="admin-activity-list">
                 {group.items.map((activity, index) => (
-                  <li key={index} className="admin-activity-item">
+                  <li key={activity.id ?? index} className="admin-activity-item">
                     <div className="admin-activity-main">
                       <span className="admin-activity-type">
                         {ACTIVITY_LABELS[activity.type] || activity.type}
@@ -158,6 +183,16 @@ export default function AdminActivityPanel({ onBack }) {
                     <span className="admin-activity-time muted">
                       {formatActivityTime(activity.timestamp)}
                     </span>
+                    <button
+                      type="button"
+                      className="admin-activity-delete"
+                      onClick={() => hideActivity(activity.id)}
+                      disabled={deletingId != null}
+                      aria-label="Скрыть запись активности"
+                      title="Скрыть запись"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </li>
                 ))}
               </ul>
