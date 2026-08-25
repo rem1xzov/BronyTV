@@ -152,6 +152,16 @@ public class VpnService : IVpnService
         }
     }
 
+                    /// <summary>
+    /// Проверяет, что интеграция с 3X-UI полностью сконфигурирована (включена и
+    /// заданы URL API + Bearer-токен). Провижионирование обязательно: если панель
+    /// не готова, пользователю не должна выдаваться VLESS-ссылка.
+    /// </summary>
+    private static bool IsPanelReady(VpnOptions options)
+        => options.Enabled
+           && !string.IsNullOrWhiteSpace(options.PanelApiUrl)
+           && !string.IsNullOrWhiteSpace(options.PanelApiToken);
+
     public async Task<(bool Success, string? Error, VpnTrialStartResponse? Response, bool ServerError)> StartTrialAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
@@ -182,35 +192,43 @@ public class VpnService : IVpnService
             PanelPlanNameId = "trial"
         };
 
-        // ===== АТОМАРНОСТЬ =====
-        // Сначала провижионируем клиента на панели 3X-UI. Только при успехе 3X-UI
-        // (success=true) сохраняем запись в PostgreSQL. Если панель упала или ответила
-        // ошибкой — НЕ сохраняем подписку, НЕ помечаем триал использованным и
-        // возвращаем на фронт понятную ошибку (HTTP 502).
-        if (_panelClient.IsConfigured)
+                // ===== АТОМАРНОСТЬ =====
+        // Сначала провижионируем клиента на панели 3X-UI. Только при подтверждении
+        // от 3X-UI, что клиент создан, сохраняем запись в PostgreSQL и возвращаем
+        // успех. Если панель не сконфигурирована, недоступна или ответила ошибкой —
+        // НЕ выдаём ссылку и наружу уходит явный ServerError (HTTP 502). Это
+        // исключает ситуацию, когда пользователь получает синтаксически валидную,
+        // но «мёртвую» VLESS-ссылку с UUID, которого нет на инбаунде сервера.
+        if (!IsPanelReady(options))
         {
-            bool provisioned;
-            try
-            {
-                provisioned = await _panelClient.UpsertClientAsync(
-                    subscription.ClientUuid,
-                    $"bronytv-{subscription.Kind}-{userId:N}",
-                    subscription.ExpiresAtUtc.Value,
-                    cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "3X-UI: сбой при создании trial-клиента для пользователя {UserId}.", userId);
-                return (false, "Не удалось активировать trial: VPN-провайдер недоступен.", null, true);
-            }
+            _logger.LogError(
+                "3X-UI: панель не сконфигурирована (VPN_ENABLED=true, но отсутствует " +
+                "VPN_PANEL_API_URL или VPN_PANEL_API_TOKEN). Trial для пользователя {UserId} отклонён.",
+                userId);
+            return (false, "Не удалось активировать trial: VPN-провайдер не настроен.", null, true);
+        }
 
-            if (!provisioned)
-            {
-                _logger.LogWarning(
-                    "3X-UI: не удалось создать trial-клиента (success=false) для пользователя {UserId}.",
-                    userId);
-                return (false, "Не удалось активировать trial: ошибка VPN-провайдера.", null, true);
-            }
+        bool provisioned;
+        try
+        {
+            provisioned = await _panelClient.UpsertClientAsync(
+                subscription.ClientUuid,
+                $"bronytv-{subscription.Kind}-{userId:N}",
+                subscription.ExpiresAtUtc.Value,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "3X-UI: сбой при создании trial-клиента для пользователя {UserId}.", userId);
+            return (false, "Не удалось активировать trial: VPN-провайдер недоступен.", null, true);
+        }
+
+        if (!provisioned)
+        {
+            _logger.LogWarning(
+                "3X-UI: не удалось создать trial-клиента (success=false) для пользователя {UserId}.",
+                userId);
+            return (false, "Не удалось активировать trial: ошибка VPN-провайдера.", null, true);
         }
 
         // 3X-UI успешно провижионировал клиента — теперь сохраняем в БД.
@@ -270,35 +288,42 @@ public class VpnService : IVpnService
             expiresAtUtc = baseTime.AddMonths(months);
         }
 
-        // ===== АТОМАРНОСТЬ =====
+                // ===== АТОМАРНОСТЬ =====
         // Сначала провижионируем/продлеваем клиента на панели 3X-UI. Только при
-        // успехе 3X-UI сохраняем изменения в PostgreSQL (активируем промо).
-        // Если панель недоступна — промо НЕ помечается использованным и подписка
-        // НЕ создаётся/не продлевается, на фронт уходит HTTP 502.
-        if (_panelClient.IsConfigured)
+        // подтверждении от 3X-UI сохраняем изменения в PostgreSQL (активируем промо).
+        // Если панель не сконфигурирована или недоступна — промо НЕ помечается
+        // использованным, подписка НЕ создаётся/не продлевается, на фронт уходит
+        // HTTP 502, а «мёртвая» ссылка не выдаётся.
+        if (!IsPanelReady(options))
         {
-            bool provisioned;
-            try
-            {
-                provisioned = await _panelClient.UpsertClientAsync(
-                    clientUuid,
-                    $"bronytv-{userId:N}",
-                    expiresAtUtc,
-                    cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "3X-UI: сбой при активации промо-кода для пользователя {UserId}.", userId);
-                return (false, "Не удалось активировать промо-код: VPN-провайдер недоступен.", null, true);
-            }
+            _logger.LogError(
+                "3X-UI: панель не сконфигурирована (VPN_ENABLED=true, но отсутствует " +
+                "VPN_PANEL_API_URL или VPN_PANEL_API_TOKEN). Промо-код для пользователя {UserId} отклонён.",
+                userId);
+            return (false, "Не удалось активировать промо-код: VPN-провайдер не настроен.", null, true);
+        }
 
-            if (!provisioned)
-            {
-                _logger.LogWarning(
-                    "3X-UI: не удалось активировать клиента по промо-коду (success=false) для пользователя {UserId}.",
-                    userId);
-                return (false, "Не удалось активировать промо-код: ошибка VPN-провайдера.", null, true);
-            }
+        bool provisioned;
+        try
+        {
+            provisioned = await _panelClient.UpsertClientAsync(
+                clientUuid,
+                $"bronytv-{userId:N}",
+                expiresAtUtc,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "3X-UI: сбой при активации промо-кода для пользователя {UserId}.", userId);
+            return (false, "Не удалось активировать промо-код: VPN-провайдер недоступен.", null, true);
+        }
+
+        if (!provisioned)
+        {
+            _logger.LogWarning(
+                "3X-UI: не удалось активировать клиента по промо-коду (success=false) для пользователя {UserId}.",
+                userId);
+            return (false, "Не удалось активировать промо-код: ошибка VPN-провайдера.", null, true);
         }
 
         // Панель успешно провижионировала клиента — теперь сохраняем в БД.
