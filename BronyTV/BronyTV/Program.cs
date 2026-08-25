@@ -76,6 +76,7 @@ builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.AddHostedService<VpnExpiryCleanupHostedService>();
 builder.Services.Configure<AdminAccessOptions>(builder.Configuration.GetSection(AdminAccessOptions.SectionName));
 builder.Services.Configure<VpnOptions>(builder.Configuration.GetSection(VpnOptions.SectionName));
+builder.Services.AddSingleton<VpnConfigResolver>();
 builder.Services.AddSingleton<IAdminAccessService, AdminAccessService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHostedService<ConfirmationCleanupHostedService>();

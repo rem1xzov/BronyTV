@@ -53,15 +53,18 @@ public interface IVpn3xUiClient
 public class Vpn3xUiClient : IVpn3xUiClient
 {
     private readonly IOptions<VpnOptions> _options;
+    private readonly VpnConfigResolver _vpnConfig;
     private readonly ILogger<Vpn3xUiClient> _logger;
     private readonly HttpClient _http;
 
     public Vpn3xUiClient(
         IOptions<VpnOptions> options,
+        VpnConfigResolver vpnConfig,
         ILogger<Vpn3xUiClient> logger,
         HttpClient http)
     {
         _options = options;
+        _vpnConfig = vpnConfig;
         _logger = logger;
         _http = http;
     }
@@ -69,21 +72,23 @@ public class Vpn3xUiClient : IVpn3xUiClient
     private VpnOptions Options => _options.Value;
 
     public bool IsConfigured => Options.Enabled
-        && !string.IsNullOrWhiteSpace(Options.PanelApiUrl)
-        && !string.IsNullOrWhiteSpace(Options.PanelApiToken);
+        && !string.IsNullOrWhiteSpace(_vpnConfig.PanelApiUrl)
+        && !string.IsNullOrWhiteSpace(_vpnConfig.PanelApiToken);
 
     private string ApiBase
     {
         get
         {
-            var url = Options.PanelApiUrl?.Trim().TrimEnd('/');
+            var url = _vpnConfig.PanelApiUrl?.Trim().TrimEnd('/');
             return string.IsNullOrWhiteSpace(url) ? string.Empty : url;
         }
     }
 
     /// <summary>
-    /// Нормализует базовый URL панели до <c>{base}/panel/api</c>, независимо от того,
-    /// передан ли <c>VPN_PANEL_API_URL</c> уже с суффиксом <c>/panel</c> или без него.
+    /// Базовый URL API панели: <c>{PanelApiUrl}/panel/api</c>. Относительная склейка
+    /// без ведущего слэша сохраняет секретный web-префикс панели, например
+    /// <c>https://ip:port/TugsFcqj7OslFxFadz/panel/api</c>. Если URL уже содержит
+    /// суффикс <c>/panel</c> — он не дублируется.
     /// </summary>
     private string ApiBase_Api
     {
@@ -95,18 +100,9 @@ public class Vpn3xUiClient : IVpn3xUiClient
                 return string.Empty;
             }
 
-            const string panelSuffix = "/panel";
-            if (baseUrl.EndsWith(panelSuffix, StringComparison.OrdinalIgnoreCase))
-            {
-                baseUrl = baseUrl[..^panelSuffix.Length].TrimEnd('/');
-            }
-
-            if (!baseUrl.EndsWith("/panel"))
-            {
-                baseUrl += "/panel";
-            }
-
-            return $"{baseUrl}/api";
+            return baseUrl.EndsWith("/panel", StringComparison.OrdinalIgnoreCase)
+                ? $"{baseUrl}/api"
+                : $"{baseUrl}/panel/api";
         }
     }
 
@@ -121,7 +117,7 @@ public class Vpn3xUiClient : IVpn3xUiClient
     {
         request.Headers.Authorization = new AuthenticationHeaderValue(
             "Bearer",
-            Options.PanelApiToken);
+            _vpnConfig.PanelApiToken);
     }
 
     public async Task<bool> UpsertClientAsync(
@@ -353,13 +349,14 @@ public class Vpn3xUiClient : IVpn3xUiClient
     // ===== Чтение инбаундов и клиентов =====
 
     /// <summary>
-    /// Определяет ID инбаунда: из конфигурации <c>PanelInboundId</c> либо первый VLESS-инбаунд.
+    /// Определяет ID инбаунда: из конфигурации <c>PanelInboundId</c> (по умолчанию 2)
+    /// либо первый VLESS-инбаунд.
     /// </summary>
     private async Task<long?> ResolveInboundIdAsync(CancellationToken cancellationToken)
     {
-        if (Options.PanelInboundId.HasValue && Options.PanelInboundId.Value > 0)
+        if (_vpnConfig.InboundId > 0)
         {
-            return Options.PanelInboundId.Value;
+            return _vpnConfig.InboundId;
         }
 
         var ids = await ListInboundIdsAsync(cancellationToken).ConfigureAwait(false);

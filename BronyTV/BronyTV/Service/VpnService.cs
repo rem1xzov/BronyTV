@@ -42,6 +42,7 @@ public class VpnService : IVpnService
     private readonly IVpnRepository _vpnRepository;
     private readonly IUserRepository _userRepository;
     private readonly IOptions<VpnOptions> _optionsAccessor;
+    private readonly VpnConfigResolver _vpnConfig;
     private readonly IVpn3xUiClient _panelClient;
     private readonly ILogger<VpnService> _logger;
 
@@ -49,12 +50,14 @@ public class VpnService : IVpnService
         IVpnRepository vpnRepository,
         IUserRepository userRepository,
         IOptions<VpnOptions> options,
+        VpnConfigResolver vpnConfig,
         IVpn3xUiClient panelClient,
         ILogger<VpnService> logger)
     {
         _vpnRepository = vpnRepository;
         _userRepository = userRepository;
         _optionsAccessor = options;
+        _vpnConfig = vpnConfig;
         _panelClient = panelClient;
         _logger = logger;
     }
@@ -157,10 +160,10 @@ public class VpnService : IVpnService
     /// заданы URL API + Bearer-токен). Провижионирование обязательно: если панель
     /// не готова, пользователю не должна выдаваться VLESS-ссылка.
     /// </summary>
-    private static bool IsPanelReady(VpnOptions options)
-        => options.Enabled
-           && !string.IsNullOrWhiteSpace(options.PanelApiUrl)
-           && !string.IsNullOrWhiteSpace(options.PanelApiToken);
+    private bool IsPanelReady()
+        => _optionsAccessor.Value.Enabled
+           && !string.IsNullOrWhiteSpace(_vpnConfig.PanelApiUrl)
+           && !string.IsNullOrWhiteSpace(_vpnConfig.PanelApiToken);
 
     public async Task<(bool Success, string? Error, VpnTrialStartResponse? Response, bool ServerError)> StartTrialAsync(
         Guid userId,
@@ -199,7 +202,7 @@ public class VpnService : IVpnService
         // НЕ выдаём ссылку и наружу уходит явный ServerError (HTTP 502). Это
         // исключает ситуацию, когда пользователь получает синтаксически валидную,
         // но «мёртвую» VLESS-ссылку с UUID, которого нет на инбаунде сервера.
-        if (!IsPanelReady(options))
+        if (!IsPanelReady())
         {
             _logger.LogError(
                 "3X-UI: панель не сконфигурирована (VPN_ENABLED=true, но отсутствует " +
@@ -294,7 +297,7 @@ public class VpnService : IVpnService
         // Если панель не сконфигурирована или недоступна — промо НЕ помечается
         // использованным, подписка НЕ создаётся/не продлевается, на фронт уходит
         // HTTP 502, а «мёртвая» ссылка не выдаётся.
-        if (!IsPanelReady(options))
+        if (!IsPanelReady())
         {
             _logger.LogError(
                 "3X-UI: панель не сконфигурирована (VPN_ENABLED=true, но отсутствует " +
