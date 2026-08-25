@@ -161,9 +161,22 @@ public class VpnService : IVpnService
     /// не готова, пользователю не должна выдаваться VLESS-ссылка.
     /// </summary>
     private bool IsPanelReady()
-        => _optionsAccessor.Value.Enabled
-           && !string.IsNullOrWhiteSpace(_vpnConfig.PanelApiUrl)
-           && !string.IsNullOrWhiteSpace(_vpnConfig.PanelApiToken);
+    {
+        var enabled = _optionsAccessor.Value.Enabled;
+        var hasUrl = !string.IsNullOrWhiteSpace(_vpnConfig.PanelApiUrl);
+        var hasToken = !string.IsNullOrWhiteSpace(_vpnConfig.PanelApiToken);
+
+        if (!enabled || !hasUrl || !hasToken)
+        {
+            _logger.LogWarning(
+                "3X-UI: панель не готова (Enabled={Enabled}, HasApiUrl={HasApiUrl}, HasApiToken={HasApiToken}).",
+                enabled,
+                hasUrl,
+                hasToken);
+        }
+
+        return enabled && hasUrl && hasToken;
+    }
 
     public async Task<(bool Success, string? Error, VpnTrialStartResponse? Response, bool ServerError)> StartTrialAsync(
         Guid userId,
