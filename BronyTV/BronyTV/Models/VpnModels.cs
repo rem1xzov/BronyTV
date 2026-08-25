@@ -76,7 +76,12 @@ public static class VlessLinkBuilder
 
         var pbk = ExtractParam(parameters, "pbk", DefaultPublicKey);
         var sni = ExtractParam(parameters, "sni", DefaultSni);
-        var sid = ExtractParam(parameters, "sid", DefaultShortId);
+
+        // REALITY требует, чтобы shortId был hex-строкой (только 0-9, a-f) длиной
+        // НЕ более 16 символов (8 байт). Игнорируем любые битые значения из конфигурации:
+        // отбрасываем не-hex символы, обрезаем до 16 и, если результат пуст — используем
+        // безопасный дефолт. Так ссылка никогда не содержит «too long shortId».
+        var sid = NormalizeShortId(ExtractParam(parameters, "sid", DefaultShortId));
 
         var safeHost = string.IsNullOrWhiteSpace(host) ? "127.0.0.1" : host.Trim();
         var safePort = port > 0 && port <= 65535 ? port : 443;
@@ -93,6 +98,35 @@ public static class VlessLinkBuilder
                + ":" + safePort
                + "?" + query
                + "#" + Uri.EscapeDataString(safeRemark);
+    }
+
+    /// <summary>
+    /// Приводит shortId к валидному виду для REALITY: оставляет только hex-символы
+    /// (0-9, a-f), обрезает до 16 символов и переводит в нижний регистр. Если после
+    /// очистки строка пустая — возвращает безопасный дефолт.
+    /// </summary>
+    private static string NormalizeShortId(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+        {
+            return DefaultShortId;
+        }
+
+        var sb = new System.Text.StringBuilder();
+        foreach (var ch in raw)
+        {
+            if (sb.Length >= 16)
+            {
+                break;
+            }
+            var c = char.ToLowerInvariant(ch);
+            if ((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))
+            {
+                sb.Append(c);
+            }
+        }
+
+        return sb.Length > 0 ? sb.ToString() : DefaultShortId;
     }
 
     /// <summary>
