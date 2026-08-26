@@ -382,7 +382,6 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
   const [promoMessage, setPromoMessage] = useState("");
   const [promoMessageType, setPromoMessageType] = useState("");
   const [copied, setCopied] = useState("");
-  const [showPromoInput, setShowPromoInput] = useState(false);
   const [showNotice, setShowNotice] = useState(false);
 
   const loadStatus = useCallback(async () => {
@@ -404,7 +403,6 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
 
   useEffect(() => {
     if (isOpen && isAuthenticated) {
-      setShowPromoInput(false);
       setShowNotice(false);
       setPromoMessage("");
       setPromoCode("");
@@ -474,7 +472,6 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
       setPromoMessage(t("vpn.promoSuccess"));
       setPromoMessageType("success");
       setPromoCode("");
-      setShowPromoInput(false);
       await loadStatus();
     } catch (promoError) {
       setPromoMessage(promoError.message || "Не удалось активировать промо-код.");
@@ -600,14 +597,15 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
                     <span>{t("vpn.panel")}</span>
                   </a>
                 ) : null}
-                <button
-                  type="button"
+                <a
                   className="secondary-btn vpn-renew-btn"
-                  onClick={() => setShowPromoInput((prev) => !prev)}
+                  href="https://boosty.to/bronytvru"
+                  target="_blank"
+                  rel="noopener noreferrer"
                 >
                   <Plus size={16} />
                   <span>{t("vpn.renew")}</span>
-                </button>
+                </a>
                 <button
                   type="button"
                   className="icon-btn vpn-notice-btn"
@@ -619,36 +617,34 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
                 </button>
               </div>
 
-              {showPromoInput ? (
-                <form className="vpn-promo-box" onSubmit={handleActivatePromo}>
-                  <label className="vpn-promo-label">{t("vpn.promoLabel")}</label>
-                  <div className="vpn-promo-row">
-                    <input
-                      type="text"
-                      value={promoCode}
-                      onChange={(event) => {
-                        setPromoCode(event.target.value);
-                        setPromoMessage("");
-                        setError("");
-                      }}
-                      placeholder={t("vpn.promoPlaceholder")}
-                      autoCapitalize="chars"
-                      autoComplete="off"
-                      autoCorrect="off"
-                      spellCheck={false}
-                      maxLength={16}
-                    />
-                    <button type="submit" className="primary-btn vpn-promo-apply-btn" disabled={promoBusy}>
-                      {promoBusy ? "…" : t("vpn.activate")}
-                    </button>
-                  </div>
-                  {promoMessage ? (
-                    <p className={`vpn-promo-message vpn-promo-message--${promoMessageType}`} role="status">
-                      {promoMessage}
-                    </p>
-                  ) : null}
-                </form>
-              ) : null}
+              <form className="vpn-promo-box" onSubmit={handleActivatePromo}>
+                <label className="vpn-promo-label">{t("vpn.promoLabel")}</label>
+                <div className="vpn-promo-row">
+                  <input
+                    type="text"
+                    value={promoCode}
+                    onChange={(event) => {
+                      setPromoCode(event.target.value);
+                      setPromoMessage("");
+                      setError("");
+                    }}
+                    placeholder={t("vpn.promoPlaceholder")}
+                    autoCapitalize="chars"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    maxLength={16}
+                  />
+                  <button type="submit" className="primary-btn vpn-promo-apply-btn" disabled={promoBusy}>
+                    {promoBusy ? "…" : t("vpn.activate")}
+                  </button>
+                </div>
+                {promoMessage ? (
+                  <p className={`vpn-promo-message vpn-promo-message--${promoMessageType}`} role="status">
+                    {promoMessage}
+                  </p>
+                ) : null}
+              </form>
             </div>
           ) : (
             <div className="vpn-account">
