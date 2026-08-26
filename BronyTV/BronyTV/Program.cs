@@ -254,6 +254,23 @@ var app = builder.Build();
 var loggerFactory = app.Services.GetRequiredService<ILoggerFactory>();
 var startupLogger = loggerFactory.CreateLogger("BronyTV.Startup");
 
+if (app.Environment.IsDevelopment() || Environment.GetEnvironmentVariable("VPN_DEBUG_CONFIG") == "1")
+{
+    var vpnEntries = builder.Configuration.AsEnumerable()
+        .Where(kv => kv.Key.IndexOf("Vpn", StringComparison.OrdinalIgnoreCase) >= 0)
+        .OrderBy(kv => kv.Key, StringComparer.OrdinalIgnoreCase)
+        .ToList();
+
+    startupLogger.LogInformation("VPN-DIAG: в IConfiguration найдено {Count} ключ(ей), содержащих 'Vpn'.", vpnEntries.Count);
+    foreach (var kv in vpnEntries)
+    {
+        var isSensitive = kv.Key.IndexOf("token", StringComparison.OrdinalIgnoreCase) >= 0
+                          || kv.Key.IndexOf("password", StringComparison.OrdinalIgnoreCase) >= 0
+                          || kv.Key.IndexOf("secret", StringComparison.OrdinalIgnoreCase) >= 0;
+        startupLogger.LogInformation("VPN-DIAG: key='{Key}' value='{Value}'", kv.Key, isSensitive ? "<masked>" : kv.Value);
+    }
+}
+
 await using (var scope = app.Services.CreateAsyncScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<DbBronyTV>();

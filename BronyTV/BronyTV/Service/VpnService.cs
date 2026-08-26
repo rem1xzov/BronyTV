@@ -221,6 +221,7 @@ public class VpnService : IVpnService
                 "3X-UI: панель не сконфигурирована (VPN_ENABLED=true, но отсутствует " +
                 "VPN_PANEL_API_URL или VPN_PANEL_API_TOKEN). Trial для пользователя {UserId} отклонён.",
                 userId);
+            _vpnConfig.LogDiagnostics();
             return (false, "Не удалось активировать trial: VPN-провайдер не настроен.", null, true);
         }
 
@@ -316,6 +317,7 @@ public class VpnService : IVpnService
                 "3X-UI: панель не сконфигурирована (VPN_ENABLED=true, но отсутствует " +
                 "VPN_PANEL_API_URL или VPN_PANEL_API_TOKEN). Промо-код для пользователя {UserId} отклонён.",
                 userId);
+            _vpnConfig.LogDiagnostics();
             return (false, "Не удалось активировать промо-код: VPN-провайдер не настроен.", null, true);
         }
 
