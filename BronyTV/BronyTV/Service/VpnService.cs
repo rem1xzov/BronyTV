@@ -135,7 +135,7 @@ public class VpnService : IVpnService
 
             var expiresAt = subscription.ExpiresAtUtc
                 ?? DateTime.UtcNow.AddDays(Math.Max(1, _optionsAccessor.Value.TrialDays));
-            var email = $"bronytv-{subscription.UserId:N}";
+            var email = BuildPanelEmail(subscription.UserId);
 
             _logger.LogInformation(
                 "3X-UI: клиент {Uuid} отсутствует на панели, восстанавливаю (subscription {SubId}).",
@@ -230,7 +230,7 @@ public class VpnService : IVpnService
         {
             provisioned = await _panelClient.UpsertClientAsync(
                 subscription.ClientUuid,
-                $"bronytv-{userId:N}",
+                BuildPanelEmail(userId),
                 subscription.ExpiresAtUtc.Value,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -326,7 +326,7 @@ public class VpnService : IVpnService
         {
             provisioned = await _panelClient.UpsertClientAsync(
                 clientUuid,
-                $"bronytv-{userId:N}",
+                BuildPanelEmail(userId),
                 expiresAtUtc,
                 cancellationToken).ConfigureAwait(false);
         }
@@ -394,6 +394,13 @@ public class VpnService : IVpnService
             await _panelClient.RemoveClientAsync(active.ClientUuid, cancellationToken);
         }
     }
+
+    /// <summary>
+    /// Детерминированный email клиента на панели 3X-UI: "BronyVPN-" + первые 8 символов
+    /// UUID пользователя. Один и тот же userId всегда даёт один и тот же email.
+    /// </summary>
+    private static string BuildPanelEmail(Guid userId)
+        => $"BronyVPN-{userId.ToString("N")[..8]}";
 
     private string BuildVlessLink(string? remoteUuid, VpnOptions options)
     {
