@@ -6,7 +6,6 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
@@ -156,10 +155,12 @@ public class Vpn3xUiClient : IVpn3xUiClient
                 clientUuid,
                 inboundId.Value);
             await UpdateClientInInboundAsync(
-                inboundId.Value,
                 clientUuid,
                 email,
                 expiryMs,
+                existing.SubId,
+                existing.Password,
+                existing.Auth,
                 cancellationToken).ConfigureAwait(false);
             return true;
         }
@@ -210,7 +211,6 @@ public class Vpn3xUiClient : IVpn3xUiClient
             }
 
             await DeleteClientFromInboundAsync(
-                client.InboundId,
                 clientUuid,
                 cancellationToken).ConfigureAwait(false);
             return true;
@@ -248,7 +248,7 @@ public class Vpn3xUiClient : IVpn3xUiClient
                         "3X-UI: срок действия клиента {Email} истёк (inbound {InboundId}), удаляю.",
                         client.Email ?? client.Id,
                         inboundId);
-                    await DeleteClientFromInboundAsync(inboundId, client.Id, cancellationToken).ConfigureAwait(false);
+                    await DeleteClientFromInboundAsync(client.Id, cancellationToken).ConfigureAwait(false);
                     removed++;
                 }
             }
@@ -265,9 +265,8 @@ public class Vpn3xUiClient : IVpn3xUiClient
     // ===== Создание клиента =====
 
     /// <summary>
-    /// Создаёт клиента через <c>POST /panel/api/inbounds/addClient</c>.
-    /// Тело: <c>{"id": &lt;int inboundId&gt;, "settings": "&lt;json string&gt;"}</c>,
-    /// где <c>settings</c> — JSON-строка вида <c>{"clients":[&lt;client&gt;]}</c>.
+    /// Создаёт клиента через <c>POST /panel/api/clients/add</c>.
+    /// Тело: <c>{"client": &lt;object&gt;, "inboundIds": [&lt;inboundId&gt;]}</c>.
     /// </summary>
     private async Task AddClientToInboundAsync(
         long inboundId,
@@ -276,17 +275,21 @@ public class Vpn3xUiClient : IVpn3xUiClient
         long expiryMs,
         CancellationToken cancellationToken)
     {
-        var client = BuildClientObject(clientUuid, email, expiryMs);
-        var settingsString = BuildSettingsString(new[] { client });
+        var client = BuildClientObject(clientUuid, email, expiryMs, null, null, null);
 
-        var payload = Serialize(new { id = inboundId, settings = settingsString });
+        var payload = new JsonObject
+        {
+            ["client"] = client,
+            ["inboundIds"] = new JsonArray(inboundId)
+        }.ToJsonString();
+
         _logger.LogInformation(
             "3X-UI: добавляю клиента {Uuid} (inbound {InboundId}). Payload: {Payload}",
             clientUuid,
             inboundId,
             payload);
 
-        var url = $"{ApiInboundsBase}/addClient";
+        var url = $"{ApiBase_Api}/clients/add";
         var body = await PostJsonAndReadAsync(url, payload, cancellationToken).ConfigureAwait(false);
         var ok = await EnsureSuccessAsync(body, "добавление клиента", clientUuid, cancellationToken).ConfigureAwait(false);
         if (ok)
@@ -296,26 +299,27 @@ public class Vpn3xUiClient : IVpn3xUiClient
     }
 
     /// <summary>
-    /// Обновляет существующего клиента через <c>POST /panel/api/inbounds/updateClient/{inboundId}/{uuid}</c>.
+    /// Обновляет существующего клиента через <c>POST /panel/api/clients/update/{uuid}</c>.
+    /// Тело — объект клиента напрямую (без обёртки <c>client</c>/<c>settings</c>).
     /// </summary>
     private async Task UpdateClientInInboundAsync(
-        long inboundId,
         string clientUuid,
         string email,
         long expiryMs,
+        string? subId,
+        string? password,
+        string? auth,
         CancellationToken cancellationToken)
     {
-        var client = BuildClientObject(clientUuid, email, expiryMs);
-        var settingsString = BuildSettingsString(new[] { client });
+        var client = BuildClientObject(clientUuid, email, expiryMs, subId, password, auth);
+        var payload = client.ToJsonString();
 
-        var payload = Serialize(new { settings = settingsString });
         _logger.LogInformation(
-            "3X-UI: продлеваю клиента {Uuid} (inbound {InboundId}). Payload: {Payload}",
+            "3X-UI: продлеваю клиента {Uuid}. Payload: {Payload}",
             clientUuid,
-            inboundId,
             payload);
 
-        var url = $"{ApiInboundsBase}/updateClient/{inboundId}/{Uri.EscapeDataString(clientUuid)}";
+        var url = $"{ApiBase_Api}/clients/update/{Uri.EscapeDataString(clientUuid)}";
         var body = await PostJsonAndReadAsync(url, payload, cancellationToken).ConfigureAwait(false);
         var ok = await EnsureSuccessAsync(body, "продление клиента", clientUuid, cancellationToken).ConfigureAwait(false);
         if (ok)
@@ -325,15 +329,14 @@ public class Vpn3xUiClient : IVpn3xUiClient
     }
 
     /// <summary>
-    /// Удаляет клиента из инбаунда: <c>POST /panel/api/inbounds/delClient/{inboundId}/{uuid}</c>.
+    /// Удаляет клиента: <c>POST /panel/api/clients/del/{uuid}</c> (тело пустое).
     /// </summary>
     private async Task DeleteClientFromInboundAsync(
-        long inboundId,
         string clientUuid,
         CancellationToken cancellationToken)
     {
-        var url = $"{ApiInboundsBase}/delClient/{inboundId}/{Uri.EscapeDataString(clientUuid)}";
-        _logger.LogInformation("3X-UI: удаляю клиента {Uuid} (inbound {InboundId}).", clientUuid, inboundId);
+        var url = $"{ApiBase_Api}/clients/del/{Uri.EscapeDataString(clientUuid)}";
+        _logger.LogInformation("3X-UI: удаляю клиента {Uuid}.", clientUuid);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         Authorize(request);
@@ -422,6 +425,9 @@ public class Vpn3xUiClient : IVpn3xUiClient
             {
                 Id = node["id"]?.GetValue<string>() ?? string.Empty,
                 Email = node["email"]?.GetValue<string>(),
+                SubId = node["subId"]?.GetValue<string>(),
+                Password = node["password"]?.GetValue<string>(),
+                Auth = node["auth"]?.GetValue<string>(),
                 ExpiryTime = node["expiryTime"]?.GetValue<long>() ?? 0
             });
         }
@@ -444,6 +450,9 @@ public class Vpn3xUiClient : IVpn3xUiClient
                 {
                     Id = match.Id,
                     Email = match.Email,
+                    SubId = match.SubId,
+                    Password = match.Password,
+                    Auth = match.Auth,
                     ExpiryTime = match.ExpiryTime,
                     InboundId = inboundId
                 };
@@ -471,6 +480,9 @@ public class Vpn3xUiClient : IVpn3xUiClient
                 {
                     Id = match.Id,
                     Email = match.Email,
+                    SubId = match.SubId,
+                    Password = match.Password,
+                    Auth = match.Auth,
                     ExpiryTime = match.ExpiryTime,
                     InboundId = inboundId
                 };
@@ -481,42 +493,32 @@ public class Vpn3xUiClient : IVpn3xUiClient
 
     // ===== Построение payload =====
 
-    private static string BuildClientObject(string clientUuid, string email, long expiryMs)
+    private static JsonObject BuildClientObject(
+        string clientUuid,
+        string email,
+        long expiryMs,
+        string? subId,
+        string? password,
+        string? auth)
     {
-        return Serialize(new
+        return new JsonObject
         {
-            id = clientUuid,
-            email,
-            enable = true,
-            expiryTime = expiryMs,
-            limitIp = 0,
-            totalGB = 0,
-            flow = "",                 // gRPC Reality: Flow строго пустой.
-            subId = GenerateSubId(),   // случайная строка подписки.
-            reset = 0,
-            tgId = "",
-            comment = ""
-        });
-    }
-
-    /// <summary>
-    /// Собирает JSON-строку <c>settings</c>: <c>{"clients":[&lt;...&gt;]}</c>.
-    /// Это значение передаётся в поле <c>settings</c> как строка внутри JSON-запроса.
-    /// </summary>
-    private static string BuildSettingsString(IReadOnlyList<string> clientJsonStrings)
-    {
-        var clients = new JsonArray();
-        foreach (var json in clientJsonStrings)
-        {
-            if (string.IsNullOrWhiteSpace(json))
-            {
-                continue;
-            }
-            clients.Add(JsonNode.Parse(json));
-        }
-
-        var settings = new JsonObject { ["clients"] = clients };
-        return settings.ToJsonString();
+            ["email"] = email,
+            ["subId"] = string.IsNullOrEmpty(subId) ? GenerateSubId() : subId,
+            ["id"] = clientUuid,
+            ["password"] = string.IsNullOrEmpty(password) ? GenerateSubId() : password,
+            ["auth"] = string.IsNullOrEmpty(auth) ? GenerateSubId() : auth,
+            ["flow"] = "",          // gRPC Reality: Flow строго пустой.
+            ["security"] = "auto",
+            ["totalGB"] = 0,
+            ["expiryTime"] = expiryMs,
+            ["reset"] = 0,
+            ["limitIp"] = 0,
+            ["tgId"] = 0,
+            ["group"] = "",
+            ["comment"] = "",
+            ["enable"] = true
+        };
     }
 
     /// <summary>
@@ -532,9 +534,6 @@ public class Vpn3xUiClient : IVpn3xUiClient
         }
         return sb.ToString();
     }
-
-    private static string Serialize(object value)
-        => JsonSerializer.Serialize(value);
 
     // ===== Отправка и проверка ответа =====
 
@@ -613,6 +612,9 @@ internal sealed class XuiClientEntry
 {
     public string Id { get; set; } = string.Empty;
     public string? Email { get; set; }
+    public string? SubId { get; set; }
+    public string? Password { get; set; }
+    public string? Auth { get; set; }
     public long ExpiryTime { get; set; }
     public long InboundId { get; set; }
 }
