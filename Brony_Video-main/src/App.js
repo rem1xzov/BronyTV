@@ -721,6 +721,14 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
             <Link className="primary-btn" to="/news">
               {t("home.openNews")}
             </Link>
+            <a
+              className="primary-btn"
+              href="https://boosty.to/bronytvru"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Boosty
+            </a>
           </div>
         </div>
       </section>
