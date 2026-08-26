@@ -210,8 +210,15 @@ public class Vpn3xUiClient : IVpn3xUiClient
                 return true; // уже отсутствует на панели.
             }
 
+            if (string.IsNullOrWhiteSpace(client.Email))
+            {
+                _logger.LogWarning("3X-UI: у клиента {Uuid} нет email — удаление пропущено.", clientUuid);
+                return false;
+            }
+
             await DeleteClientFromInboundAsync(
                 clientUuid,
+                client.Email,
                 cancellationToken).ConfigureAwait(false);
             return true;
         }
@@ -244,11 +251,17 @@ public class Vpn3xUiClient : IVpn3xUiClient
                         continue;
                     }
 
+                    if (string.IsNullOrWhiteSpace(client.Email))
+                    {
+                        _logger.LogWarning("3X-UI: у просроченного клиента {Id} нет email — удаление пропущено.", client.Id);
+                        continue;
+                    }
+
                     _logger.LogInformation(
                         "3X-UI: срок действия клиента {Email} истёк (inbound {InboundId}), удаляю.",
-                        client.Email ?? client.Id,
+                        client.Email,
                         inboundId);
-                    await DeleteClientFromInboundAsync(client.Id, cancellationToken).ConfigureAwait(false);
+                    await DeleteClientFromInboundAsync(client.Id, client.Email, cancellationToken).ConfigureAwait(false);
                     removed++;
                 }
             }
@@ -299,7 +312,7 @@ public class Vpn3xUiClient : IVpn3xUiClient
     }
 
     /// <summary>
-    /// Обновляет существующего клиента через <c>POST /panel/api/clients/update/{uuid}</c>.
+    /// Обновляет существующего клиента через <c>POST /panel/api/clients/update/{email}</c>.
     /// Тело — объект клиента напрямую (без обёртки <c>client</c>/<c>settings</c>).
     /// </summary>
     private async Task UpdateClientInInboundAsync(
@@ -319,7 +332,7 @@ public class Vpn3xUiClient : IVpn3xUiClient
             clientUuid,
             payload);
 
-        var url = $"{ApiBase_Api}/clients/update/{Uri.EscapeDataString(clientUuid)}";
+        var url = $"{ApiBase_Api}/clients/update/{Uri.EscapeDataString(email)}";
         var body = await PostJsonAndReadAsync(url, payload, cancellationToken).ConfigureAwait(false);
         var ok = await EnsureSuccessAsync(body, "продление клиента", clientUuid, cancellationToken).ConfigureAwait(false);
         if (ok)
@@ -329,14 +342,15 @@ public class Vpn3xUiClient : IVpn3xUiClient
     }
 
     /// <summary>
-    /// Удаляет клиента: <c>POST /panel/api/clients/del/{uuid}</c> (тело пустое).
+    /// Удаляет клиента: <c>POST /panel/api/clients/del/{email}</c> (тело пустое).
     /// </summary>
     private async Task DeleteClientFromInboundAsync(
         string clientUuid,
+        string email,
         CancellationToken cancellationToken)
     {
-        var url = $"{ApiBase_Api}/clients/del/{Uri.EscapeDataString(clientUuid)}";
-        _logger.LogInformation("3X-UI: удаляю клиента {Uuid}.", clientUuid);
+        var url = $"{ApiBase_Api}/clients/del/{Uri.EscapeDataString(email)}";
+        _logger.LogInformation("3X-UI: удаляю клиента {Uuid} (email {Email}).", clientUuid, email);
 
         using var request = new HttpRequestMessage(HttpMethod.Post, url);
         Authorize(request);
