@@ -19,6 +19,16 @@ public interface IVpnRepository
 
     Task<bool> RevokeAsync(Guid userId, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Атомарно сохраняет создание/продление подписки и пометку промо-кода использованным
+    /// в одной транзакции.
+    /// </summary>
+    Task CompletePromoActivationAsync(
+        VpnSubscriptionEntity? newSubscription,
+        VpnSubscriptionEntity? existingSubscription,
+        VpnPromoKeyEntity promo,
+        CancellationToken cancellationToken = default);
+
     // --- Промо-ключи ---
     Task<VpnPromoKeyEntity?> GetByCodeAsync(string code, CancellationToken cancellationToken = default);
     Task<VpnPromoKeyEntity> CreatePromoKeyAsync(VpnPromoKeyEntity key, CancellationToken cancellationToken = default);

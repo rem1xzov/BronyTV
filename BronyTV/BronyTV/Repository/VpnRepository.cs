@@ -67,6 +67,35 @@ public class VpnRepository : IVpnRepository
         return true;
     }
 
+    public async Task CompletePromoActivationAsync(
+        VpnSubscriptionEntity? newSubscription,
+        VpnSubscriptionEntity? existingSubscription,
+        VpnPromoKeyEntity promo,
+        CancellationToken cancellationToken = default)
+    {
+        using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            if (newSubscription != null)
+            {
+                _context.VpnSubscriptions.Add(newSubscription);
+            }
+            else if (existingSubscription != null)
+            {
+                _context.VpnSubscriptions.Update(existingSubscription);
+            }
+
+            _context.VpnPromoKeys.Update(promo);
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
+
     public async Task<VpnPromoKeyEntity?> GetByCodeAsync(string code, CancellationToken cancellationToken = default) =>
         await _context.VpnPromoKeys.FirstOrDefaultAsync(promo => promo.Code == code, cancellationToken);
 

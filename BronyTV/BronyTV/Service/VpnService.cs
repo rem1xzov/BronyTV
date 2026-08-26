@@ -344,11 +344,15 @@ public class VpnService : IVpnService
             return (false, "Не удалось активировать промо-код: ошибка VPN-провайдера.", null, true);
         }
 
-        // Панель успешно провижионировала клиента — теперь сохраняем в БД.
+        // Панель успешно провижионировала клиента — теперь атомарно сохраняем в БД
+        // изменения подписки (создание или продление) и пометку промо-кода использованным.
         var newSubscriptionId = promo.SubscriptionId;
+        VpnSubscriptionEntity? newSubscription = null;
+        VpnSubscriptionEntity? existingSubscription = null;
+
         if (active == null || active.IsRevoked || (active.ExpiresAtUtc != null && active.ExpiresAtUtc <= DateTime.UtcNow))
         {
-            var subscription = new VpnSubscriptionEntity
+            newSubscription = new VpnSubscriptionEntity
             {
                 Id = Guid.NewGuid(),
                 UserId = userId,
@@ -359,21 +363,26 @@ public class VpnService : IVpnService
                 ClientUuid = clientUuid,
                 PanelPlanNameId = $"{months}-month"
             };
-            await _vpnRepository.CreateSubscriptionAsync(subscription, cancellationToken);
-            newSubscriptionId = subscription.Id;
+            newSubscriptionId = newSubscription.Id;
         }
         else
         {
             // Продлеваем действующую подписку.
             active.ExpiresAtUtc = expiresAtUtc;
             active.ClientUuid = clientUuid;
+            existingSubscription = active;
         }
 
         promo.IsUsed = true;
         promo.UsedAtUtc = DateTime.UtcNow;
         promo.UsedByUserId = userId;
         promo.SubscriptionId = newSubscriptionId;
-        await _vpnRepository.SavePromoKeyAsync(promo, cancellationToken);
+
+        await _vpnRepository.CompletePromoActivationAsync(
+            newSubscription,
+            existingSubscription,
+            promo,
+            cancellationToken);
 
         var result = await GetStatusAsync(userId, cancellationToken);
         return (true, null, new VpnPromoActivateResponse
