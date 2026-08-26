@@ -135,7 +135,7 @@ public class VpnService : IVpnService
 
             var expiresAt = subscription.ExpiresAtUtc
                 ?? DateTime.UtcNow.AddDays(Math.Max(1, _optionsAccessor.Value.TrialDays));
-            var email = $"bronytv-{subscription.Kind}-{subscription.UserId:N}";
+            var email = $"bronytv-{subscription.UserId:N}";
 
             _logger.LogInformation(
                 "3X-UI: клиент {Uuid} отсутствует на панели, восстанавливаю (subscription {SubId}).",
@@ -230,7 +230,7 @@ public class VpnService : IVpnService
         {
             provisioned = await _panelClient.UpsertClientAsync(
                 subscription.ClientUuid,
-                $"bronytv-{subscription.Kind}-{userId:N}",
+                $"bronytv-{userId:N}",
                 subscription.ExpiresAtUtc.Value,
                 cancellationToken).ConfigureAwait(false);
         }
