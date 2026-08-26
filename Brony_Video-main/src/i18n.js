@@ -107,6 +107,8 @@ const ru = {
   "vpn.promoSuccess": "Промо-код активирован!",
   "vpn.referralTitle": "Реферальная ссылка",
   "vpn.referralText": "Поделитесь ссылкой — друг получит бонус при регистрации, а вы — награду.",
+  "vpn.noticeTitle": "Важно знать о BronyVPN",
+  "vpn.noticeText": "BronyVPN сейчас находится на стадии тестирования. На всякий случай держите под рукой запасной VPN — сервер пока не самый мощный, и если пользователей станет больше, я планирую перейти на более производительный сервер.\n\nЕсли у вас возникли проблемы, пишите на форуме или в поддержку. Если VPN вообще перестал пропускать трафик, обязательно сообщите — я оперативно разберусь.",
 
   // === Главная страница ===
   "home.tagline":
@@ -236,6 +238,8 @@ const en = {
   "vpn.promoSuccess": "Promo code activated!",
   "vpn.referralTitle": "Referral link",
   "vpn.referralText": "Share the link — a friend gets a bonus on signup and you get a reward.",
+  "vpn.noticeTitle": "Important to know about BronyVPN",
+  "vpn.noticeText": "BronyVPN is currently in testing. Just in case, keep a backup VPN handy — the server isn't the most powerful yet, and if more users join, I plan to switch to a more performant one.\n\nIf you run into any issues, write on the forum or contact support. If VPN stops passing traffic altogether, please let me know — I'll look into it promptly.",
 
   "home.tagline":
     "BronyTV is a cozy streaming service for fans of My Little Pony: Friendship Is Magic with convenient season navigation, a curated selection of top-rated episodes, and quick access to viewing. The homepage features the top-10 highest-rated videos per IMDb, and inside each season you can leave your own rating from 1 to 10. It's easy to find your favorite episodes and jump right into playback.",

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  AlertTriangle,
   Check,
   Copy,
   Download,
@@ -347,6 +348,25 @@ function VpnModalStyles() {
         color: var(--text-muted, #7b4b82);
         line-height: 1.4;
       }
+
+      /* ===== Примечание «Важно знать о BronyVPN» ===== */
+      .vpn-notice-btn {
+        color: #d97706;
+        border-color: rgba(217, 119, 6, 0.28);
+        background: rgba(251, 191, 36, 0.14);
+      }
+      .vpn-notice-btn:hover {
+        background: #f59e0b;
+        color: #fff;
+        transform: translateY(-1px);
+      }
+      .vpn-notice-overlay { z-index: 10000; }
+      .vpn-notice-icon {
+        background: linear-gradient(135deg, rgba(251, 191, 36, 0.24), rgba(217, 119, 6, 0.14));
+        color: #d97706;
+        box-shadow: 0 8px 24px rgba(217, 119, 6, 0.22);
+      }
+      .vpn-notice-text { white-space: pre-line; }
     `}</style>
   );
 }
@@ -363,6 +383,7 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
   const [promoMessageType, setPromoMessageType] = useState("");
   const [copied, setCopied] = useState("");
   const [showPromoInput, setShowPromoInput] = useState(false);
+  const [showNotice, setShowNotice] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -384,6 +405,7 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
   useEffect(() => {
     if (isOpen && isAuthenticated) {
       setShowPromoInput(false);
+      setShowNotice(false);
       setPromoMessage("");
       setPromoCode("");
       loadStatus();
@@ -586,6 +608,15 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
                   <Plus size={16} />
                   <span>{t("vpn.renew")}</span>
                 </button>
+                <button
+                  type="button"
+                  className="icon-btn vpn-notice-btn"
+                  onClick={() => setShowNotice(true)}
+                  aria-label={t("vpn.noticeTitle")}
+                  title={t("vpn.noticeTitle")}
+                >
+                  <AlertTriangle size={16} />
+                </button>
               </div>
 
               {showPromoInput ? (
@@ -697,6 +728,38 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
               </div>
             </div>
         )}
+
+        {showNotice ? (
+          <div
+            className="vpn-modal-overlay vpn-notice-overlay"
+            onClick={(event) => {
+              event.stopPropagation();
+              setShowNotice(false);
+            }}
+            role="presentation"
+          >
+            <div
+              className="vpn-modal"
+              role="dialog"
+              aria-modal="true"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button type="button" className="vpn-modal-close" onClick={() => setShowNotice(false)} aria-label={t("vpn.close")}>
+                <X size={20} />
+              </button>
+              <div className="vpn-modal-icon vpn-notice-icon" aria-hidden="true">
+                <AlertTriangle size={30} />
+              </div>
+              <h2>{t("vpn.noticeTitle")}</h2>
+              <p className="vpn-modal-text vpn-notice-text">{t("vpn.noticeText")}</p>
+              <div className="vpn-modal-actions">
+                <button type="button" className="primary-btn vpn-modal-close-btn" onClick={() => setShowNotice(false)}>
+                  {t("vpn.close")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
         </div>
       </div>
     </>,
