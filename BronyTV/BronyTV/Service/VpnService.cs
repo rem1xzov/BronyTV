@@ -98,7 +98,7 @@ public class VpnService : IVpnService
 
             if (active.ExpiresAtUtc.HasValue)
             {
-                status.DaysLeft = Math.Max(0, (int)Math.Ceiling((active.ExpiresAtUtc.Value - now).TotalDays));
+                status.DaysLeft = Math.Max(0, (int)(active.ExpiresAtUtc.Value - now).TotalDays);
             }
 
             status.VlessLink = BuildVlessLink(active.ClientUuid ?? user?.Id.ToString(), options);
