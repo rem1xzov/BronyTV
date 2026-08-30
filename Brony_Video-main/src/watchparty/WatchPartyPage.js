@@ -131,6 +131,7 @@ export default function WatchPartyPage() {
   const messagesEndRef = useRef(null);
   const connectionRef = useRef(null);
   const syncRef = useRef(null);
+  const offsetRef = useRef(0);
 
   const loadAnnouncements = useCallback(async () => {
     try {
@@ -207,8 +208,10 @@ export default function WatchPartyPage() {
       video.dataset.videoId = String(next.videoId);
       video.src = next.videoUrl;
     }
-    const offsetMs = Date.now() - new Date(next.serverTimeUtc).getTime();
-    const serverNowMs = Date.now() - offsetMs;
+    // Смещение часов сервера относительно клиента. Фиксируется ОДИН раз
+    // на каждый свежий SyncState и переиспользуется дрифт-проверкой ниже.
+    offsetRef.current = Date.now() - new Date(next.serverTimeUtc).getTime();
+    const serverNowMs = Date.now() - offsetRef.current;
     const startedMs = next.startedAtUtc ? new Date(next.startedAtUtc).getTime() : 0;
     const target = next.isPaused
       ? next.pausedAtSeconds
@@ -266,11 +269,20 @@ export default function WatchPartyPage() {
       const s = syncRef.current;
       const video = videoRef.current;
       if (!s || !s.isLive || !video || video.paused) return;
-      const offsetMs = Date.now() - new Date(s.serverTimeUtc).getTime();
-      const serverNowMs = Date.now() - offsetMs;
+      // ВАЖНО: здесь offset НЕ пересчитывается из s.serverTimeUtc — серверное
+      // время в снапшоте застывает, offset раздувается на ~7с за тик, и target
+      // схлопывается в константу (позиция на момент снапшота), из-за чего каждая
+      // проверка даёт drift ≈ -7с и жёстко перематывает видео. Берём offsetRef.
+      const serverNowMs = Date.now() - offsetRef.current;
       const startedMs = s.startedAtUtc ? new Date(s.startedAtUtc).getTime() : 0;
       const target = Math.max(0, (serverNowMs - startedMs) / 1000);
       const drift = target - video.currentTime;
+      // TEMP: диагностика дрифта (убрать после подтверждения на проде).
+      console.log("[watchparty-drift]", {
+        expected: target.toFixed(2),
+        actual: video.currentTime.toFixed(2),
+        drift: drift.toFixed(2)
+      });
       if (Math.abs(drift) > 1.5) {
         video.currentTime = target;
         video.playbackRate = 1;
