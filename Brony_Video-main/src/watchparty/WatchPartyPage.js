@@ -6,7 +6,6 @@ import {
   Play,
   Radio,
   Send,
-  SkipForward,
   Square
 } from "lucide-react";
 import { apiFetch } from "../auth/api";
@@ -40,7 +39,14 @@ function WatchPartyStyles() {
       }
       .wp-announcement .wp-date { font-size: 1.15rem; font-weight: 700; color: var(--accent-strong, #db2777); }
       .wp-live { display: grid; grid-template-columns: 1fr 360px; gap: 16px; align-items: start; }
-      @media (max-width: 820px) { .wp-live { grid-template-columns: 1fr; } }
+      @media (max-width: 900px) {
+        .wp-live { grid-template-columns: 1fr; }
+        .wp-page { padding: 16px 12px; gap: 16px; }
+        .wp-chat { height: 60dvh; min-height: 280px; max-height: 520px; }
+        .wp-admin-row { flex-direction: column; align-items: stretch; }
+        .wp-admin select, .wp-admin input[type="datetime-local"], .wp-admin input[type="number"] { width: 100%; }
+        .wp-admin-row .primary-btn, .wp-admin-row .secondary-btn { width: 100%; justify-content: center; }
+      }
       .wp-player video { width: 100%; border-radius: 16px; background: #000; }
       .wp-chat {
         display: flex; flex-direction: column; height: 480px;
@@ -67,12 +73,35 @@ function WatchPartyStyles() {
       }
       .wp-list { display: flex; flex-direction: column; gap: 8px; }
       .wp-list-item {
-        display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px;
+        display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; padding: 12px 14px;
         border-radius: 12px; background: var(--bg-soft, #faecff);
         border: 1px solid var(--border-soft, rgba(168,85,247,.16));
       }
       .wp-muted { color: var(--text-muted, #7b4b82); }
     `}</style>
+  );
+}
+
+function VideoPicker({ seasons, videos, seasonId, videoId, onSeasonChange, onVideoChange }) {
+  return (
+    <>
+      <select value={seasonId} onChange={(event) => onSeasonChange(event.target.value)}>
+        <option value="">Сезон / категория…</option>
+        {seasons.map((season) => (
+          <option key={season.id ?? season.number} value={season.number}>
+            {season.number === 10 ? "Фильм MLP" : season.number === 11 ? "Equestria Girls" : `Сезон ${season.number}`}
+          </option>
+        ))}
+      </select>
+      <select value={videoId} onChange={(event) => onVideoChange(event.target.value)}>
+        <option value="">Видео…</option>
+        {videos.map((video) => (
+          <option key={video.id} value={video.id}>
+            {video.episodeNumber ? `${video.episodeNumber}. ` : ""}{video.title}
+          </option>
+        ))}
+      </select>
+    </>
   );
 }
 
@@ -93,8 +122,10 @@ export default function WatchPartyPage() {
   const [videos, setVideos] = useState([]);
   const [selectedVideoId, setSelectedVideoId] = useState("");
   const [selectedSeasonId, setSelectedSeasonId] = useState("");
+  const [scheduleSeasonId, setScheduleSeasonId] = useState("");
+  const [scheduleVideoId, setScheduleVideoId] = useState("");
+  const [scheduleVideos, setScheduleVideos] = useState([]);
   const [scheduleAt, setScheduleAt] = useState("");
-  const [seekSeconds, setSeekSeconds] = useState("");
 
   const videoRef = useRef(null);
   const messagesEndRef = useRef(null);
@@ -129,27 +160,39 @@ export default function WatchPartyPage() {
     })();
   }, [isAdmin]);
 
-  // Видео выбранного сезона/категории.
+  const fetchVideosForSeason = useCallback(async (seasonId) => {
+    try {
+      const seasonNumber = Number(seasonId);
+      const endpoint = seasonNumber === 10
+        ? "/api/video/film"
+        : seasonNumber === 11
+          ? "/api/video/equestria-girls"
+          : `/api/video/season/${seasonNumber}`;
+      const response = await apiFetch(endpoint);
+      if (response.ok) return await response.json();
+    } catch {
+      // ignore
+    }
+    return [];
+  }, []);
+
+  // Видео выбранного сезона/категории (для запуска эфира).
   useEffect(() => {
     if (!isAdmin || !selectedSeasonId) {
       setVideos([]);
       return;
     }
-    (async () => {
-      try {
-        const seasonNumber = Number(selectedSeasonId);
-        const endpoint = seasonNumber === 10
-          ? "/api/video/film"
-          : seasonNumber === 11
-            ? "/api/video/equestria-girls"
-            : `/api/video/season/${seasonNumber}`;
-        const response = await apiFetch(endpoint);
-        if (response.ok) setVideos(await response.json());
-      } catch {
-        // ignore
-      }
-    })();
-  }, [isAdmin, selectedSeasonId]);
+    (async () => setVideos(await fetchVideosForSeason(selectedSeasonId)))();
+  }, [isAdmin, selectedSeasonId, fetchVideosForSeason]);
+
+  // Видео выбранного сезона/категории (для планирования анонса).
+  useEffect(() => {
+    if (!isAdmin || !scheduleSeasonId) {
+      setScheduleVideos([]);
+      return;
+    }
+    (async () => setScheduleVideos(await fetchVideosForSeason(scheduleSeasonId)))();
+  }, [isAdmin, scheduleSeasonId, fetchVideosForSeason]);
 
   const applySync = useCallback((next) => {
     syncRef.current = next;
@@ -201,10 +244,7 @@ export default function WatchPartyPage() {
     connection.on("StreamEnded", () => {
       if (disposed) return;
       setSync(null);
-      setMessages((prev) => [
-        ...prev.slice(-199),
-        { username: "", text: "Трансляция завершена.", sentAtUtc: new Date().toISOString(), isSystem: true }
-      ]);
+      setMessages([]);
     });
 
     connection.start()
@@ -273,21 +313,16 @@ export default function WatchPartyPage() {
 
   const pauseStream = () => connectionRef.current?.invoke("Pause").catch(() => {});
   const resumeStream = () => connectionRef.current?.invoke("Resume").catch(() => {});
-  const seekStream = () => {
-    const seconds = Number(seekSeconds);
-    if (!Number.isFinite(seconds) || seconds < 0) return;
-    connectionRef.current?.invoke("Seek", seconds).catch(() => {});
-  };
   const endStream = () => connectionRef.current?.invoke("EndStream").catch(() => {});
 
   const createAnnouncement = async (event) => {
     event.preventDefault();
-    if (!selectedVideoId || !scheduleAt) return;
+    if (!scheduleVideoId || !scheduleAt) return;
     const scheduledAtUtc = new Date(scheduleAt).toISOString();
     try {
       await apiFetch("/api/stream/announcements", {
         method: "POST",
-        body: JSON.stringify({ videoId: selectedVideoId, scheduledAtUtc })
+        body: JSON.stringify({ videoId: scheduleVideoId, scheduledAtUtc })
       });
       setScheduleAt("");
       await loadAnnouncements();
@@ -379,65 +414,64 @@ export default function WatchPartyPage() {
       )}
 
       {isAdmin && (
-        <div className="wp-admin">
-          <h3>Управление стримом</h3>
-
-          <div className="wp-admin-row">
-            <select value={selectedSeasonId} onChange={(event) => setSelectedSeasonId(event.target.value)}>
-              <option value="">Сезон / категория…</option>
-              {seasons.map((season) => (
-                <option key={season.id ?? season.number} value={season.number}>
-                  {season.number === 10 ? "Фильм MLP" : season.number === 11 ? "Equestria Girls" : `Сезон ${season.number}`}
-                </option>
-              ))}
-            </select>
-            <select value={selectedVideoId} onChange={(event) => setSelectedVideoId(event.target.value)}>
-              <option value="">Видео…</option>
-              {videos.map((video) => (
-                <option key={video.id} value={video.id}>
-                  {video.episodeNumber ? `${video.episodeNumber}. ` : ""}{video.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="wp-admin-row">
-            <button type="button" className="primary-btn" onClick={startStream} disabled={!connected || !selectedVideoId}>
-              <Play size={16} /> Запустить сейчас
-            </button>
-            {isLive && (
-              <>
-                <button type="button" className="secondary-btn" onClick={pauseStream} disabled={sync?.isPaused}>
-                  <Pause size={16} /> Пауза
-                </button>
-                <button type="button" className="secondary-btn" onClick={resumeStream} disabled={!sync?.isPaused}>
-                  <Play size={16} /> Продолжить
-                </button>
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={seekSeconds}
-                  onChange={(event) => setSeekSeconds(event.target.value)}
-                  placeholder="Секунды"
-                />
-                <button type="button" className="secondary-btn" onClick={seekStream}>
-                  <SkipForward size={16} /> Перемотать
-                </button>
+        <>
+          <div className="wp-admin">
+            <h3>Управление стримом</h3>
+            {isLive ? (
+              <div className="wp-admin-row">
+                {!sync?.isPaused && (
+                  <button type="button" className="secondary-btn" onClick={pauseStream}>
+                    <Pause size={16} /> Пауза
+                  </button>
+                )}
+                {sync?.isPaused && (
+                  <button type="button" className="secondary-btn" onClick={resumeStream}>
+                    <Play size={16} /> Продолжить
+                  </button>
+                )}
                 <button type="button" className="secondary-btn" onClick={endStream}>
                   <Square size={16} /> Завершить
                 </button>
+              </div>
+            ) : (
+              <>
+                <div className="wp-admin-row">
+                  <VideoPicker
+                    seasons={seasons}
+                    videos={videos}
+                    seasonId={selectedSeasonId}
+                    videoId={selectedVideoId}
+                    onSeasonChange={setSelectedSeasonId}
+                    onVideoChange={setSelectedVideoId}
+                  />
+                </div>
+                <div className="wp-admin-row">
+                  <button type="button" className="primary-btn" onClick={startStream} disabled={!connected || !selectedVideoId}>
+                    <Play size={16} /> Запустить сейчас
+                  </button>
+                </div>
               </>
             )}
           </div>
 
-          <form className="wp-admin-row" onSubmit={createAnnouncement}>
-            <input type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} />
-            <button type="submit" className="secondary-btn" disabled={!selectedVideoId || !scheduleAt}>
-              <CalendarClock size={16} /> Запланировать анонс
-            </button>
-          </form>
-        </div>
+          <div className="wp-admin wp-admin--schedule">
+            <h3>Планирование анонса</h3>
+            <form className="wp-admin-row" onSubmit={createAnnouncement}>
+              <VideoPicker
+                seasons={seasons}
+                videos={scheduleVideos}
+                seasonId={scheduleSeasonId}
+                videoId={scheduleVideoId}
+                onSeasonChange={setScheduleSeasonId}
+                onVideoChange={setScheduleVideoId}
+              />
+              <input type="datetime-local" value={scheduleAt} onChange={(event) => setScheduleAt(event.target.value)} />
+              <button type="submit" className="secondary-btn" disabled={!scheduleVideoId || !scheduleAt}>
+                <CalendarClock size={16} /> Запланировать анонс
+              </button>
+            </form>
+          </div>
+        </>
       )}
 
       <div className="wp-list">
