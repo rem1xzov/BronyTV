@@ -178,6 +178,7 @@ public static class DatabaseInitializer
         await EnsureUserActivityTableAsync(context, logger, cancellationToken);
         await EnsureUserFavoritesTableAsync(context, logger, cancellationToken);
         await EnsureVpnTablesAsync(context, logger, cancellationToken);
+        await EnsureStreamAnnouncementsTableAsync(context, logger, cancellationToken);
     }
 
     private const string EnsureUserPlatformRoleColumnSql = """
@@ -396,6 +397,28 @@ public static class DatabaseInitializer
             ON public."ReferralRewards" ("ReferralUserId");
         """;
 
+    private const string EnsureStreamAnnouncementsTableSql = """
+        CREATE TABLE IF NOT EXISTS public."StreamAnnouncements" (
+            "Id" uuid NOT NULL,
+            "VideoId" uuid NOT NULL,
+            "ScheduledAtUtc" timestamp with time zone NOT NULL,
+            "Status" character varying(16) NOT NULL DEFAULT 'scheduled',
+            "CreatedByAdminId" uuid,
+            "CreatedAtUtc" timestamp with time zone NOT NULL,
+            CONSTRAINT "PK_StreamAnnouncements" PRIMARY KEY ("Id"),
+            CONSTRAINT "FK_StreamAnnouncements_Videos_VideoId" FOREIGN KEY ("VideoId")
+                REFERENCES public."Videos" ("Id") ON DELETE CASCADE,
+            CONSTRAINT "FK_StreamAnnouncements_Users_CreatedByAdminId" FOREIGN KEY ("CreatedByAdminId")
+                REFERENCES public."Users" ("Id") ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS "IX_StreamAnnouncements_ScheduledAtUtc"
+            ON public."StreamAnnouncements" ("ScheduledAtUtc");
+
+        CREATE INDEX IF NOT EXISTS "IX_StreamAnnouncements_Status"
+            ON public."StreamAnnouncements" ("Status");
+        """;
+
     private const string EnsureSupportTablesSql = """
         CREATE TABLE IF NOT EXISTS public."SupportTickets" (
             "Id" uuid NOT NULL,
@@ -525,6 +548,15 @@ public static class DatabaseInitializer
     {
         await context.Database.ExecuteSqlRawAsync(EnsureVpnTablesSql, cancellationToken);
         logger.LogInformation("Verified public VPN tables exist (CREATE TABLE IF NOT EXISTS).");
+    }
+
+    public static async Task EnsureStreamAnnouncementsTableAsync(
+        DbBronyTV context,
+        ILogger logger,
+        CancellationToken cancellationToken = default)
+    {
+        await context.Database.ExecuteSqlRawAsync(EnsureStreamAnnouncementsTableSql, cancellationToken);
+        logger.LogInformation("Verified public.\"StreamAnnouncements\" table exists (CREATE TABLE IF NOT EXISTS).");
     }
 
 

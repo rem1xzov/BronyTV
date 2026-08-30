@@ -77,6 +77,7 @@ const ru = {
   "nav.seasons": "Сезоны 1-9",
   "nav.film": "Фильм MLP",
   "nav.eg": "Equestria Girls",
+  "nav.streams": "Стримы",
 
   // === VPN ===
   "vpn.label": "VPN от BronyTV",
@@ -209,6 +210,7 @@ const en = {
   "nav.seasons": "Seasons 1-9",
   "nav.film": "Film MLP",
   "nav.eg": "Equestria Girls",
+  "nav.streams": "Streams",
 
   "vpn.label": "BronyTV VPN",
   "vpn.modalTitle": "BronyVPN",

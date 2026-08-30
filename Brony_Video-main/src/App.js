@@ -18,6 +18,7 @@ import {
   Pause,
   Play,
   PlayCircle,
+  Radio,
   Shield,
   SkipForward,
   Star,
@@ -39,6 +40,7 @@ import AdminPanelPage from "./components/AdminPanelPage";
 import NewsPage from "./components/NewsPage";
 import AiChatPage from "./components/AiChatPage";
 import VpnModal from "./components/VpnModal";
+import WatchPartyPage from "./watchparty/WatchPartyPage";
 import logoPng from "./assets/logo2.png";
 
 const SEASON_INFO = [
@@ -468,6 +470,9 @@ const getPageFromPath = (path) => {
   if (path.startsWith("/season")) {
     return "season";
   }
+  if (path.startsWith("/watchparty")) {
+    return "watchparty";
+  }
   return "home";
 };
 
@@ -668,6 +673,10 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
       <Link to="/bots" className={`nav-pill ${currentPage === "bots" ? "active" : ""}`}>
         <Bot size={16} />
         <span>{t("nav.bots")}</span>
+      </Link>
+      <Link to="/watchparty" className={`nav-pill ${currentPage === "watchparty" ? "active" : ""}`}>
+        <Radio size={16} />
+        <span>{t("nav.streams")}</span>
       </Link>
                         <Link to="/seasons" className={`nav-pill ${currentPage === "season" && currentSeason >= 1 && currentSeason <= 9 ? "active" : ""}`}>
         <Tv size={16} />
@@ -2443,6 +2452,7 @@ export default function App() {
         <Route path="/forum/:threadId" element={<ForumPage />} />
         <Route path="/news" element={<NewsPage />} />
         <Route path="/bots" element={<AiChatPage />} />
+        <Route path="/watchparty" element={<WatchPartyPage />} />
                 <Route path="/admin" element={<AdminPanelPage />} />
         <Route path="/seasons" element={<SeasonsListPage />} />
         <Route

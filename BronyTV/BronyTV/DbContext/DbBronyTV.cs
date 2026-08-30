@@ -26,6 +26,7 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<VpnSubscriptionEntity> VpnSubscriptions => Set<VpnSubscriptionEntity>();
     public DbSet<VpnPromoKeyEntity> VpnPromoKeys => Set<VpnPromoKeyEntity>();
     public DbSet<ReferralRewardEntity> ReferralRewards => Set<ReferralRewardEntity>();
+    public DbSet<StreamAnnouncementEntity> StreamAnnouncements => Set<StreamAnnouncementEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -46,5 +47,6 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new VpnSubscriptionConfiguration());
         modelBuilder.ApplyConfiguration(new VpnPromoKeyConfiguration());
         modelBuilder.ApplyConfiguration(new ReferralRewardConfiguration());
+        modelBuilder.ApplyConfiguration(new StreamAnnouncementConfiguration());
     }
 }

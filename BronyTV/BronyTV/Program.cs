@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using BronyTV.DbContext;
 using BronyTV.DbContext.Entity;
+using BronyTV.Hubs;
 using BronyTV.Infrastructure;
 using BronyTV.Repository;
 using BronyTV.Service;
@@ -81,6 +82,9 @@ builder.Services.AddSingleton<IAdminAccessService, AdminAccessService>();
 builder.Services.AddMemoryCache();
 builder.Services.AddHostedService<ConfirmationCleanupHostedService>();
 builder.Services.AddControllers();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<WatchPartyState>();
+builder.Services.AddScoped<IStreamAnnouncementRepository, StreamAnnouncementRepository>();
 
 builder.Services.Configure<CookiePolicyOptions>(options =>
 {
@@ -431,6 +435,7 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<StreamHub>("/hubs/watchparty");
 
 var indexHtmlPath = Path.Combine(app.Environment.WebRootPath, "index.html");
 if (File.Exists(indexHtmlPath))
