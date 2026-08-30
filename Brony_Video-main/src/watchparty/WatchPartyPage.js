@@ -6,7 +6,8 @@ import {
   Play,
   Radio,
   Send,
-  Square
+  Square,
+  VolumeX
 } from "lucide-react";
 import { apiFetch } from "../auth/api";
 import { useAuth } from "../auth/AuthContext";
@@ -48,6 +49,16 @@ function WatchPartyStyles() {
         .wp-admin-row .primary-btn, .wp-admin-row .secondary-btn { width: 100%; justify-content: center; }
       }
       .wp-player video { width: 100%; border-radius: 16px; background: #000; }
+      .wp-player-shell { position: relative; }
+      .wp-play-overlay {
+        position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+        border: 0; border-radius: 16px; cursor: pointer; background: rgba(0,0,0,.55); color: #fff; font: inherit;
+      }
+      .wp-unmute-overlay {
+        position: absolute; top: 12px; right: 12px; display: inline-flex; align-items: center; gap: 6px;
+        padding: 8px 12px; border: 0; border-radius: 999px; cursor: pointer;
+        background: rgba(0,0,0,.6); color: #fff; font: inherit; font-weight: 600;
+      }
       .wp-chat {
         display: flex; flex-direction: column; height: 480px;
         border-radius: 16px; border: 1px solid var(--border-soft, rgba(168,85,247,.16));
@@ -117,6 +128,8 @@ export default function WatchPartyPage() {
   const [messages, setMessages] = useState([]);
   const [draft, setDraft] = useState("");
   const [connected, setConnected] = useState(false);
+  const [mutedByAutoplay, setMutedByAutoplay] = useState(false);
+  const [needsTapToPlay, setNeedsTapToPlay] = useState(false);
 
   const [seasons, setSeasons] = useState([]);
   const [videos, setVideos] = useState([]);
@@ -195,13 +208,51 @@ export default function WatchPartyPage() {
     (async () => setScheduleVideos(await fetchVideosForSeason(scheduleSeasonId)))();
   }, [isAdmin, scheduleSeasonId, fetchVideosForSeason]);
 
-  const applySync = useCallback((next) => {
-    syncRef.current = next;
-    setSync(next);
-    const video = videoRef.current;
-    if (!video) return;
+  const startPlayback = useCallback(async (video) => {
+    if (!video.paused) return;
+
+    // Видео уже без звука (осталось muted после прошлого fallback) — играем
+    // без звука, не выдавая его за озвученное воспроизведение.
+    if (video.muted) {
+      try {
+        await video.play();
+        setMutedByAutoplay(true);
+        setNeedsTapToPlay(false);
+      } catch {
+        setMutedByAutoplay(false);
+        setNeedsTapToPlay(true);
+      }
+      return;
+    }
+
+    // 1) Автоплей со звуком (на десктопе обычно разрешён).
+    try {
+      await video.play();
+      setMutedByAutoplay(false);
+      setNeedsTapToPlay(false);
+      return;
+    } catch {
+      // Автоплей со звуком заблокирован браузером (NotAllowedError).
+    }
+
+    // 2) Автоплей без звука — почти всегда разрешён браузерами.
+    video.muted = true;
+    try {
+      await video.play();
+      setMutedByAutoplay(true);
+      setNeedsTapToPlay(false);
+    } catch {
+      // Даже muted-автоплей заблокирован — нужен прямой пользовательский жест.
+      setMutedByAutoplay(false);
+      setNeedsTapToPlay(true);
+    }
+  }, []);
+
+  const syncVideoToState = useCallback((video, next) => {
     if (!next.isLive) {
       video.pause();
+      setMutedByAutoplay(false);
+      setNeedsTapToPlay(false);
       return;
     }
     if (video.dataset.videoId !== String(next.videoId)) {
@@ -217,8 +268,30 @@ export default function WatchPartyPage() {
       ? next.pausedAtSeconds
       : Math.max(0, (serverNowMs - startedMs) / 1000);
     video.currentTime = target;
-    if (next.isPaused) video.pause();
-    else video.play().catch(() => {});
+    if (next.isPaused) {
+      video.pause();
+      setMutedByAutoplay(false);
+      setNeedsTapToPlay(false);
+    } else {
+      startPlayback(video);
+    }
+  }, [startPlayback]);
+
+  const applySync = useCallback((next) => {
+    syncRef.current = next;
+    setSync(next);
+    const video = videoRef.current;
+    if (video) syncVideoToState(video, next);
+  }, [syncVideoToState]);
+
+  const handleTapToPlay = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    // Прямой пользовательский жест: снимаем mute и запускаем воспроизведение.
+    video.muted = false;
+    setMutedByAutoplay(false);
+    setNeedsTapToPlay(false);
+    video.play().catch(() => {});
   }, []);
 
   // Подключение к хабу.
@@ -363,6 +436,16 @@ export default function WatchPartyPage() {
   const nextAnnouncement = upcoming[0];
   const isLive = sync && sync.isLive;
 
+  // При монтировании плеера (поздний вход на уже идущий стрим) применяем последний
+  // полученный SyncState: в момент первого applySync элемент видео ещё не существовал.
+  useEffect(() => {
+    const video = videoRef.current;
+    const state = syncRef.current;
+    if (video && state && state.isLive) {
+      syncVideoToState(video, state);
+    }
+  }, [isLive, syncVideoToState]);
+
   return (
     <div className="wp-page">
       <WatchPartyStyles />
@@ -374,7 +457,21 @@ export default function WatchPartyPage() {
       {isLive ? (
         <div className="wp-live">
           <div className="wp-player">
-            <video ref={videoRef} controls playsInline />
+            <div className="wp-player-shell">
+              <video ref={videoRef} controls playsInline />
+              {needsTapToPlay && (
+                <button type="button" className="wp-play-overlay" onClick={handleTapToPlay}>
+                  <Play size={28} />
+                  <span>Нажмите, чтобы начать просмотр</span>
+                </button>
+              )}
+              {mutedByAutoplay && !needsTapToPlay && (
+                <button type="button" className="wp-unmute-overlay" onClick={handleTapToPlay}>
+                  <VolumeX size={18} />
+                  <span>Включить звук</span>
+                </button>
+              )}
+            </div>
             <p className="wp-muted">{sync.videoTitle || "Трансляция"}</p>
           </div>
           <div className="wp-chat">
