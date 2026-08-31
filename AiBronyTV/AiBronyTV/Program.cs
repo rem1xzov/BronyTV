@@ -148,6 +148,8 @@ using (var scope = app.Services.CreateScope())
             "CREATE TABLE IF NOT EXISTS ai.\"PremiumKeys\" " +
             "(\"Key\" character varying(32) NOT NULL, \"IsUsed\" boolean NOT NULL, " +
             "CONSTRAINT \"PK_PremiumKeys\" PRIMARY KEY (\"Key\"));");
+        await db.Database.ExecuteSqlRawAsync(
+            "ALTER TABLE ai.\"ChatMessages\" ADD COLUMN IF NOT EXISTS \"IsAdminChat\" boolean NOT NULL DEFAULT false;");
     }
 }
 
@@ -306,33 +308,8 @@ app.MapGet("/api/bots/premium-status", async (AppDbContext db, HttpContext ctx) 
 .RequireAuthorization("VerifiedUser");
 
 // Метаданные доступных персонажей-ботов (для UI). Аватары раздаёт фронтенд из assets.
-var bots = new[]
-{
-    new { id = "rainbow", name = "Рэйнбоу Дэш", description = "Самая быстрая и дерзкая пегаска Понивилля." },
-    new { id = "twilight", name = "Твайлайт Спаркл", description = "Принцесса дружбы и учёный-книжный червь." },
-    new { id = "trixie", name = "Трикси", description = "Великая и Могущественная иллюзионистка." },
-    new { id = "pinki", name = "Пинки Пай", description = "Неутомимая королева вечеринок и кексов." },
-    new { id = "fluttershy", name = "Флаттершай", description = "Добрая и робкая ценительница животных." },
-    new { id = "rarity", name = "Рарити", description = "Изысканный единорог-модельер из бутика 'Карусель'." },
-    new { id = "applejack", name = "Эпплджек", description = "Надёжная и честная земная пони с фермы." },
-    new { id = "starlight", name = "Старлайт Глиммер", description = "Бывшая злодейка, а теперь ученица Искорки." },
-    new { id = "sunset", name = "Сансет Шиммер", description = "Крутая рок-звезда из мира людей." },
-    new { id = "celestia", name = "Принцесса Селестия", description = "Мудрая правительница Эквестрии, поднимающая солнце." },
-    new { id = "luna", name = "Принцесса Луна", description = "Повелительница снов и ночи, хранительница сновидений." },
-        new { id = "cadance", name = "Принцесса Каденс", description = "Аликорн любви, правительница Кристальной Империи." },
-    new { id = "applebloom", name = "Эппл Блум", description = "Младшая сестра Эпплджек, ищущая свой талант." },
-    new { id = "sweetiebelle", name = "Свити Бель", description = "Сестренка Рарити. Хорошо поет, но часто косячит." },
-    new { id = "scootaloo", name = "Скуталу", description = "Сорвиголова на скутере и фанатка Радуги Дэш." },
-    new { id = "derpy", name = "Дерпи", description = "Добрая почтальонша, которая очень любит маффины." },
-    new { id = "discord", name = "Дискорд", description = "Бывший дух хаоса. Обожает абсурд и розыгрыши." },
-    new { id = "cozyglow", name = "Коузи Глоу", description = "Самая милая пони... с манией величия." },
-    new { id = "octavia", name = "Октавия", description = "Изысканная виолончелистка из Кантерлота." },
-    new { id = "djpon3", name = "DJ Pon-3", description = "Крутая тусовщица, общающаяся на сленге." },
-    new { id = "shiningarmor", name = "Шайнинг Армор", description = "Капитан Королевской Стражи и гик." },
-    new { id = "narrator", name = "Рассказчик (RPG)", description = "Опиши своего персонажа, и Рассказчик создаст для тебя сюжет в Эквестрии!" }
-};
-
-app.MapGet("/api/bots", () => Results.Json(bots))
+// Список живёт в BotCatalog и переиспользуется админским /api/admin/bots.
+app.MapGet("/api/bots", () => Results.Json(BotCatalog.Bots))
     .RequireAuthorization("VerifiedUser");
 
 // Генерация одноразового премиум-ключа (для выдачи покупателям Boosty).
@@ -395,7 +372,7 @@ app.MapDelete("/api/chat/history", async (string sessionId, string characterId, 
     }
 
     await db.ChatMessages
-        .Where(message => message.SessionId == sessionId && message.CharacterId == characterId)
+        .Where(message => message.SessionId == sessionId && message.CharacterId == characterId && !message.IsAdminChat)
         .ExecuteDeleteAsync();
 
     return Results.Ok(new { cleared = true });
@@ -684,6 +661,8 @@ app.MapPost("/api/admin/migrate-legacy-premium/assign", async (
 })
 .RequireAuthorization("VerifiedUser");
 
+
+app.MapAdminBots();
 
 app.Run();
 

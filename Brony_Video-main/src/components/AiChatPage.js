@@ -199,28 +199,48 @@ const BOT_CATALOG = [
   }
 ];
 
-const SESSION_KEY = "bronytv-ai-session";
-const MESSAGES_KEY = "bronytv-ai-messages";
+// Конфигурация режимов: публичный (user) и админский (admin). Админский режим использует
+// отдельные эндпоинты и отдельные ключи localStorage, чтобы история не пересекалась с публичной.
+const MODE_CONFIG = {
+  user: {
+    sessionKey: "bronytv-ai-session",
+    messagesKey: "bronytv-ai-messages",
+    metaKey: "bronytv-ai-session-meta",
+    streamUrl: "/api/chat/stream",
+    historyUrl: "/api/chat/history",
+    premiumStatusUrl: "/api/bots/premium-status",
+    activateUrl: "/api/bots/activate"
+  },
+  admin: {
+    sessionKey: "bronytv-ai-admin-session",
+    messagesKey: "bronytv-ai-admin-messages",
+    metaKey: "bronytv-ai-admin-session-meta",
+    streamUrl: "/api/admin/chat/stream",
+    historyUrl: "/api/admin/chat/history",
+    premiumStatusUrl: null,
+    activateUrl: null
+  }
+};
 
 const buildAssetUrl = (avatar) => {
   const base = process.env.PUBLIC_URL || "";
   return `${base}/assets/avatars/${encodeURIComponent(avatar)}`;
 };
 
-const readSession = () => {
+const readSession = (sessionKey) => {
   try {
-    return localStorage.getItem(SESSION_KEY) || "";
+    return localStorage.getItem(sessionKey) || "";
   } catch {
     return "";
   }
 };
 
-const ensureSession = () => {
-  let sid = readSession();
+const ensureSession = (sessionKey) => {
+  let sid = readSession(sessionKey);
   if (!sid) {
     sid = `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
     try {
-      localStorage.setItem(SESSION_KEY, sid);
+      localStorage.setItem(sessionKey, sid);
     } catch {
       /* ignore */
     }
@@ -228,9 +248,9 @@ const ensureSession = () => {
   return sid;
 };
 
-const loadStoredMessages = (characterId) => {
+const loadStoredMessages = (messagesKey, characterId) => {
   try {
-    const raw = localStorage.getItem(MESSAGES_KEY);
+    const raw = localStorage.getItem(messagesKey);
     if (!raw) return [];
     const byChar = JSON.parse(raw);
     return (byChar[characterId] || []).slice(-60);
@@ -239,12 +259,12 @@ const loadStoredMessages = (characterId) => {
   }
 };
 
-const storeMessages = (characterId, messages) => {
+const storeMessages = (messagesKey, characterId, messages) => {
   try {
-    const raw = localStorage.getItem(MESSAGES_KEY);
+    const raw = localStorage.getItem(messagesKey);
     const byChar = raw ? JSON.parse(raw) : {};
     byChar[characterId] = messages.slice(-60);
-    localStorage.setItem(MESSAGES_KEY, JSON.stringify(byChar));
+    localStorage.setItem(messagesKey, JSON.stringify(byChar));
   } catch {
     /* ignore storage failures */
   }
@@ -253,20 +273,18 @@ const storeMessages = (characterId, messages) => {
 let msgSeq = 0;
 const nextId = () => `m-${Date.now()}-${msgSeq++}`;
 
-const SESSION_META_KEY = "bronytv-ai-session-meta";
-
-const loadSessionMeta = () => {
+const loadSessionMeta = (metaKey) => {
   try {
-    const raw = localStorage.getItem(SESSION_META_KEY);
+    const raw = localStorage.getItem(metaKey);
     return raw ? JSON.parse(raw) : {};
   } catch {
     return {};
   }
 };
 
-const saveSessionMeta = (meta) => {
+const saveSessionMeta = (metaKey, meta) => {
   try {
-    localStorage.setItem(SESSION_META_KEY, JSON.stringify(meta));
+    localStorage.setItem(metaKey, JSON.stringify(meta));
   } catch {
     /* ignore */
   }
@@ -328,7 +346,9 @@ function LimitBanner({ message }) {
   );
 }
 
-function AiChatPage() {
+function AiChatPage({ mode = "user" }) {
+  const cfg = MODE_CONFIG[mode] || MODE_CONFIG.user;
+  const isAdminMode = mode === "admin";
   const { user, loading, refreshUser } = useAuth();
   const [bots] = useState(BOT_CATALOG);
   const [activeBotId, setActiveBotId] = useState(null);
@@ -362,11 +382,11 @@ function AiChatPage() {
 
   useEffect(() => {
     if (activeBotId) {
-      setMessages(loadStoredMessages(activeBotId));
+      setMessages(loadStoredMessages(cfg.messagesKey, activeBotId));
     } else {
       setMessages([]);
     }
-  }, [activeBotId]);
+  }, [activeBotId, cfg.messagesKey]);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -400,12 +420,12 @@ function AiChatPage() {
 
     const doClearHistory = useCallback(async () => {
     if (!activeBotId) return;
-    const sessionId = ensureSession();
+    const sessionId = ensureSession(cfg.sessionKey);
     setConfirmClear(false);
     // Сначала реально удаляем историю на бэкенде, чтобы бот забыл прошлый разговор.
     try {
       const res = await fetch(
-        `/api/chat/history?sessionId=${encodeURIComponent(sessionId)}&characterId=${encodeURIComponent(activeBotId)}`,
+        `${cfg.historyUrl}?sessionId=${encodeURIComponent(sessionId)}&characterId=${encodeURIComponent(activeBotId)}`,
         { method: "DELETE", credentials: "include" }
       );
       if (!res.ok) {
@@ -418,16 +438,16 @@ function AiChatPage() {
     }
     // Только при успешном ответе сервера чистим локальный state.
     try {
-      const raw = localStorage.getItem(MESSAGES_KEY);
+      const raw = localStorage.getItem(cfg.messagesKey);
       const byChar = raw ? JSON.parse(raw) : {};
       delete byChar[activeBotId];
-      localStorage.setItem(MESSAGES_KEY, JSON.stringify(byChar));
+      localStorage.setItem(cfg.messagesKey, JSON.stringify(byChar));
     } catch {
       /* ignore storage failures */
     }
     setMessages([]);
     setError("");
-  }, [activeBotId]);
+  }, [activeBotId, cfg.messagesKey]);
 
   const confirmClearHistory = useCallback(() => {
     if (!activeBotId) return;
@@ -438,8 +458,8 @@ function AiChatPage() {
 
   const fetchPremiumStatus = useCallback(async () => {
     try {
-      const sessionId = ensureSession();
-      const res = await fetch(`/api/bots/premium-status?sessionId=${encodeURIComponent(sessionId)}`, {
+      const sessionId = ensureSession(cfg.sessionKey);
+      const res = await fetch(`${cfg.premiumStatusUrl}?sessionId=${encodeURIComponent(sessionId)}`, {
         credentials: "include"
       });
       if (!res.ok) return;
@@ -453,12 +473,12 @@ function AiChatPage() {
     // Перезапрашиваем статус премиума при смене аккаунта, чтобы статус от прошлого
   // пользователя не «перетекал» на нового в одной вкладке браузера.
   useEffect(() => {
-    if (!user) {
+    if (!user || isAdminMode) {
       setPremiumStatus(null);
       return;
     }
     fetchPremiumStatus();
-  }, [fetchPremiumStatus, user]);
+  }, [fetchPremiumStatus, user, isAdminMode]);
 
   const handleActivate = useCallback(async () => {
     const key = premiumKey.trim();
@@ -468,8 +488,8 @@ function AiChatPage() {
     setPremiumLoading(true);
 
     try {
-      const sessionId = ensureSession();
-      const res = await fetch("/api/bots/activate", {
+      const sessionId = ensureSession(cfg.sessionKey);
+      const res = await fetch(cfg.activateUrl, {
                 method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -507,7 +527,7 @@ function AiChatPage() {
       return;
     }
 
-    const sessionId = ensureSession();
+    const sessionId = ensureSession(cfg.sessionKey);
     const userMsg = { id: nextId(), role: "user", text, limit: false };
         const assistantMsg = { id: nextId(), role: "assistant", text: "", limit: false, streaming: true };
 
@@ -519,15 +539,15 @@ function AiChatPage() {
     setStreaming(true);
 
     // Немного метаданных сессии для статистики (не критично).
-    const meta = loadSessionMeta();
+    const meta = loadSessionMeta(cfg.metaKey);
     meta[activeBotId] = { lastUsed: Date.now(), updatedAt: Date.now() };
-    saveSessionMeta(meta);
+    saveSessionMeta(cfg.metaKey, meta);
 
     const controller = new AbortController();
     streamRef.current = controller;
 
     try {
-      const res = await fetch("/api/chat/stream", {
+      const res = await fetch(cfg.streamUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -618,7 +638,7 @@ function AiChatPage() {
       finalizeAssistant("", false);
       setStreaming(false);
       setMessages((prev) => {
-        storeMessages(activeBotId, prev);
+        storeMessages(cfg.messagesKey, activeBotId, prev);
         return prev;
       });
     } catch (err) {
@@ -814,15 +834,17 @@ function AiChatPage() {
                     {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
                   </button>
                 )}
-                                <button
-                  type="button"
-                  className="ai-chat-head-action"
-                  onClick={() => (premiumStatus?.isActive ? setShowPremiumInfoModal(true) : setShowPremiumModal(true))}
-                  aria-label={premiumStatus?.isActive ? "Статус Premium" : "Активировать Premium"}
-                  title={premiumStatus?.isActive ? "Статус Premium" : "Активировать Premium"}
-                >
-                  {premiumStatus?.isActive ? <Check size={20} /> : <Plus size={20} />}
-                </button>
+                {!isAdminMode && (
+                  <button
+                    type="button"
+                    className="ai-chat-head-action"
+                    onClick={() => (premiumStatus?.isActive ? setShowPremiumInfoModal(true) : setShowPremiumModal(true))}
+                    aria-label={premiumStatus?.isActive ? "Статус Premium" : "Активировать Premium"}
+                    title={premiumStatus?.isActive ? "Статус Premium" : "Активировать Premium"}
+                  >
+                    {premiumStatus?.isActive ? <Check size={20} /> : <Plus size={20} />}
+                  </button>
+                )}
                 <button
                   type="button"
                   className="ai-chat-head-action"
@@ -1067,7 +1089,7 @@ function AiChatPage() {
         </div>
       )}
 
-      {showPremiumModal && (
+      {!isAdminMode && showPremiumModal && (
         <div className="ai-premium-overlay" onClick={() => setShowPremiumModal(false)}>
           <div className="ai-premium-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <button
@@ -1126,7 +1148,7 @@ function AiChatPage() {
         </div>
       )}
 
-      {showPremiumInfoModal && (
+      {!isAdminMode && showPremiumInfoModal && (
         <div className="ai-premium-overlay" onClick={() => setShowPremiumInfoModal(false)}>
           <div className="ai-premium-modal" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
             <button

@@ -114,7 +114,7 @@ public partial class BotApiService
         await _db.SaveChangesAsync(cancellationToken);
 
         var historyFromDb = await _db.ChatMessages
-            .Where(message => message.SessionId == sessionId && message.CharacterId == characterId)
+            .Where(message => message.SessionId == sessionId && message.CharacterId == characterId && !message.IsAdminChat)
             .OrderByDescending(message => message.Timestamp)
             .Take(20)
             .ToListAsync(cancellationToken);

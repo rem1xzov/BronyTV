@@ -24,6 +24,8 @@ public class ChatMessageEntity
     public string Role { get; set; } = null!;
     public string Content { get; set; } = null!;
     public DateTime Timestamp { get; set; }
+    /// <summary>true — сообщение админского раздела ИИ-ботов; false — публичного.</summary>
+    public bool IsAdminChat { get; set; }
 }
 
 public class AppDbContext : DbContext
@@ -62,6 +64,7 @@ public class AppDbContext : DbContext
             entity.Property(message => message.SessionId).HasMaxLength(170);
             entity.Property(message => message.CharacterId).HasMaxLength(32);
             entity.Property(message => message.Role).HasMaxLength(16);
+            entity.Property(message => message.IsAdminChat).IsRequired().HasDefaultValue(false);
             entity.HasIndex(message => new { message.SessionId, message.CharacterId, message.Timestamp });
         });
     }

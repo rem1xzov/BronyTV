@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Activity as ActivityIcon, ArrowLeft, Home, LifeBuoy, Shield, Star, Upload, Users } from "lucide-react";
+import { Activity as ActivityIcon, ArrowLeft, Bot, Home, LifeBuoy, Shield, Star, Upload, Users } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch, apiUpload } from "../auth/api";
 import AdminSupportPanel from "./AdminSupportPanel";
 import AdminActivityPanel from "./AdminActivityPanel";
+import AiChatPage from "./AiChatPage";
 
 function normalizeSeason(raw) {
   if (!raw || typeof raw !== "object") {
@@ -686,9 +687,21 @@ export default function AdminPanelPage() {
           <Shield size={16} aria-hidden="true" />
           <span>VPN</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "bots"}
+          className={`admin-panel-tab${activeTab === "bots" ? " is-active" : ""}`}
+          onClick={() => setActiveTab("bots")}
+        >
+          <Bot size={16} aria-hidden="true" />
+          <span>ИИ Боты</span>
+        </button>
       </div>
 
-      {activeTab === "vpn" ? (
+      {activeTab === "bots" ? (
+        <AiChatPage mode="admin" />
+      ) : activeTab === "vpn" ? (
         <div className="admin-panel-grid">
           {/* Генерация VPN промо-ключей */}
           <article className="admin-card admin-card--premium-key">
