@@ -510,12 +510,17 @@
 
 /* ================= Адаптивность ================= */
 @media (max-width: 600px) {
+  /* Логотип и капсула — строго в одну строку (без переноса). */
   .hero-heading-row {
-    flex-wrap: wrap;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
   }
 
   .hero-heading-actions {
     margin-left: auto;
+    flex-shrink: 0;
   }
 
   .home-streak-btn {
@@ -527,6 +532,21 @@
 @media (max-width: 480px) {
   .hero-heading-row {
     gap: 8px;
+  }
+
+  .hero-heading-title {
+    gap: 8px;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+
+  .hero-heading-title h1 {
+    font-size: 1.15rem;
+    white-space: nowrap;
+  }
+
+  .hero-heading-title img {
+    height: 32px !important;
   }
 
   /* Единая капсула «огонёк | RU/EN» на мобильной ширине. */
