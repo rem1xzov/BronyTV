@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useI18n } from "../i18n";
 import { useAuth } from "../auth/AuthContext";
 import StreakFlame from "./StreakFlame";
-import StreakRoadmapModal from "./StreakRoadmapModal";
 import FortuneWheelModal from "./FortuneWheelModal";
 import { getStreakStatus, markStreakRewardsSeen } from "../streak/api";
 
@@ -10,14 +10,14 @@ import { getStreakStatus, markStreakRewardsSeen } from "../streak/api";
  * Огонёк стрика на главной странице (рядом с переключателем языка).
  * - Серый «0», если сегодняшний порог не выполнен или стрика нет.
  * - Оранжевый с числом CurrentStreak, если сегодняшний день засчитан.
- * По клику открывает роадмап наград. Также показывает одноразовую модалку
- * поздравления/колеса, если есть непоказанная награда (любой источник зачёта).
+ * По клику переходит на страницу роадмапа наград (/streak). Также показывает
+ * одноразовую модалку поздравления/колеса, если есть непоказанная награда.
  */
 export default function HomeStreakIndicator() {
   const { t } = useI18n();
   const { isAuthenticated } = useAuth();
+  const navigate = useNavigate();
   const [status, setStatus] = useState(null);
-  const [roadmapOpen, setRoadmapOpen] = useState(false);
   const [wheelOpen, setWheelOpen] = useState(false);
   const [congrats, setCongrats] = useState(null);
 
@@ -59,24 +59,17 @@ export default function HomeStreakIndicator() {
       <button
         type="button"
         className="home-streak-btn"
-        onClick={() => setRoadmapOpen(true)}
+        onClick={() => navigate("/streak")}
         title={t("streak.roadmapTitle")}
         aria-label={t("streak.roadmapTitle")}
       >
         <StreakFlame
           streak={status?.currentStreak || 0}
           active={Boolean(status?.isStreakCreditedToday)}
-          size={16}
+          size={28}
           showZero
         />
       </button>
-
-      <StreakRoadmapModal
-        isOpen={roadmapOpen}
-        onClose={() => setRoadmapOpen(false)}
-        status={status}
-        onSpinWheel={() => setWheelOpen(true)}
-      />
 
       <FortuneWheelModal
         isOpen={wheelOpen}

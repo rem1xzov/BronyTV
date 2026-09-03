@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { LogIn, MailCheck, UserPlus, X } from "lucide-react";
 import { RACE_OPTIONS, useAuth } from "../auth/AuthContext";
 import { validateUsername } from "../auth/username";
+import PasswordInput from "./PasswordInput";
 
 export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
     const { login, register, confirmEmail, resendEmailConfirmation, forgotPassword, resetPassword } = useAuth();
@@ -391,12 +392,11 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
 
                 <label className="auth-modal-field">
                   <span>Новый пароль</span>
-                  <input
-                    type="password"
+                  <PasswordInput
                     autoComplete="new-password"
                     required
                     minLength={8}
-                                        value={forgotNewPassword}
+                    value={forgotNewPassword}
                     onChange={(event) => {
                       setForgotNewPassword(event.target.value);
                       setForgotError("");
@@ -408,8 +408,7 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
 
                 <label className="auth-modal-field">
                   <span>Повторите новый пароль</span>
-                  <input
-                    type="password"
+                  <PasswordInput
                     autoComplete="new-password"
                     required
                     minLength={8}
@@ -547,8 +546,7 @@ export default function AuthModal({ isOpen, mode, onClose, onSwitchMode }) {
 
             <label className="auth-modal-field">
             <span>Пароль</span>
-            <input
-              type="password"
+            <PasswordInput
               autoComplete={isSignup ? "new-password" : "current-password"}
               required
               minLength={8}

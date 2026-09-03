@@ -3,7 +3,11 @@ import { useI18n } from "../i18n";
 import { getLeaderboard } from "../streak/api";
 import StreakFlame from "./StreakFlame";
 
-export default function StreakLeaderboardPage() {
+/**
+ * Таблица лидеров стриков (переиспользуемый блок, без обёртки-страницы).
+ * Встраивается в личный кабинет.
+ */
+export default function StreakLeaderboard() {
   const { t } = useI18n();
   const [sort, setSort] = useState("current");
   const [entries, setEntries] = useState([]);
@@ -36,10 +40,7 @@ export default function StreakLeaderboardPage() {
   const isLongest = sort === "longest";
 
   return (
-    <div className="streak-leaderboard">
-      <h1 className="page-title">{t("streak.leaderboardTitle")}</h1>
-      <p className="muted">{t("streak.leaderboardSubtitle")}</p>
-
+    <div className="streak-leaderboard streak-leaderboard--embed">
       <div className="streak-leaderboard-tabs" role="tablist">
         <button
           type="button"

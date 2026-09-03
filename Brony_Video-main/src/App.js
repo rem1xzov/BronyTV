@@ -23,7 +23,6 @@ import {
   SkipForward,
   Star,
   Sun,
-  Trophy,
   Tv,
   Volume1,
   Volume2,
@@ -42,7 +41,7 @@ import NewsPage from "./components/NewsPage";
 import AiChatPage from "./components/AiChatPage";
 import VpnModal from "./components/VpnModal";
 import WatchPartyPage from "./watchparty/WatchPartyPage";
-import StreakLeaderboardPage from "./components/StreakLeaderboardPage";
+import StreakPage from "./components/StreakPage";
 import HomeStreakIndicator from "./components/HomeStreakIndicator";
 import { recordVideoWatch } from "./streak/api";
 import logoPng from "./assets/logo2.png";
@@ -477,8 +476,8 @@ const getPageFromPath = (path) => {
   if (path.startsWith("/watchparty")) {
     return "watchparty";
   }
-  if (path.startsWith("/streaks")) {
-    return "streaks";
+  if (path.startsWith("/streak")) {
+    return "streak";
   }
   return "home";
 };
@@ -684,10 +683,6 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
       <Link to="/watchparty" className={`nav-pill ${currentPage === "watchparty" ? "active" : ""}`}>
         <Radio size={16} />
         <span>{t("nav.streams")}</span>
-      </Link>
-      <Link to="/streaks" className={`nav-pill ${currentPage === "streaks" ? "active" : ""}`}>
-        <Trophy size={16} />
-        <span>{t("nav.leaderboard")}</span>
       </Link>
                         <Link to="/seasons" className={`nav-pill ${currentPage === "season" && currentSeason >= 1 && currentSeason <= 9 ? "active" : ""}`}>
         <Tv size={16} />
@@ -2509,7 +2504,7 @@ export default function App() {
         <Route path="/news" element={<NewsPage />} />
         <Route path="/bots" element={<AiChatPage />} />
         <Route path="/watchparty" element={<WatchPartyPage />} />
-        <Route path="/streaks" element={<StreakLeaderboardPage />} />
+        <Route path="/streak" element={<StreakPage />} />
                 <Route path="/admin" element={<AdminPanelPage />} />
         <Route path="/seasons" element={<SeasonsListPage />} />
         <Route

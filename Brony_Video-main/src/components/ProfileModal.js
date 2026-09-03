@@ -1,7 +1,7 @@
 import React, { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { AlertCircle, Bookmark, LifeBuoy, LogIn, Pencil, Shield, UserCircle, X } from "lucide-react";
+import { AlertCircle, Bookmark, LifeBuoy, LogIn, Pencil, Shield, Trophy, UserCircle, X } from "lucide-react";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { useAuth } from "../auth/AuthContext";
 import { resolveAvatarEmoji, validateAvatarEmoji } from "../auth/avatar";
@@ -13,6 +13,8 @@ import SupportModal from "./SupportModal";
 import VpnModal from "./VpnModal";
 import StreakFlame from "./StreakFlame";
 import FortuneWheelModal from "./FortuneWheelModal";
+import StreakLeaderboard from "./StreakLeaderboard";
+import PasswordInput from "./PasswordInput";
 import { fetchVpnStatus } from "../vpn/api";
 import { getStreakStatus, setStreakFreeze } from "../streak/api";
 
@@ -66,6 +68,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
   const [freezeBusy, setFreezeBusy] = useState(false);
   const [freezeMessage, setFreezeMessage] = useState("");
   const [wheelOpen, setWheelOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
 
 
   onCloseRef.current = onClose;
@@ -123,6 +126,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
             setStreakError("");
             setFreezeMessage("");
             setWheelOpen(false);
+            setLeaderboardOpen(false);
       return undefined;
     }
 
@@ -792,6 +796,18 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
                 )}
               </div>
 
+              <div className="streak-leaderboard-section">
+                <button
+                  type="button"
+                  className="secondary-btn streak-leaderboard-toggle"
+                  onClick={() => setLeaderboardOpen((prev) => !prev)}
+                >
+                  <Trophy size={16} aria-hidden="true" />
+                  <span>Таблица лидеров</span>
+                </button>
+                {leaderboardOpen ? <StreakLeaderboard /> : null}
+              </div>
+
 
               <div className="profile-password-section">
                 {!passwordFormOpen ? (
@@ -811,8 +827,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
                     <p className="profile-password-form-title">Смена пароля</p>
                     <label className="profile-password-field">
                       <span>Новый пароль</span>
-                      <input
-                        type="password"
+                      <PasswordInput
                         value={newPassword}
                         onChange={(event) => {
                           setNewPassword(event.target.value);
@@ -825,8 +840,7 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
                     </label>
                     <label className="profile-password-field">
                       <span>Повторите новый пароль</span>
-                      <input
-                        type="password"
+                      <PasswordInput
                         value={confirmPassword}
                         onChange={(event) => {
                           setConfirmPassword(event.target.value);
