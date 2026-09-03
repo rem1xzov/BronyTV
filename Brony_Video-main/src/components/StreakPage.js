@@ -4,7 +4,7 @@ import { Flame } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useAuth } from "../auth/AuthContext";
 import FortuneWheelModal from "./FortuneWheelModal";
-import { getStreakStatus } from "../streak/api";
+import { getStreakStatus, setStreakFreeze } from "../streak/api";
 
 const FALLBACK_MILESTONES = [
   { milestone: 3, reward: "Бейдж на профиле + 1 день VPN", isWheel: false },
@@ -24,6 +24,8 @@ export default function StreakPage() {
   const { isAuthenticated } = useAuth();
   const [status, setStatus] = useState(null);
   const [wheelOpen, setWheelOpen] = useState(false);
+  const [freezeBusy, setFreezeBusy] = useState(false);
+  const [freezeMessage, setFreezeMessage] = useState("");
 
   const loadStatus = useCallback(async () => {
     if (!isAuthenticated) {
@@ -40,6 +42,21 @@ export default function StreakPage() {
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
+
+  const handleFreeze = async () => {
+    if (freezeBusy) return;
+    setFreezeBusy(true);
+    setFreezeMessage("");
+    const result = await setStreakFreeze();
+    setFreezeBusy(false);
+    if (result && result.success) {
+      setFreezeMessage(t("streak.freezeSet"));
+      const updated = await getStreakStatus().catch(() => null);
+      if (updated) setStatus(updated);
+    } else {
+      setFreezeMessage(result?.error || t("streak.freezeError"));
+    }
+  };
 
   const milestones =
     Array.isArray(status?.milestones) && status.milestones.length > 0
@@ -138,9 +155,27 @@ export default function StreakPage() {
         <p className="muted" style={{ margin: "6px 0 0" }}>
           {t("streak.conditionsText", { minutes: thresholdMinutes, maxComments, minWords })}
         </p>
-        <p className="muted" style={{ margin: "6px 0 0" }}>
-          {t("streak.freezeInfo", { n: freezesAvailable })}
-        </p>
+        <div className="streak-freeze-block">
+          <p className="muted" style={{ margin: 0 }}>
+            {t("streak.freezeInfo", { n: freezesAvailable })}
+          </p>
+          <div className="streak-freeze-actions">
+            <button
+              type="button"
+              className="primary-btn"
+              onClick={handleFreeze}
+              disabled={freezeBusy || !status?.canFreeze}
+            >
+              {t("streak.freeze")}
+            </button>
+            <span className="muted" style={{ fontSize: "0.85rem" }}>
+              {t("streak.freezeLeft", { n: freezesAvailable })}
+            </span>
+          </div>
+          {freezeMessage ? (
+            <p className="muted" style={{ margin: "6px 0 0" }}>{freezeMessage}</p>
+          ) : null}
+        </div>
       </div>
 
       {hasUnspunWheel ? (
