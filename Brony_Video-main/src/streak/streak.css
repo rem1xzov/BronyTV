@@ -508,6 +508,26 @@
   }
 }
 
+@media (max-width: 480px) {
+  .hero-heading-row {
+    gap: 8px;
+  }
+
+  .hero-heading-actions {
+    gap: 8px;
+  }
+
+  .home-streak-btn {
+    padding: 4px 8px;
+    font-size: 0.9rem;
+  }
+
+  .home-streak-btn .streak-flame svg {
+    width: 18px;
+    height: 18px;
+  }
+}
+
 @media (max-width: 400px) {
   .fortune-wheel-wrap {
     width: 240px;

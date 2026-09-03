@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Flame } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useAuth } from "../auth/AuthContext";
@@ -85,6 +86,9 @@ export default function StreakPage() {
           </h1>
           <p className="muted">{t("streak.roadmapSubtitle")}</p>
         </div>
+        <Link to="/" className="primary-btn streak-back-home">
+          {t("streak.backHome")}
+        </Link>
       </header>
 
       {/* Верхний блок — ближайшая недостигнутая веха */}
