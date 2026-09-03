@@ -16,4 +16,10 @@ public class ForumPostResponse
     public List<string>? Images { get; set; }
     public int Likes { get; set; }
     public bool LikedByMe { get; set; }
+
+    /// <summary>Текущий стрик автора (для огонька у никнейма).</summary>
+    public int AuthorStreak { get; set; }
+
+    /// <summary>Засчитан ли у автора сегодняшний день (огонёк «горит»).</summary>
+    public bool AuthorStreakActive { get; set; }
 }

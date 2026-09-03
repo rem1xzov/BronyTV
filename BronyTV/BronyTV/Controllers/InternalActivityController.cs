@@ -18,17 +18,20 @@ namespace BronyTV.Controllers;
 public class InternalActivityController : ControllerBase
 {
     private readonly IUserActivityService _userActivityService;
+    private readonly IStreakService _streakService;
     private readonly DbBronyTV _context;
     private readonly IAdminAccessService _adminAccessService;
     private readonly string _internalKey;
 
     public InternalActivityController(
         IUserActivityService userActivityService,
+        IStreakService streakService,
         DbBronyTV context,
         IAdminAccessService adminAccessService,
         IConfiguration configuration)
     {
         _userActivityService = userActivityService;
+        _streakService = streakService;
         _context = context;
         _adminAccessService = adminAccessService;
         _internalKey = configuration["InternalApiKey"]
@@ -62,6 +65,35 @@ public class InternalActivityController : ControllerBase
             request.UserId,
             "bot_chat",
             string.IsNullOrWhiteSpace(request.CharacterId) ? null : request.CharacterId,
+            cancellationToken);
+
+        return Ok();
+    }
+
+    /// <summary>
+    /// Записывает активное время диалога с ИИ-ботом (в секундах) для стрика.
+    /// Принимает ТОЛЬКО UserId и секунды — текст сообщения никуда не передаётся.
+    /// </summary>
+    [HttpPost("streak/bot-chat")]
+    public async Task<IActionResult> RecordBotChatMinutes(
+        [FromBody] RecordBotChatMinutesRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!Request.Headers.TryGetValue("X-Internal-Key", out var supplied)
+            || string.IsNullOrWhiteSpace(_internalKey)
+            || !string.Equals(supplied, _internalKey, StringComparison.Ordinal))
+        {
+            return Unauthorized(new { message = "Недопустимый внутренний ключ." });
+        }
+
+        if (request == null || request.UserId == Guid.Empty)
+        {
+            return BadRequest(new { message = "UserId обязателен." });
+        }
+
+        await _streakService.RecordBotChatAsync(
+            request.UserId,
+            request.Seconds,
             cancellationToken);
 
         return Ok();
@@ -194,4 +226,12 @@ public class RecordBotChatRequest
 
     /// <summary>Имя/идентификатор персонажа-бота (characterId). Не текст сообщения.</summary>
     public string? CharacterId { get; set; }
+}
+
+public class RecordBotChatMinutesRequest
+{
+    public Guid UserId { get; set; }
+
+    /// <summary>Секунды активного диалога с ботом.</summary>
+    public double Seconds { get; set; }
 }

@@ -30,6 +30,12 @@ public class VpnRepository : IVpnRepository
             .OrderByDescending(subscription => subscription.StartedAtUtc)
             .FirstOrDefaultAsync(cancellationToken);
 
+    public async Task<VpnSubscriptionEntity?> GetActiveTrackedAsync(Guid userId, CancellationToken cancellationToken = default) =>
+        await _context.VpnSubscriptions
+            .Where(subscription => subscription.UserId == userId && !subscription.IsRevoked)
+            .OrderByDescending(subscription => subscription.StartedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
     public async Task<IReadOnlyList<VpnSubscriptionEntity>> GetByUserAsync(
         Guid userId,
         CancellationToken cancellationToken = default) =>
@@ -46,6 +52,14 @@ public class VpnRepository : IVpnRepository
         _context.VpnSubscriptions.Add(subscription);
         await _context.SaveChangesAsync(cancellationToken);
         return subscription;
+    }
+
+    public async Task UpdateSubscriptionAsync(
+        VpnSubscriptionEntity subscription,
+        CancellationToken cancellationToken = default)
+    {
+        _context.VpnSubscriptions.Update(subscription);
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<bool> RevokeAsync(Guid userId, CancellationToken cancellationToken = default)

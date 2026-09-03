@@ -11,9 +11,17 @@ public interface IVpnRepository
     Task<bool> TrialUsedAsync(Guid userId, CancellationToken cancellationToken = default);
 
     Task<VpnSubscriptionEntity?> GetActiveAsync(Guid userId, CancellationToken cancellationToken = default);
+
+    /// <summary>Активная подписка в отслеживаемом (tracked) виде — для продления.</summary>
+    Task<VpnSubscriptionEntity?> GetActiveTrackedAsync(Guid userId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<VpnSubscriptionEntity>> GetByUserAsync(Guid userId, CancellationToken cancellationToken = default);
 
     Task<VpnSubscriptionEntity> CreateSubscriptionAsync(
+        VpnSubscriptionEntity subscription,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Сохраняет продление существующей подписки (tracked entity).</summary>
+    Task UpdateSubscriptionAsync(
         VpnSubscriptionEntity subscription,
         CancellationToken cancellationToken = default);
 

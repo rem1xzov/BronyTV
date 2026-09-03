@@ -11,7 +11,10 @@ import { validateUsername } from "../auth/username";
 import { validateChangePassword } from "../auth/password";
 import SupportModal from "./SupportModal";
 import VpnModal from "./VpnModal";
+import StreakFlame from "./StreakFlame";
+import FortuneWheelModal from "./FortuneWheelModal";
 import { fetchVpnStatus } from "../vpn/api";
+import { getStreakStatus, setStreakFreeze } from "../streak/api";
 
 
 function ProfileSkeleton() {
@@ -58,6 +61,11 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
   const [vpnOpen, setVpnOpen] = useState(false);
   const [vpnStatus, setVpnStatus] = useState(null);
   const [vpnStatusError, setVpnStatusError] = useState("");
+  const [streakStatus, setStreakStatus] = useState(null);
+  const [streakError, setStreakError] = useState("");
+  const [freezeBusy, setFreezeBusy] = useState(false);
+  const [freezeMessage, setFreezeMessage] = useState("");
+  const [wheelOpen, setWheelOpen] = useState(false);
 
 
   onCloseRef.current = onClose;
@@ -111,6 +119,10 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
             setVpnOpen(false);
             setVpnStatus(null);
             setVpnStatusError("");
+            setStreakStatus(null);
+            setStreakError("");
+            setFreezeMessage("");
+            setWheelOpen(false);
       return undefined;
     }
 
@@ -184,6 +196,27 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+    let cancelled = false;
+    getStreakStatus()
+      .then((payload) => {
+        if (cancelled) return;
+        setStreakStatus(payload);
+        setStreakError("");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStreakError("Не удалось загрузить статус стрика.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
   if (!isOpen) {
     return null;
   }
@@ -202,6 +235,21 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
     await logout();
     onClose();
     onRequestSignIn?.();
+  };
+
+  const handleFreeze = async () => {
+    if (freezeBusy) return;
+    setFreezeBusy(true);
+    setFreezeMessage("");
+    const result = await setStreakFreeze();
+    setFreezeBusy(false);
+    if (result && result.success) {
+      setFreezeMessage("Заморозка на следующий день поставлена.");
+      const status = await getStreakStatus().catch(() => null);
+      if (status) setStreakStatus(status);
+    } else {
+      setFreezeMessage(result?.error || "Не удалось поставить заморозку.");
+    }
   };
 
   const displayUser = profileUser ?? normalizeAuthUser(user);
@@ -642,6 +690,108 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
                 ) : null}
               </div>
 
+              <div className="streak-profile-block">
+                <h3>Стрик активности</h3>
+                {streakError ? (
+                  <p className="muted">{streakError}</p>
+                ) : streakStatus ? (
+                  <>
+                    <div className="streak-profile-stats">
+                      <div className="streak-profile-stat">
+                        <span className="streak-profile-stat-value">
+                          <StreakFlame
+                            streak={streakStatus.currentStreak}
+                            active={streakStatus.isStreakCreditedToday}
+                            size={18}
+                          />
+                          {streakStatus.currentStreak}
+                        </span>
+                        <span className="streak-profile-stat-label">Текущий стрик</span>
+                      </div>
+                      <div className="streak-profile-stat">
+                        <span className="streak-profile-stat-value">{streakStatus.longestStreak}</span>
+                        <span className="streak-profile-stat-label">Рекорд</span>
+                      </div>
+                      <div className="streak-profile-stat">
+                        <span className="streak-profile-stat-value">
+                          {Math.round((streakStatus.totalMinutesToday || 0) * 10) / 10}/{streakStatus.thresholdMinutes}
+                        </span>
+                        <span className="streak-profile-stat-label">Минут сегодня</span>
+                      </div>
+                    </div>
+
+                    {streakStatus.nextMilestone ? (
+                      <div>
+                        <p className="muted" style={{ margin: 0 }}>
+                          {streakStatus.nextMilestoneRewardDescription
+                            ? `Следующая награда (${streakStatus.nextMilestone} дн.): ${streakStatus.nextMilestoneRewardDescription}`
+                            : `Следующая награда через ${streakStatus.daysToNextMilestone} дн.`}
+                        </p>
+                        <div className="streak-profile-progress">
+                          <div
+                            className="streak-profile-progress-fill"
+                            style={{
+                              width: `${Math.min(
+                                100,
+                                Math.round((streakStatus.currentStreak / streakStatus.nextMilestone) * 100)
+                              )}%`
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="muted" style={{ margin: 0 }}>
+                        Все вехи пройдены!
+                      </p>
+                    )}
+
+                    <div style={{ marginTop: '12px', display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        className="primary-btn"
+                        onClick={handleFreeze}
+                        disabled={freezeBusy || !streakStatus.canFreeze}
+                      >
+                        Заморозить следующий день
+                      </button>
+                      <span className="muted" style={{ fontSize: '0.85rem' }}>
+                        Заморозок осталось: {streakStatus.freezesAvailable}
+                      </span>
+                    </div>
+                    {freezeMessage ? (
+                      <p className="muted" style={{ marginTop: '6px' }}>{freezeMessage}</p>
+                    ) : null}
+
+                    <div className="streak-profile-rewards">
+                      <strong style={{ fontSize: '0.9rem' }}>Полученные награды</strong>
+                      {streakStatus.rewards && streakStatus.rewards.length > 0 ? (
+                        <ul>
+                          {streakStatus.rewards.map((reward) => (
+                            <li key={reward.milestone} className="streak-profile-reward">
+                              <span>День {reward.milestone}: {reward.rewardDescription}</span>
+                              {reward.rewardDescription === "Колесо фортуны" ? (
+                                <button
+                                  type="button"
+                                  className="secondary-btn"
+                                  style={{ marginLeft: '8px' }}
+                                  onClick={() => setWheelOpen(true)}
+                                >
+                                  Крутить
+                                </button>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="muted" style={{ margin: '6px 0 0' }}>Пока нет полученных наград.</p>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <p className="muted">Загрузка стрика…</p>
+                )}
+              </div>
+
 
               <div className="profile-password-section">
                 {!passwordFormOpen ? (
@@ -813,6 +963,13 @@ export default function ProfileModal({ isOpen, onClose, onRequestSignIn, onOpenF
         onClose={() => setVpnOpen(false)}
         isAuthenticated={Boolean(displayUser)}
         onRequestSignIn={() => setVpnOpen(false)}
+      />
+      <FortuneWheelModal
+        isOpen={wheelOpen}
+        onClose={() => setWheelOpen(false)}
+        onResult={() => {
+          getStreakStatus().then((status) => setStreakStatus(status)).catch(() => {});
+        }}
       />
     </div>,
     document.body

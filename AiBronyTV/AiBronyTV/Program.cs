@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Diagnostics;
 using AiBronyTV.Core;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
@@ -161,6 +162,10 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
 
         try
     {
+        // Меряем активное время диалога (прокси: от старта запроса до конца стрима).
+        // Засчитывается в стрик как «время активного диалога с ботом».
+        var dialogStopwatch = Stopwatch.StartNew();
+
         // Resolve the user's role from the authentication context (if authenticated).
         // Owner and Admin bypass message limits entirely.
         var role = ctx.User.IsInRole("Owner")
@@ -203,6 +208,8 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
         await ctx.Response.WriteAsync("data: [DONE]\n\n");
         await ctx.Response.Body.FlushAsync();
 
+        dialogStopwatch.Stop();
+
         // Best-effort: логируем факт общения с ботом в основной backend.
         // Передаём ТОЛЬКО UserId и имя бота (characterId), НИКОГДА текст сообщения.
         if (bronyUserId != Guid.Empty && !string.IsNullOrWhiteSpace(internalKey))
@@ -224,6 +231,33 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
                 catch
                 {
                     // Логирование бот-активности не должно ломать чат.
+                }
+            });
+        }
+
+        // Best-effort: засчитываем активное время диалога в стрик (секунды).
+        // Передаём ТОЛЬКО UserId и секунды, НИКОГДА текст сообщения. Кап 60 секунд
+        // на сообщение — чтобы медленный ответ нейросети не раздувал стрик.
+        if (bronyUserId != Guid.Empty && !string.IsNullOrWhiteSpace(internalKey) && dialogStopwatch.Elapsed.TotalSeconds > 0)
+        {
+            var seconds = Math.Min(dialogStopwatch.Elapsed.TotalSeconds, 60.0);
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var client = httpClientFactory.CreateClient("BronyBackend");
+                    var payload = JsonSerializer.Serialize(new
+                    {
+                        userId = bronyUserId,
+                        seconds
+                    });
+                    using var content = new StringContent(payload, Encoding.UTF8, "application/json");
+                    content.Headers.Add("X-Internal-Key", internalKey);
+                    await client.PostAsync("/api/internal/streak/bot-chat", content);
+                }
+                catch
+                {
+                    // Учёт времени диалога не должен ломать чат.
                 }
             });
         }
@@ -661,6 +695,55 @@ app.MapPost("/api/admin/migrate-legacy-premium/assign", async (
 })
 .RequireAuthorization("VerifiedUser");
 
+// Начисление дней премиума server-to-server (вызывается основным BronyTV-бэкендом
+// для наград за стрики и колесо фортуны). Доступ по общему внутреннему ключу.
+// Переиспользует существующее хранилище премиума ai."UserLimits"."PremiumUntil".
+app.MapPost("/api/internal/premium/grant", async (
+    PremiumGrantRequest request,
+    AppDbContext db,
+    HttpContext ctx) =>
+{
+    if (!ctx.Request.Headers.TryGetValue("X-Internal-Key", out var supplied)
+        || string.IsNullOrWhiteSpace(internalKey)
+        || !string.Equals(supplied, internalKey, StringComparison.Ordinal))
+    {
+        return Results.Json(new { message = "Недопустимый внутренний ключ." },
+            statusCode: StatusCodes.Status401Unauthorized);
+    }
+
+    if (request == null
+        || string.IsNullOrWhiteSpace(request.UserId)
+        || !Guid.TryParse(request.UserId, out var userId)
+        || request.Days <= 0)
+    {
+        return Results.BadRequest(new { message = "Параметры userId и days обязательны (days > 0)." });
+    }
+
+    var now = DateTime.UtcNow;
+    var key = userId.ToString();
+    var row = await db.UserLimits.FirstOrDefaultAsync(item => item.SessionId == key);
+    if (row == null)
+    {
+        row = new UserLimitEntity { SessionId = key, Date = now, Count = 0 };
+        db.UserLimits.Add(row);
+    }
+
+    var baseTime = (row.PremiumUntil.HasValue && row.PremiumUntil.Value > now)
+        ? row.PremiumUntil.Value
+        : now;
+    row.PremiumUntil = baseTime.AddDays(request.Days);
+    row.Date = now;
+
+    await db.SaveChangesAsync();
+
+    return Results.Ok(new
+    {
+        userId = key,
+        days = request.Days,
+        premiumUntil = row.PremiumUntil.Value.ToString("O")
+    });
+});
+
 
 app.MapAdminBots();
 
@@ -669,3 +752,4 @@ app.Run();
 public record ChatRequest(string SessionId, string CharacterId, string Message);
 public record ActivateRequest(string Key, string? SessionId);
 public record AssignLegacyRequest(string LegacySessionKey, string TargetEmail);
+public record PremiumGrantRequest(string UserId, int Days);

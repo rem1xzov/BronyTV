@@ -41,6 +41,15 @@ public interface IVpn3xUiClient
     /// <summary>Проверяет наличие клиента с заданным UUID на панели (в инбаундах VLESS).</summary>
     Task<bool> ClientExistsAsync(string clientUuid, CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Возвращает информацию о клиенте (UUID + текущий expiryTime) по UUID и/или email.
+    /// null — клиент не найден на панели.
+    /// </summary>
+    Task<XuiClientInfo?> GetClientInfoAsync(
+        string clientUuid,
+        string email,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Полностью удаляет клиента с панели (например, при отключении подписки).</summary>
     Task<bool> RemoveClientAsync(string clientUuid, CancellationToken cancellationToken = default);
 
@@ -193,6 +202,29 @@ public class Vpn3xUiClient : IVpn3xUiClient
             _logger.LogError(ex, "Ошибка 3X-UI при проверке существования клиента {Uuid}.", clientUuid);
             return false;
         }
+    }
+
+    public async Task<XuiClientInfo?> GetClientInfoAsync(
+        string clientUuid,
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsConfigured)
+        {
+            return null;
+        }
+
+        var entry = await FindClientAsync(clientUuid, email, cancellationToken).ConfigureAwait(false);
+        if (entry == null)
+        {
+            return null;
+        }
+
+        DateTime? expiryUtc = entry.ExpiryTime > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(entry.ExpiryTime).UtcDateTime
+            : null;
+
+        return new XuiClientInfo(entry.Id, expiryUtc);
     }
 
     public async Task<bool> RemoveClientAsync(string clientUuid, CancellationToken cancellationToken = default)
@@ -620,6 +652,9 @@ public class Vpn3xUiClient : IVpn3xUiClient
         return new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToUnixTimeMilliseconds();
     }
 }
+
+/// <summary>Публичная информация о клиенте 3X-UI (для логики GrantDays).</summary>
+public sealed record XuiClientInfo(string Uuid, DateTime? ExpiryUtc);
 
 /// <summary>Модель клиента 3X-UI, извлекаемая из <c>settings.clients</c> инбаунда.</summary>
 internal sealed class XuiClientEntry

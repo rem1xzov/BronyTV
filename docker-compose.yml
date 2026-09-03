@@ -43,6 +43,10 @@ services:
       - Jwt__SessionDays=7
       # Shared secret protecting internal server-to-server endpoints (see InternalActivityController).
       - BRONYTV_INTERNAL_KEY=${BRONYTV_INTERNAL_KEY:-}
+      # AiBronyTV base URL for server-to-server premium grant (streak rewards).
+      - AiBackend__BaseUrl=${AIBRONYTV_BACKEND_URL:-http://aibronytv:8080}
+      # Telegram support link shown for manual NFT rewards.
+      - Support__TelegramUrl=${SUPPORT_TELEGRAM_URL:-https://t.me/bronytv}
       - Admin__BootstrapLogin=${ADMIN_BOOTSTRAP_LOGIN:-}
       - Admin__BootstrapPassword=${ADMIN_BOOTSTRAP_PASSWORD:-}
       - Admin__PrivilegedEmails__0=${ADMIN_EMAIL:-}

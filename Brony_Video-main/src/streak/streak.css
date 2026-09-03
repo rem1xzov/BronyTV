@@ -1,0 +1,355 @@
+/* =============================================================================
+   BronyTV — стили системы стриков (огонёк, лидерборд, колесо фортуны, ЛК).
+   Вынесены отдельно, чтобы не трогать существующую вёрстку.
+   ============================================================================= */
+
+/* --- Огонёк стрика --- */
+.streak-flame {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* --- Огонёк на главной (рядом с переключателем языка) --- */
+.hero-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.home-streak-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.06);
+  cursor: pointer;
+  color: inherit;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.home-streak-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+/* --- Роадмап наград --- */
+.streak-roadmap-modal {
+  max-width: 420px;
+  max-height: 86vh;
+  overflow-y: auto;
+}
+
+.streak-roadmap-next {
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(216, 27, 96, 0.18), rgba(255, 140, 0, 0.12));
+  border: 1px solid rgba(255, 140, 0, 0.25);
+  margin-bottom: 14px;
+}
+
+.streak-roadmap-next-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.streak-roadmap-next-day {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ff8c00;
+}
+
+.streak-roadmap-next-reward {
+  font-weight: 600;
+}
+
+.streak-roadmap-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.streak-roadmap-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.9rem;
+}
+
+.streak-roadmap-item--achieved {
+  border-color: rgba(76, 175, 80, 0.4);
+  background: rgba(76, 175, 80, 0.12);
+}
+
+.streak-roadmap-item--achieved .streak-roadmap-item-mark {
+  color: #4caf50;
+}
+
+.streak-roadmap-item--next {
+  border-color: rgba(255, 140, 0, 0.5);
+  background: rgba(255, 140, 0, 0.14);
+}
+
+.streak-roadmap-item--next .streak-roadmap-item-mark {
+  color: #ff8c00;
+}
+
+.streak-roadmap-item--locked {
+  opacity: 0.62;
+}
+
+.streak-roadmap-item-day {
+  min-width: 56px;
+  font-weight: 700;
+  color: #d81b60;
+}
+
+.streak-roadmap-item-reward {
+  flex: 1;
+  min-width: 0;
+}
+
+.streak-roadmap-item-mark {
+  font-weight: 800;
+  min-width: 16px;
+  text-align: center;
+}
+
+.streak-roadmap-conditions {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+}
+
+/* --- Таблица лидеров --- */
+.streak-leaderboard {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.streak-leaderboard-tabs {
+  display: flex;
+  gap: 10px;
+  margin: 16px 0 20px;
+}
+
+.streak-leaderboard-tabs .primary-btn.active {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
+.streak-leaderboard-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.streak-leaderboard-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.streak-leaderboard-rank {
+  min-width: 32px;
+  text-align: center;
+  font-weight: 700;
+  color: #d81b60;
+}
+
+.streak-leaderboard-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+.streak-leaderboard-username {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.streak-leaderboard-value {
+  font-weight: 700;
+}
+
+/* --- Колесо фортуны --- */
+.fortune-wheel-modal {
+  max-width: 380px;
+  text-align: center;
+}
+
+.fortune-wheel-wrap {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  margin: 20px auto;
+}
+
+.fortune-wheel-pointer {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  width: 0;
+  height: 0;
+  border-left: 14px solid transparent;
+  border-right: 14px solid transparent;
+  border-top: 24px solid #ffd54f;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+}
+
+.fortune-wheel {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 6px solid #3a2b4a;
+  position: relative;
+  box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.1), 0 10px 30px rgba(0, 0, 0, 0.35);
+  will-change: transform;
+}
+
+.fortune-wheel-label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center;
+  width: 90px;
+  margin-left: -45px;
+  margin-top: -0.6em;
+  text-align: center;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+.fortune-wheel-result {
+  margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+
+.fortune-wheel-prize {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+/* --- Модалка поздравления за веху --- */
+.streak-reward-modal {
+  max-width: 360px;
+  text-align: center;
+}
+
+.streak-reward-milestone {
+  font-weight: 700;
+  font-size: 1.1rem;
+  margin: 8px 0;
+}
+
+.streak-reward-description {
+  color: #ffb300;
+  margin: 0 0 16px;
+}
+
+/* --- Блок стрика в личном кабинете --- */
+.streak-profile-block {
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+}
+
+.streak-profile-block h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.streak-profile-stats {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.streak-profile-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.streak-profile-stat-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #ff8c00;
+}
+
+.streak-profile-stat-label {
+  font-size: 0.8rem;
+  color: #999;
+}
+
+.streak-profile-progress {
+  height: 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+  margin: 8px 0 6px;
+}
+
+.streak-profile-progress-fill {
+  height: 100%;
+  border-radius: 6px;
+  background: linear-gradient(90deg, #ff8c00, #ffb300);
+  transition: width 0.3s ease;
+}
+
+.streak-profile-rewards {
+  margin-top: 12px;
+}
+
+.streak-profile-rewards ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.streak-profile-reward {
+  font-size: 0.88rem;
+  color: #ddd;
+}
+
+.streak-profile-reward .muted {
+  font-size: 0.75rem;
+}

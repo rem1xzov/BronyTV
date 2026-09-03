@@ -64,6 +64,14 @@ builder.Services.AddScoped<IVpnRepository, VpnRepository>();
 builder.Services.AddScoped<IVpnService, VpnService>();
 builder.Services.AddScoped<IVpnAdminService, VpnAdminService>();
 builder.Services.AddScoped<IVpn3xUiClient, Vpn3xUiClient>();
+builder.Services.AddScoped<IStreakRepository, StreakRepository>();
+builder.Services.AddScoped<IStreakService, StreakService>();
+builder.Services.AddScoped<IPremiumRewardClient, PremiumRewardClient>();
+builder.Services.AddHttpClient("AiBackend", client =>
+{
+    client.BaseAddress = new Uri(builder.Configuration["AiBackend:BaseUrl"] ?? "http://aibronytv:8080");
+    client.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddHttpClient("vpn3xui")
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
     {

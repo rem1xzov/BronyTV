@@ -34,6 +34,17 @@ public interface IVpnService
         Guid userId,
         string code,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// <para>Начисляет N дней BronyVPN (продлевает активную подписку или создаёт новую).</para>
+    /// <para>Используется наградами за стрики. <b>ServerError</b> = true означает сбой внешнего
+    /// VPN-провайдера (3X-UI) либо не сконфигурированную панель.</para>
+    /// </summary>
+    Task<(bool Success, string? Error, bool ServerError)> GrantDaysAsync(
+        Guid userId,
+        int days,
+        CancellationToken cancellationToken = default);
+
     Task RevokeAsync(Guid userId, CancellationToken cancellationToken = default);
 }
 
@@ -391,6 +402,123 @@ public class VpnService : IVpnService
             PlanName = result.PlanName,
             ExpiresAtUtc = result.ExpiresAtUtc
         }, false);
+    }
+
+    public async Task<(bool Success, string? Error, bool ServerError)> GrantDaysAsync(
+        Guid userId,
+        int days,
+        CancellationToken cancellationToken = default)
+    {
+        if (days <= 0)
+        {
+            return (false, "Некорректное количество дней награды.", false);
+        }
+
+        if (!_optionsAccessor.Value.Enabled)
+        {
+            return (false, "VPN-сервис временно недоступен.", false);
+        }
+
+        if (!IsPanelReady())
+        {
+            _logger.LogError(
+                "3X-UI: панель не сконфигурирована, награда VPN для пользователя {UserId} отклонена.",
+                userId);
+            return (false, "Не удалось начислить VPN-дни: VPN-провайдер не настроен.", true);
+        }
+
+        var now = DateTime.UtcNow;
+        var email = BuildPanelEmail(userId);
+
+        // Локальная подписка (tracked) — для получения известного UUID и последующей синхронизации.
+        var local = await _vpnRepository.GetActiveTrackedAsync(userId, cancellationToken);
+        var localUuid = local?.ClientUuid;
+
+        // 1. Текущий клиент из панели 3X-UI (по UUID и/или email).
+        XuiClientInfo? panelInfo = null;
+        try
+        {
+            panelInfo = await _panelClient.GetClientInfoAsync(
+                localUuid ?? string.Empty,
+                email,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                ex,
+                "3X-UI: не удалось прочитать текущего клиента {Email}; считаем, что клиента нет.",
+                email);
+        }
+
+        var oldExpiry = panelInfo?.ExpiryUtc;
+        var clientUuid = panelInfo?.Uuid ?? localUuid ?? Guid.NewGuid().ToString();
+
+        // 2. Новый expiry: активный клиент с будущим expiry → прибавляем дни к нему,
+        //    иначе (не найден/просрочен/без expiry) — от текущего момента.
+        DateTime newExpiry;
+        if (oldExpiry.HasValue && oldExpiry.Value > now)
+        {
+            newExpiry = oldExpiry.Value.AddDays(days);
+        }
+        else
+        {
+            newExpiry = now.AddDays(days);
+        }
+
+        _logger.LogInformation(
+            "3X-UI: начисление {Days} дней VPN пользователю {UserId} ({Email}). oldExpiry={OldExpiry} -> newExpiry={NewExpiry}",
+            days,
+            userId,
+            email,
+            oldExpiry.HasValue ? oldExpiry.Value.ToString("O") : "<нет/просрочен>",
+            newExpiry.ToString("O"));
+
+        // 3. Обновляем/создаём клиента на панели через тот же вызов, что и промо-активация.
+        bool provisioned;
+        try
+        {
+            provisioned = await _panelClient.UpsertClientAsync(
+                clientUuid,
+                email,
+                newExpiry,
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "3X-UI: сбой при начислении VPN-дней пользователю {UserId}.", userId);
+            return (false, "Не удалось начислить VPN-дни: VPN-провайдер недоступен.", true);
+        }
+
+        if (!provisioned)
+        {
+            _logger.LogWarning("3X-UI: не удалось начислить VPN-дни (success=false) пользователю {UserId}.", userId);
+            return (false, "Не удалось начислить VPN-дни: ошибка VPN-провайдера.", true);
+        }
+
+        // 4. Синхронизируем локальную подписку с новым состоянием панели.
+        if (local != null && !local.IsRevoked && (local.ExpiresAtUtc == null || local.ExpiresAtUtc > now))
+        {
+            local.ExpiresAtUtc = newExpiry;
+            local.ClientUuid = clientUuid;
+            await _vpnRepository.UpdateSubscriptionAsync(local, cancellationToken);
+        }
+        else
+        {
+            await _vpnRepository.CreateSubscriptionAsync(new VpnSubscriptionEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Kind = "reward",
+                PlanName = "BronyVPN (награда за стрик)",
+                StartedAtUtc = now,
+                ExpiresAtUtc = newExpiry,
+                ClientUuid = clientUuid,
+                PanelPlanNameId = "reward"
+            }, cancellationToken);
+        }
+
+        return (true, null, false);
     }
 
     public async Task RevokeAsync(Guid userId, CancellationToken cancellationToken = default)

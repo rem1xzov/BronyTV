@@ -14,11 +14,16 @@ public class ForumService : IForumService
 {
     private readonly IForumRepository _forumRepository;
     private readonly IUserRepository _userRepository;
+    private readonly IStreakRepository _streakRepository;
 
-    public ForumService(IForumRepository forumRepository, IUserRepository userRepository)
+    public ForumService(
+        IForumRepository forumRepository,
+        IUserRepository userRepository,
+        IStreakRepository streakRepository)
     {
         _forumRepository = forumRepository;
         _userRepository = userRepository;
+        _streakRepository = streakRepository;
     }
 
     public async Task<IReadOnlyList<ForumThreadResponse>> GetThreadsAsync(CancellationToken cancellationToken = default)
@@ -116,7 +121,8 @@ public class ForumService : IForumService
     CancellationToken cancellationToken = default)
     {
         var posts = await _forumRepository.GetPostsByThreadIdAsync(threadId, cancellationToken);
-        return posts.Select(PostToResponse).ToList();
+        var summaries = await GetStreakSummariesAsync(posts.Select(post => post.AuthorId), cancellationToken);
+        return posts.Select(post => PostToResponse(post, summaries)).ToList();
     }
 
     public async Task<string?> GetThreadTitleByIdAsync(
@@ -185,6 +191,9 @@ public class ForumService : IForumService
 
         await _forumRepository.AddPostAsync(post, cancellationToken);
 
+        var authorSummaries = await GetStreakSummariesAsync(new[] { authorId }, cancellationToken);
+        var (authorStreak, authorStreakActive) = ResolveStreak(authorSummaries, authorId);
+
         var postResponse = new ForumPostResponse
         {
             Id = post.Id,
@@ -197,7 +206,9 @@ public class ForumService : IForumService
             LikedByMe = false,
             ReplyToPostId = post.ReplyToPostId,
             ReplyToAuthorUsername = replyToPost?.Author?.Username ?? "unknown",
-            ReplyToContent = replyToPost?.Content
+            ReplyToContent = replyToPost?.Content,
+            AuthorStreak = authorStreak,
+            AuthorStreakActive = authorStreakActive
         };
 
         return (postResponse, null, 201);
@@ -232,6 +243,9 @@ public class ForumService : IForumService
         post.LikedUserIds = likedIds.Count > 0 ? JsonSerializer.Serialize(likedIds) : null;
         await _forumRepository.UpdatePostAsync(post, cancellationToken);
 
+        var authorSummaries = await GetStreakSummariesAsync(new[] { post.AuthorId }, cancellationToken);
+        var (authorStreak, authorStreakActive) = ResolveStreak(authorSummaries, post.AuthorId);
+
         var postResponse = new ForumPostResponse
         {
             Id = post.Id,
@@ -244,7 +258,9 @@ public class ForumService : IForumService
             LikedByMe = likedByMe,
             ReplyToPostId = post.ReplyToPostId,
             ReplyToAuthorUsername = post.ReplyToPost?.Author?.Username ?? "unknown",
-            ReplyToContent = post.ReplyToPost?.Content
+            ReplyToContent = post.ReplyToPost?.Content,
+            AuthorStreak = authorStreak,
+            AuthorStreakActive = authorStreakActive
         };
 
         return (postResponse, null, 200);
@@ -300,9 +316,12 @@ public class ForumService : IForumService
             Images = DeserializeImages(thread.Images)
         };
 
-    private static ForumPostResponse PostToResponse(ForumPostEntity post)
+    private static ForumPostResponse PostToResponse(
+        ForumPostEntity post,
+        IReadOnlyDictionary<Guid, StreakSummary> summaries)
     {
         var likedIds = DeserializeLikedUserIds(post.LikedUserIds);
+        var (authorStreak, authorStreakActive) = ResolveStreak(summaries, post.AuthorId);
         return new ForumPostResponse
         {
             Id = post.Id,
@@ -315,8 +334,35 @@ public class ForumService : IForumService
             LikedByMe = false,
             ReplyToPostId = post.ReplyToPostId,
             ReplyToAuthorUsername = post.ReplyToPost?.Author?.Username ?? "unknown",
-            ReplyToContent = post.ReplyToPost?.Content
+            ReplyToContent = post.ReplyToPost?.Content,
+            AuthorStreak = authorStreak,
+            AuthorStreakActive = authorStreakActive
         };
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, StreakSummary>> GetStreakSummariesAsync(
+        IEnumerable<Guid> userIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = userIds.Distinct().ToList();
+        if (ids.Count == 0)
+        {
+            return new Dictionary<Guid, StreakSummary>();
+        }
+
+        return await _streakRepository.GetStreakSummariesAsync(
+            ids,
+            DateOnly.FromDateTime(DateTime.UtcNow),
+            cancellationToken);
+    }
+
+    private static (int Streak, bool Active) ResolveStreak(
+        IReadOnlyDictionary<Guid, StreakSummary> summaries,
+        Guid userId)
+    {
+        return summaries.TryGetValue(userId, out var summary)
+            ? (summary.CurrentStreak, summary.IsCreditedToday)
+            : (0, false);
     }
 
     private static List<string>? DeserializeImages(string? imagesJson)

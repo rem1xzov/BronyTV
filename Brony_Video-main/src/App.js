@@ -23,6 +23,7 @@ import {
   SkipForward,
   Star,
   Sun,
+  Trophy,
   Tv,
   Volume1,
   Volume2,
@@ -41,6 +42,9 @@ import NewsPage from "./components/NewsPage";
 import AiChatPage from "./components/AiChatPage";
 import VpnModal from "./components/VpnModal";
 import WatchPartyPage from "./watchparty/WatchPartyPage";
+import StreakLeaderboardPage from "./components/StreakLeaderboardPage";
+import HomeStreakIndicator from "./components/HomeStreakIndicator";
+import { recordVideoWatch } from "./streak/api";
 import logoPng from "./assets/logo2.png";
 
 const SEASON_INFO = [
@@ -473,6 +477,9 @@ const getPageFromPath = (path) => {
   if (path.startsWith("/watchparty")) {
     return "watchparty";
   }
+  if (path.startsWith("/streaks")) {
+    return "streaks";
+  }
   return "home";
 };
 
@@ -678,6 +685,10 @@ function Sidebar({ currentSeason, currentPage, theme, onToggleTheme }) {
         <Radio size={16} />
         <span>{t("nav.streams")}</span>
       </Link>
+      <Link to="/streaks" className={`nav-pill ${currentPage === "streaks" ? "active" : ""}`}>
+        <Trophy size={16} />
+        <span>{t("nav.leaderboard")}</span>
+      </Link>
                         <Link to="/seasons" className={`nav-pill ${currentPage === "season" && currentSeason >= 1 && currentSeason <= 9 ? "active" : ""}`}>
         <Tv size={16} />
         <span>{t("nav.seasons")}</span>
@@ -717,7 +728,10 @@ function HomePage({ videoRatings, onRateVideo, onClearVideoRating }) {
               />
               <h1 style={{ margin: 0 }}>{CONSTANTS.APP_NAME}</h1>
             </div>
-            <LanguageSwitcher className="hero-lang-switcher" />
+            <div className="hero-heading-actions">
+              <HomeStreakIndicator />
+              <LanguageSwitcher className="hero-lang-switcher" />
+            </div>
           </div>
           <p className="description">{t("home.tagline")}</p>
                     <div className="button-row">
@@ -1017,6 +1031,11 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   // Защита от дублей логирования просмотра: шлём запрос не чаще одного раза на эпизод,
   // даже если пользователь несколько раз ставит на паузу/продолжает тоже видео.
   const videoLogRef = useRef(null);
+  // Стрик: накопленные секунды активного просмотра (считаем только реальное
+  // воспроизведение по timeupdate, а не просто открытую страницу).
+  const watchSecondsRef = useRef(0);
+  const watchLastTimeRef = useRef(null);
+  const watchLastFlushRef = useRef(Date.now());
   const [videoError, setVideoError] = useState(false);
   const [videoEnded, setVideoEnded] = useState(false);
   const [nearEpisodeEnd, setNearEpisodeEnd] = useState(false);
@@ -1847,9 +1866,45 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
     [isMuted, playbackSpeed, progressStorageKey, volume, volumeSliderValue]
   );
 
+  const flushVideoWatch = useCallback(() => {
+    if (!isAuthenticated) {
+      watchSecondsRef.current = 0;
+      return;
+    }
+    const total = watchSecondsRef.current;
+    const seconds = Math.floor(total);
+    if (seconds <= 0) {
+      return;
+    }
+    watchSecondsRef.current = total - seconds;
+    watchLastFlushRef.current = Date.now();
+    recordVideoWatch(seconds).catch(() => {});
+  }, [isAuthenticated]);
+
+  // Сбрасываем накопленное активное время при уходе со страницы плеера.
+  useEffect(() => {
+    return () => {
+      flushVideoWatch();
+    };
+  }, [flushVideoWatch]);
+
   const handleVideoTimeUpdate = useCallback(
     (event) => {
       const currentTime = event.currentTarget.currentTime || 0;
+
+      // Стрик: накапливаем реальное активное время воспроизведения.
+      const lastWatchTime = watchLastTimeRef.current;
+      if (lastWatchTime != null && currentTime > lastWatchTime && currentTime - lastWatchTime <= 2) {
+        watchSecondsRef.current += currentTime - lastWatchTime;
+      }
+      watchLastTimeRef.current = currentTime;
+
+      if (
+        watchSecondsRef.current >= 60 ||
+        Date.now() - watchLastFlushRef.current >= 60000
+      ) {
+        flushVideoWatch();
+      }
 
       // =========================================================================
       // ЗАКОММЕНТИРОВАНО: Логика показа кнопки пропуска заставки отключена
@@ -1886,7 +1941,7 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
       lastSavedSecondRef.current = currentSecond;
       saveVideoProgress(currentTime, event.currentTarget.duration || 0);
     },
-    [saveVideoProgress]
+    [saveVideoProgress, flushVideoWatch]
   );
 
   const handleVideoEnded = useCallback(() => {
@@ -1898,8 +1953,9 @@ function PlayerPage({ setCurrentSeason, apiVideosBySeason, onEnsureSeasonVideos 
   const handleVideoPause = useCallback(
     (event) => {
       saveVideoProgress(event.currentTarget.currentTime || 0, event.currentTarget.duration || 0);
+      flushVideoWatch();
     },
-    [saveVideoProgress]
+    [saveVideoProgress, flushVideoWatch]
   );
 
     const toggleShellFullscreen = useCallback(async () => {
@@ -2453,6 +2509,7 @@ export default function App() {
         <Route path="/news" element={<NewsPage />} />
         <Route path="/bots" element={<AiChatPage />} />
         <Route path="/watchparty" element={<WatchPartyPage />} />
+        <Route path="/streaks" element={<StreakLeaderboardPage />} />
                 <Route path="/admin" element={<AdminPanelPage />} />
         <Route path="/seasons" element={<SeasonsListPage />} />
         <Route

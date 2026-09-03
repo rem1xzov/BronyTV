@@ -5,6 +5,7 @@ import { useAuth } from "../auth/AuthContext";
 import { useI18n } from "../i18n";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch } from "../auth/api";
+import StreakFlame from "./StreakFlame";
 
 function normalizeThread(raw) {
   if (!raw || typeof raw !== "object") {
@@ -48,7 +49,9 @@ function normalizePost(raw) {
     likedByMe: Boolean(raw.likedByMe ?? raw.LikedByMe ?? false),
     replyToPostId: raw.replyToPostId ?? raw.ReplyToPostId ?? null,
     replyToAuthorUsername: raw.replyToAuthorUsername ?? raw.ReplyToAuthorUsername ?? "",
-    replyToContent: raw.replyToContent ?? raw.ReplyToContent ?? ""
+    replyToContent: raw.replyToContent ?? raw.ReplyToContent ?? "",
+    authorStreak: Number(raw.authorStreak ?? raw.AuthorStreak ?? 0),
+    authorStreakActive: Boolean(raw.authorStreakActive ?? raw.AuthorStreakActive ?? false)
   };
 }
 
@@ -427,8 +430,9 @@ function ForumThreadView({ threadId }) {
         style={{ marginLeft: depth > 0 ? Math.min(depth * 18, 90) : 0 }}
       >
                 <div className="forum-post-head" style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '8px' }}>
-          <span className="forum-post-author" style={{ fontWeight: 'bold', color: '#d81b60', margin: 0, fontSize: '0.95rem' }}>
+          <span className="forum-post-author" style={{ fontWeight: 'bold', color: '#d81b60', margin: 0, fontSize: '0.95rem', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
             @{node.authorUsername || "anonymous"}
+            <StreakFlame streak={node.authorStreak} active={node.authorStreakActive} size={14} />
           </span>
           <time className="forum-post-date" style={{ fontSize: '0.85rem', color: '#888' }}>
             {node.createdAt ? formatDate(node.createdAt) : ""}

@@ -27,6 +27,10 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<VpnPromoKeyEntity> VpnPromoKeys => Set<VpnPromoKeyEntity>();
     public DbSet<ReferralRewardEntity> ReferralRewards => Set<ReferralRewardEntity>();
     public DbSet<StreamAnnouncementEntity> StreamAnnouncements => Set<StreamAnnouncementEntity>();
+    public DbSet<UserStreakEntity> UserStreaks => Set<UserStreakEntity>();
+    public DbSet<DailyActivityProgressEntity> DailyActivityProgress => Set<DailyActivityProgressEntity>();
+    public DbSet<StreakRewardsClaimedEntity> StreakRewardsClaimed => Set<StreakRewardsClaimedEntity>();
+    public DbSet<PendingManualRewardEntity> PendingManualRewards => Set<PendingManualRewardEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,5 +52,9 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new VpnPromoKeyConfiguration());
         modelBuilder.ApplyConfiguration(new ReferralRewardConfiguration());
         modelBuilder.ApplyConfiguration(new StreamAnnouncementConfiguration());
+        modelBuilder.ApplyConfiguration(new UserStreakConfiguration());
+        modelBuilder.ApplyConfiguration(new DailyActivityProgressConfiguration());
+        modelBuilder.ApplyConfiguration(new StreakRewardsClaimedConfiguration());
+        modelBuilder.ApplyConfiguration(new PendingManualRewardConfiguration());
     }
 }

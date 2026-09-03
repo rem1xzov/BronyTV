@@ -12,13 +12,16 @@ public class ForumController : ControllerBase
 {
     private readonly IForumService _forumService;
     private readonly IUserActivityService _userActivityService;
+    private readonly IStreakService _streakService;
 
     public ForumController(
         IForumService forumService,
-        IUserActivityService userActivityService)
+        IUserActivityService userActivityService,
+        IStreakService streakService)
     {
         _forumService = forumService;
         _userActivityService = userActivityService;
+        _streakService = streakService;
     }
 
     [HttpGet("threads")]
@@ -136,6 +139,12 @@ public class ForumController : ControllerBase
                 threadTitle,
                 CancellationToken.None);
         }
+
+        // Учитываем комментарий в прогрессе стрика (≥5 слов → +3 минуты, максимум 3 в день).
+        await _streakService.RecordForumCommentAsync(
+            userId,
+            request.Content,
+            CancellationToken.None);
 
         return Ok(response);
     }
