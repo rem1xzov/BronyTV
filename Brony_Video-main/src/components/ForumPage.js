@@ -450,15 +450,6 @@ function ForumThreadView({ threadId }) {
                 alt={`Post image ${idx + 1}`}
                 className="forum-post-image"
                 loading="lazy"
-                style={{
-                  maxWidth: "100%",
-                  height: "auto",
-                  maxHeight: "400px",
-                  objectFit: "contain",
-                  borderRadius: "8px",
-                  display: "block",
-                  marginTop: "8px"
-                }}
               />
             ))}
           </div>

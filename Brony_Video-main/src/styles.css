@@ -3011,6 +3011,7 @@ body[data-theme="dark"] .hero-thumb {
   margin-top: 8px;
   line-height: 1.45;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .forum-thread-meta {
@@ -3032,6 +3033,49 @@ body[data-theme="dark"] .hero-thumb {
   border-radius: 12px;
   border: 1px solid var(--border-soft);
   background: var(--bg-soft);
+  min-width: 0;
+}
+
+/* Контейнеры изображений в теме и в постах. */
+.forum-thread-images,
+.forum-post-images {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 8px;
+}
+
+/* Общее правило для картинок форума: полностью вписываются в ширину
+   контейнера, сохраняют пропорции, не обрезаются и не вылезают. */
+.forum-thread-image,
+.forum-post-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  max-height: 600px;
+  object-fit: contain;
+  object-position: center;
+  border-radius: 8px;
+}
+
+/* Превью выбранных файлов при создании темы/ответа. */
+.forum-image-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.forum-image-preview {
+  max-width: 120px;
+  max-height: 120px;
+  width: auto;
+  height: auto;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border-soft);
 }
 
 .forum-post-author {
@@ -3045,6 +3089,7 @@ body[data-theme="dark"] .hero-thumb {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .forum-post-date {
@@ -6902,6 +6947,7 @@ body.no-scroll {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
 }
 
 .forum-post-content {
@@ -6909,6 +6955,7 @@ body.no-scroll {
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
+  overflow-wrap: anywhere;
 }
 /* ==== Admin: страница «Активность» (все пользователи, за неделю) ==== */
 .admin-card--activity {
