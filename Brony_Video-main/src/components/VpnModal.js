@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   AlertTriangle,
+  BookOpen,
   Check,
   Copy,
   Download,
@@ -367,6 +368,32 @@ function VpnModalStyles() {
         box-shadow: 0 8px 24px rgba(217, 119, 6, 0.22);
       }
       .vpn-notice-text { white-space: pre-line; }
+
+      /* ===== Инструкция по подключению ===== */
+      .vpn-instruction-btn { justify-content: center; padding: 12px 18px; }
+      .vpn-instructions-icon {
+        background: linear-gradient(135deg, var(--accent-soft, rgba(236,72,153,.16)), color-mix(in srgb, #a855f7 18%, transparent));
+        color: var(--accent-strong, #db2777);
+        box-shadow: 0 8px 24px rgba(236, 72, 153, 0.22);
+      }
+      .vpn-instructions-list {
+        margin: 0 0 20px;
+        padding: 0 0 0 22px;
+        text-align: left;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .vpn-instructions-list li {
+        color: var(--text-main, #3a0b3c);
+        font-size: 0.93rem;
+        line-height: 1.5;
+        padding-left: 4px;
+      }
+      .vpn-instructions-list li::marker {
+        color: var(--accent-strong, #db2777);
+        font-weight: 700;
+      }
     `}</style>
   );
 }
@@ -383,6 +410,7 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
   const [promoMessageType, setPromoMessageType] = useState("");
   const [copied, setCopied] = useState("");
   const [showNotice, setShowNotice] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
 
   const loadStatus = useCallback(async () => {
     setLoading(true);
@@ -608,6 +636,14 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
                 </a>
                 <button
                   type="button"
+                  className="secondary-btn vpn-instruction-btn"
+                  onClick={() => setShowInstructions(true)}
+                >
+                  <BookOpen size={16} />
+                  <span>{t("vpn.instructions")}</span>
+                </button>
+                <button
+                  type="button"
                   className="icon-btn vpn-notice-btn"
                   onClick={() => setShowNotice(true)}
                   aria-label={t("vpn.noticeTitle")}
@@ -750,6 +786,44 @@ export default function VpnModal({ isOpen, onClose, isAuthenticated, onRequestSi
               <p className="vpn-modal-text vpn-notice-text">{t("vpn.noticeText")}</p>
               <div className="vpn-modal-actions">
                 <button type="button" className="primary-btn vpn-modal-close-btn" onClick={() => setShowNotice(false)}>
+                  {t("vpn.close")}
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {showInstructions ? (
+          <div
+            className="vpn-modal-overlay vpn-notice-overlay"
+            onClick={(event) => {
+              event.stopPropagation();
+              setShowInstructions(false);
+            }}
+            role="presentation"
+          >
+            <div
+              className="vpn-modal"
+              role="dialog"
+              aria-modal="true"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <button type="button" className="vpn-modal-close" onClick={() => setShowInstructions(false)} aria-label={t("vpn.close")}>
+                <X size={20} />
+              </button>
+              <div className="vpn-modal-icon vpn-instructions-icon" aria-hidden="true">
+                <BookOpen size={30} />
+              </div>
+              <h2>{t("vpn.instructionsTitle")}</h2>
+              <ol className="vpn-instructions-list">
+                <li>{t("vpn.instructionStep1")}</li>
+                <li>{t("vpn.instructionStep2")}</li>
+                <li>{t("vpn.instructionStep3")}</li>
+                <li>{t("vpn.instructionStep4")}</li>
+                <li>{t("vpn.instructionStep5")}</li>
+              </ol>
+              <div className="vpn-modal-actions">
+                <button type="button" className="primary-btn vpn-modal-close-btn" onClick={() => setShowInstructions(false)}>
                   {t("vpn.close")}
                 </button>
               </div>

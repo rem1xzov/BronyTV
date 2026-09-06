@@ -53,6 +53,28 @@ public class StreakController : ControllerBase
         return Ok(result);
     }
 
+    /// <summary>
+    /// Heartbeat присутствия администратора в админ-панели. Засчитывается как
+    /// активность стрика только для пользователей с ролью Admin/Owner.
+    /// </summary>
+    [Authorize(Roles = "Admin")]
+    [HttpPost("admin-presence")]
+    public async Task<IActionResult> RecordAdminPresence(
+        [FromBody] StreakRecordMinutesRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _streakService.RecordAdminPresenceAsync(
+            userId,
+            request?.Seconds ?? 0,
+            cancellationToken);
+        return Ok(result);
+    }
+
     /// <summary>Поставить заморозку на следующий день.</summary>
     [Authorize(Roles = "User")]
     [HttpPost("freeze")]

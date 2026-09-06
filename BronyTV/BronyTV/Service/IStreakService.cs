@@ -21,6 +21,15 @@ public interface IStreakService
         double seconds,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Записывает секунды присутствия администратора в админ-панели как активность стрика.
+    /// Доступно только пользователям с ролью Admin/Owner (проверка — на уровне контроллера).
+    /// </summary>
+    Task<StreakActivityResultResponse> RecordAdminPresenceAsync(
+        Guid userId,
+        double seconds,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Записывает комментарий на форуме (засчитывается только если ≥5 слов).</summary>
     Task<StreakActivityResultResponse> RecordForumCommentAsync(
         Guid userId,

@@ -74,6 +74,12 @@ public class StreakService : IStreakService
         CancellationToken cancellationToken = default)
         => await AddActiveMinutesAsync(userId, seconds, cancellationToken);
 
+    public async Task<StreakActivityResultResponse> RecordAdminPresenceAsync(
+        Guid userId,
+        double seconds,
+        CancellationToken cancellationToken = default)
+        => await AddActiveMinutesAsync(userId, seconds, cancellationToken);
+
     public async Task<StreakActivityResultResponse> RecordForumCommentAsync(
         Guid userId,
         string content,

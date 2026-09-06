@@ -16,6 +16,14 @@ export async function recordVideoWatch(seconds) {
   return response.json().catch(() => ({}));
 }
 
+export async function recordAdminPresence(seconds) {
+  const response = await apiFetch("/streak/admin-presence", {
+    method: "POST",
+    body: JSON.stringify({ seconds })
+  });
+  return response.json().catch(() => ({}));
+}
+
 export async function setStreakFreeze() {
   const response = await apiFetch("/streak/freeze", { method: "POST" });
   return response.json().catch(() => ({}));

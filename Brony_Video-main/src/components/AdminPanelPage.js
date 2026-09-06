@@ -4,6 +4,7 @@ import { Activity as ActivityIcon, ArrowLeft, Bot, Home, LifeBuoy, Shield, Star,
 import { useAuth } from "../auth/AuthContext";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch, apiUpload } from "../auth/api";
+import { recordAdminPresence } from "../streak/api";
 import AdminSupportPanel from "./AdminSupportPanel";
 import AdminActivityPanel from "./AdminActivityPanel";
 import AiChatPage from "./AiChatPage";
@@ -128,6 +129,60 @@ export default function AdminPanelPage() {
       navigate("/", { replace: true });
     }
   }, [loading, navigate, user]);
+
+  // Heartbeat присутствия в админ-панели: пока вкладка видима, время админа
+  // засчитывается в дневной стрик просто за факт нахождения на этой странице.
+  useEffect(() => {
+    if (loading || !isPlatformAdmin(user)) {
+      return undefined;
+    }
+
+    const isVisible = () => document.visibilityState === "visible";
+    let lastVisibleAt = isVisible() ? Date.now() : null;
+
+    const flush = () => {
+      if (lastVisibleAt === null) {
+        return;
+      }
+      const elapsedMs = Date.now() - lastVisibleAt;
+      lastVisibleAt = Date.now();
+      const seconds = Math.floor(elapsedMs / 1000);
+      if (seconds > 0) {
+        recordAdminPresence(seconds).catch(() => {});
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (isVisible()) {
+        lastVisibleAt = Date.now();
+      } else {
+        flush();
+        lastVisibleAt = null;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      if (isVisible()) {
+        flush();
+      }
+    }, 30000);
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      // Отправляем остаток времени при уходе со страницы админки.
+      if (lastVisibleAt !== null) {
+        const elapsedMs = Date.now() - lastVisibleAt;
+        lastVisibleAt = null;
+        const seconds = Math.floor(elapsedMs / 1000);
+        if (seconds > 0) {
+          recordAdminPresence(seconds).catch(() => {});
+        }
+      }
+    };
+  }, [loading, user]);
 
   useEffect(() => {
     let cancelled = false;

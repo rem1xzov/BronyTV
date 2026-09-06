@@ -110,6 +110,13 @@ const ru = {
   "vpn.referralText": "Поделитесь ссылкой — друг получит бонус при регистрации, а вы — награду.",
   "vpn.noticeTitle": "Важно знать о BronyVPN",
   "vpn.noticeText": "BronyVPN сейчас находится на стадии тестирования. На всякий случай держите под рукой запасной VPN — сервер пока не самый мощный, и если пользователей станет больше, я планирую перейти на более производительный сервер.\n\nЕсли у вас возникли проблемы, пишите на форуме или в поддержку. Если VPN вообще перестал пропускать трафик, обязательно сообщите — я оперативно разберусь.",
+  "vpn.instructions": "Инструкция",
+  "vpn.instructionsTitle": "Подключение к BronyVPN",
+  "vpn.instructionStep1": "Скопируйте ссылку подключения (VLESS) — она отображается выше в этой модалке.",
+  "vpn.instructionStep2": "Откройте приложение v2RayTun.",
+  "vpn.instructionStep3": "Нажмите на плюсик (добавить).",
+  "vpn.instructionStep4": "Выберите «Добавить подписку» (или пункт добавления из ссылки).",
+  "vpn.instructionStep5": "Готово — профиль добавлен, можно подключаться.",
 
   // === Главная страница ===
   "home.tagline":
@@ -285,6 +292,13 @@ const en = {
   "vpn.referralText": "Share the link — a friend gets a bonus on signup and you get a reward.",
   "vpn.noticeTitle": "Important to know about BronyVPN",
   "vpn.noticeText": "BronyVPN is currently in testing. Just in case, keep a backup VPN handy — the server isn't the most powerful yet, and if more users join, I plan to switch to a more performant one.\n\nIf you run into any issues, write on the forum or contact support. If VPN stops passing traffic altogether, please let me know — I'll look into it promptly.",
+  "vpn.instructions": "Instructions",
+  "vpn.instructionsTitle": "Connecting to BronyVPN",
+  "vpn.instructionStep1": "Copy the connection link (VLESS) — it's shown above in this modal.",
+  "vpn.instructionStep2": "Open the v2RayTun app.",
+  "vpn.instructionStep3": "Tap the plus button (add).",
+  "vpn.instructionStep4": "Choose \"Add subscription\" (or the add-from-link option).",
+  "vpn.instructionStep5": "Done — the profile is added and ready to connect.",
 
   "home.tagline":
     "BronyTV is a cozy streaming service for fans of My Little Pony: Friendship Is Magic with convenient season navigation, a curated selection of top-rated episodes, and quick access to viewing. The homepage features the top-10 highest-rated videos per IMDb, and inside each season you can leave your own rating from 1 to 10. It's easy to find your favorite episodes and jump right into playback.",

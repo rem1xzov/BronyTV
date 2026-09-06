@@ -482,6 +482,19 @@
   transition: width 0.3s ease;
 }
 
+/* На светлой теме фон карточки почти белый/розовый, поэтому «пустая» часть
+   полосы (rgba(255,255,255,…)) сливается с ней. Делаем трек заметнее и отделяем
+   заполненную часть контрастным розовым акцентом. Тёмную тему не трогаем. */
+body[data-theme="light"] .streak-profile-progress {
+  background: var(--accent-soft, rgba(236, 72, 153, 0.16));
+  border: 1px solid var(--border-soft, rgba(168, 85, 247, 0.16));
+  box-shadow: inset 0 1px 3px rgba(58, 11, 60, 0.12);
+}
+
+body[data-theme="light"] .streak-profile-progress-fill {
+  background: linear-gradient(90deg, var(--accent, #ec4899), var(--accent-strong, #db2777));
+}
+
 .streak-profile-rewards {
   margin-top: 12px;
 }
