@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, MessageSquare, Plus, Heart, Trash2 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
@@ -185,7 +186,7 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="forum-modal-overlay" onClick={onClose} role="presentation">
             <div className="forum-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
         <h2>{t("forum.titleCreate")}</h2>
@@ -235,7 +236,8 @@ function CreateThreadModal({ isOpen, onClose, onCreated }) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

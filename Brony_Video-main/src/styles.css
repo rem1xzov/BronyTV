@@ -3219,6 +3219,28 @@ body[data-theme="dark"] .hero-thumb {
   display: block;
 }
 
+.news-card-gallery {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.news-card-gallery-image {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 10px;
+  display: block;
+}
+
+@media (max-width: 768px) {
+  .news-card-gallery {
+    grid-template-columns: 1fr;
+  }
+}
+
 .news-card-body {
   padding: 16px;
   display: flex;
@@ -3314,6 +3336,13 @@ body[data-theme="dark"] .hero-thumb {
   color: var(--text-main);
   font: inherit;
   resize: vertical;
+}
+
+.news-image-preview-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
 }
 
 .news-image-preview {

@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { Newspaper, Plus, Trash2, Image as ImageIcon } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Newspaper, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useI18n } from "../i18n";
 import { isPlatformAdmin } from "../auth/adminAccess";
@@ -163,7 +164,7 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
     }
   };
 
-  return (
+  return createPortal(
     <div className="news-modal-overlay" onClick={onClose} role="presentation">
             <div className="news-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
         <h2>{t("news.titleCreate")}</h2>
@@ -226,7 +227,8 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 
@@ -234,13 +236,16 @@ function NewsCard({ post, isAdmin, onDelete, isExpanded, onToggleExpand }) {
   const { t } = useI18n();
   const images = parseImageList(post.imageUrl);
   const previewImage = images.length > 0 ? images[0] : null;
+  const hasMultipleImages = images.length > 1;
   const fullContent = post.content ?? "";
   const truncatedContent = fullContent.length > 200 ? fullContent.substring(0, 200) + "..." : fullContent;
   const displayContent = isExpanded ? fullContent : truncatedContent;
+  const showHeroImage = previewImage && (!hasMultipleImages || !isExpanded);
+  const showGallery = isExpanded && hasMultipleImages;
 
   return (
     <li className="news-card">
-      {previewImage ? (
+      {showHeroImage ? (
         <img src={previewImage} alt="" className="news-card-image" loading="lazy" />
       ) : null}
       <div className="news-card-body">
@@ -276,10 +281,10 @@ function NewsCard({ post, isAdmin, onDelete, isExpanded, onToggleExpand }) {
                         {isExpanded ? t("news.collapse") : t("news.readMore")}
           </button>
         ) : null}
-        {isExpanded && images.length > 1 ? (
+        {showGallery ? (
           <div className="news-card-gallery">
-            {images.slice(1).map((src, idx) => (
-              <img key={idx} src={src} alt={`Image ${idx + 2}`} className="news-card-gallery-image" loading="lazy" />
+            {images.map((src, idx) => (
+              <img key={idx} src={src} alt={`Image ${idx + 1}`} className="news-card-gallery-image" loading="lazy" />
             ))}
           </div>
         ) : null}
