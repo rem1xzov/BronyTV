@@ -56,6 +56,8 @@ builder.Services.AddScoped<IForumService, ForumService>();
 builder.Services.AddScoped<ISupportRepository, SupportRepository>();
 builder.Services.AddScoped<ISupportService, SupportService>();
 builder.Services.AddScoped<INewsPostRepository, NewsPostRepository>();
+builder.Services.AddScoped<INewsCommentRepository, NewsCommentRepository>();
+builder.Services.AddScoped<INewsCommentService, NewsCommentService>();
 builder.Services.AddScoped<IUserActivityRepository, UserActivityRepository>();
 builder.Services.AddScoped<IUserActivityService, UserActivityService>();
 builder.Services.AddScoped<IUserFavoriteRepository, UserFavoriteRepository>();

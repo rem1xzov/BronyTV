@@ -21,6 +21,7 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
     public DbSet<SupportTicketEntity> SupportTickets => Set<SupportTicketEntity>();
     public DbSet<SupportMessageEntity> SupportMessages => Set<SupportMessageEntity>();
     public DbSet<NewsPost> NewsPosts => Set<NewsPost>();
+    public DbSet<NewsCommentEntity> NewsComments => Set<NewsCommentEntity>();
     public DbSet<UserActivityEntity> UserActivities => Set<UserActivityEntity>();
     public DbSet<UserFavoriteEntity> UserFavorites => Set<UserFavoriteEntity>();
     public DbSet<VpnSubscriptionEntity> VpnSubscriptions => Set<VpnSubscriptionEntity>();
@@ -46,6 +47,7 @@ public class DbBronyTV : Microsoft.EntityFrameworkCore.DbContext
         modelBuilder.ApplyConfiguration(new SupportTicketConfiguration());
         modelBuilder.ApplyConfiguration(new SupportMessageConfiguration());
         modelBuilder.ApplyConfiguration(new NewsPostConfiguration());
+        modelBuilder.ApplyConfiguration(new NewsCommentConfiguration());
         modelBuilder.ApplyConfiguration(new UserActivityConfiguration());
         modelBuilder.ApplyConfiguration(new UserFavoriteConfiguration());
         modelBuilder.ApplyConfiguration(new VpnSubscriptionConfiguration());

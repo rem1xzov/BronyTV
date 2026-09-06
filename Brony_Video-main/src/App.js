@@ -2502,6 +2502,7 @@ export default function App() {
         <Route path="/forum" element={<ForumPage />} />
         <Route path="/forum/:threadId" element={<ForumPage />} />
         <Route path="/news" element={<NewsPage />} />
+        <Route path="/news/:newsId" element={<NewsPage />} />
         <Route path="/bots" element={<AiChatPage />} />
         <Route path="/watchparty" element={<WatchPartyPage />} />
         <Route path="/streak" element={<StreakPage />} />

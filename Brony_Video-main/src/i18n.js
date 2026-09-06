@@ -199,11 +199,17 @@ const ru = {
   "news.publishing": "Публикация…",
   "news.publish": "Опубликовать",
   "news.cancel": "Отмена",
-  "news.readMore": "Читать далее",
-  "news.collapse": "Свернуть",
+  "news.open": "Открыть новость",
+  "news.back": "Назад к новостям",
+  "news.comments": "Комментарии",
   "news.deleteConfirm": "Удалить эту новость?",
   "news.deleteFailed": "Не удалось удалить новость.",
   "news.delete": "Удалить новость",
+
+  // === Комментарии (общие для форума и новостей) ===
+  "comments.loading": "Загрузка комментариев…",
+  "comments.empty": "Пока нет комментариев. Напишите первым!",
+  "comments.deleteConfirm": "Удалить этот комментарий?",
 
   // === Стрики (ежедневная активность) ===
   "nav.leaderboard": "Лидеры",
@@ -373,11 +379,17 @@ const en = {
   "news.publishing": "Publishing…",
   "news.publish": "Publish",
   "news.cancel": "Cancel",
-  "news.readMore": "Read more",
-  "news.collapse": "Collapse",
+  "news.open": "Open news",
+  "news.back": "Back to news",
+  "news.comments": "Comments",
   "news.deleteConfirm": "Delete this news?",
   "news.deleteFailed": "Failed to delete news.",
   "news.delete": "Delete news",
+
+  // === Comments (shared by forum and news) ===
+  "comments.loading": "Loading comments…",
+  "comments.empty": "No comments yet. Be the first to write!",
+  "comments.deleteConfirm": "Delete this comment?",
 
   // === Streaks ===
   "nav.leaderboard": "Leaderboard",

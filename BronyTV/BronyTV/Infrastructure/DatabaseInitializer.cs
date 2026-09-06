@@ -160,6 +160,11 @@ public static class DatabaseInitializer
             logger.LogInformation("No pending EF migrations detected.");
         }
 
+        // NewsPosts создаётся только через raw-SQL (без отдельной миграции).
+        // Создаём его до применения миграций, чтобы более поздние миграции
+        // (например, NewsComments) могли ссылаться на него внешним ключом.
+        await EnsureNewsPostsTableAsync(context, logger, cancellationToken);
+
         await context.Database.MigrateAsync(cancellationToken);
         await EnsureUsersTableAsync(context, logger, cancellationToken);
         await EnsureUsernameColumnAsync(context, logger, cancellationToken);
@@ -173,7 +178,6 @@ public static class DatabaseInitializer
         await EnsurePasswordResetColumnsAsync(context, logger, cancellationToken);
         await EnsureUserReferralColumnsAsync(context, logger, cancellationToken);
         await EnsureForumTablesAsync(context, logger, cancellationToken);
-        await EnsureNewsPostsTableAsync(context, logger, cancellationToken);
         await EnsureSupportTablesAsync(context, logger, cancellationToken);
         await EnsureUserActivityTableAsync(context, logger, cancellationToken);
         await EnsureUserFavoritesTableAsync(context, logger, cancellationToken);

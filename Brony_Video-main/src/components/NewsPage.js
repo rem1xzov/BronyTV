@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Newspaper, Plus, Trash2 } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Newspaper, Plus, Trash2 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useI18n } from "../i18n";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch } from "../auth/api";
+import CommentsSection from "./CommentsSection";
 
 function normalizeNewsPost(raw) {
   if (!raw || typeof raw !== "object") {
@@ -121,7 +123,7 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
     const trimmedTitle = title.trim();
     const trimmedContent = content.trim();
 
-        if (!trimmedTitle && !trimmedContent && imageFiles.length === 0 && !imageUrl.trim()) {
+    if (!trimmedTitle && !trimmedContent && imageFiles.length === 0 && !imageUrl.trim()) {
       setError(t("news.required"));
       return;
     }
@@ -131,7 +133,7 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
       let uploadImageUrl = imageUrl.trim() || null;
 
       if (imageFiles.length > 0) {
-                try {
+        try {
           const base64Array = await Promise.all(imageFiles.map((file) => fileToBase64(file)));
           uploadImageUrl = JSON.stringify(base64Array);
         } catch (readError) {
@@ -149,7 +151,7 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
           imageUrl: uploadImageUrl
         })
       });
-            const raw = await response.json().catch(() => ({}));
+      const raw = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(raw.message || t("news.createFailed"));
       }
@@ -166,7 +168,7 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
 
   return createPortal(
     <div className="news-modal-overlay" onClick={onClose} role="presentation">
-            <div className="news-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
+      <div className="news-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
         <h2>{t("news.titleCreate")}</h2>
         <form className="news-create-form" onSubmit={handleSubmit}>
           <label className="news-field">
@@ -232,91 +234,153 @@ function CreateNewsModal({ isOpen, onClose, onCreated }) {
   );
 }
 
-function NewsCard({ post, isAdmin, onDelete, isExpanded, onToggleExpand }) {
+function NewsCard({ post }) {
   const { t } = useI18n();
   const images = parseImageList(post.imageUrl);
   const previewImage = images.length > 0 ? images[0] : null;
-  const hasMultipleImages = images.length > 1;
   const fullContent = post.content ?? "";
   const truncatedContent = fullContent.length > 200 ? fullContent.substring(0, 200) + "..." : fullContent;
-  const displayContent = isExpanded ? fullContent : truncatedContent;
-  const showHeroImage = previewImage && (!hasMultipleImages || !isExpanded);
-  const showGallery = isExpanded && hasMultipleImages;
 
   return (
     <li className="news-card">
-      {showHeroImage ? (
+      {previewImage ? (
         <img src={previewImage} alt="" className="news-card-image" loading="lazy" />
       ) : null}
       <div className="news-card-body">
         {post.title ? <h2 className="news-card-title">{post.title}</h2> : null}
-        {displayContent ? (
-          <p className="news-card-content">
-            {displayContent}
-          </p>
+        {truncatedContent ? (
+          <p className="news-card-content">{truncatedContent}</p>
         ) : null}
         <div className="news-card-meta">
           <span>@{post.authorUsername || "anonymous"}</span>
           <span className="muted">· {formatDate(post.createdAt)}</span>
         </div>
-        {fullContent.length > 0 ? (
-          <button type="button"
-            className="news-card-read-more"
-            onClick={onToggleExpand}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: '36px',
-              padding: '0 16px',
-              borderRadius: '18px',
-              background: 'linear-gradient(135deg, #ec4899, #a855f7)',
-              color: 'white',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: 500,
-            }}
-          >
-                        {isExpanded ? t("news.collapse") : t("news.readMore")}
-          </button>
-        ) : null}
-        {showGallery ? (
-          <div className="news-card-gallery">
-            {images.map((src, idx) => (
-              <img key={idx} src={src} alt={`Image ${idx + 1}`} className="news-card-gallery-image" loading="lazy" />
-            ))}
-          </div>
-        ) : null}
-        {isAdmin ? (
-                    <button
-            type="button"
-            className="news-delete-btn"
-            onClick={() => onDelete(post.id)}
-            aria-label={t("news.delete")}
-          >
-            <Trash2 size={14} />
-          </button>
-        ) : null}
+        <Link className="primary-btn news-open-btn" to={`/news/${post.id}`}>
+          {t("news.open")}
+        </Link>
       </div>
     </li>
   );
 }
 
+function NewsDetailView({ newsId }) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { t } = useI18n();
+  const [post, setPost] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const loadPost = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const response = await apiFetch(`/news/${newsId}`);
+      if (!response.ok) {
+        throw new Error(t("news.loadError"));
+      }
+      const raw = await response.json();
+      setPost(normalizeNewsPost(raw));
+    } catch (loadError) {
+      setError(loadError.message || t("news.loadError"));
+    } finally {
+      setLoading(false);
+    }
+  }, [newsId]);
+
+  useEffect(() => {
+    loadPost();
+  }, [loadPost]);
+
+  const handleDelete = async () => {
+    if (!window.confirm(t("news.deleteConfirm"))) {
+      return;
+    }
+    try {
+      const response = await apiFetch(`/news/${newsId}`, { method: "DELETE" });
+      if (!response.ok) {
+        throw new Error(t("news.deleteFailed"));
+      }
+      navigate("/news");
+    } catch (deleteError) {
+      alert(deleteError.message || t("news.deleteFailed"));
+    }
+  };
+
+  if (loading) {
+    return (
+      <section className="panel news-panel">
+        <p className="muted">{t("news.loading")}</p>
+      </section>
+    );
+  }
+
+  if (error || !post) {
+    return (
+      <section className="panel news-panel">
+        <div className="forum-error-state">
+          <p className="forum-message forum-message--error">{error || t("news.loadError")}</p>
+          <Link className="secondary-btn" to="/news">
+            {t("news.back")}
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  const images = parseImageList(post.imageUrl);
+  const isAdmin = user && isPlatformAdmin(user);
+
+  return (
+    <section className="panel news-panel">
+      <button type="button" className="secondary-btn forum-back-btn" onClick={() => navigate("/news")}>
+        <ArrowLeft size={16} />
+        <span>{t("news.back")}</span>
+      </button>
+
+      <article className="news-detail">
+        {post.title ? <h1 className="news-detail-title">{post.title}</h1> : null}
+        <p className="muted news-detail-meta">
+          @{post.authorUsername || "anonymous"} · {formatDate(post.createdAt)}
+        </p>
+        {post.content ? <p className="news-detail-content">{post.content}</p> : null}
+        {images.length > 0 ? (
+          <div className="news-detail-images">
+            {images.map((src, idx) => (
+              <img key={idx} src={src} alt={`Image ${idx + 1}`} className="news-detail-image" loading="lazy" />
+            ))}
+          </div>
+        ) : null}
+        {isAdmin ? (
+          <button type="button" className="primary-btn news-detail-delete" onClick={handleDelete}>
+            <Trash2 size={14} />
+            <span>{t("news.delete")}</span>
+          </button>
+        ) : null}
+      </article>
+
+      <div className="news-comments">
+        <h2>{t("news.comments")}</h2>
+        <CommentsSection entityType="news" entityId={newsId} />
+      </div>
+    </section>
+  );
+}
+
 export default function NewsPage() {
+  const { newsId } = useParams();
   const { user } = useAuth();
   const { t } = useI18n();
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
-  const [expandedNews, setExpandedNews] = useState({});
 
   const loadPosts = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-            const response = await apiFetch("/news");
+      const response = await apiFetch("/news");
       if (!response.ok) {
         throw new Error(t("news.loadError"));
       }
@@ -330,8 +394,14 @@ export default function NewsPage() {
   }, []);
 
   useEffect(() => {
-    loadPosts();
-  }, [loadPosts]);
+    if (!newsId) {
+      loadPosts();
+    }
+  }, [loadPosts, newsId]);
+
+  if (newsId) {
+    return <NewsDetailView newsId={newsId} />;
+  }
 
   const handleCreated = (post) => {
     if (post) {
@@ -339,46 +409,11 @@ export default function NewsPage() {
     }
   };
 
-    const handleDelete = async (id) => {
-    if (!window.confirm(t("news.deleteConfirm"))) {
-      return;
-    }
-    try {
-      const response = await apiFetch(`/news/${id}`, { method: "DELETE" });
-      if (!response.ok) {
-        throw new Error(t("news.deleteFailed"));
-      }
-      setPosts((prev) => prev.filter((post) => post.id !== id));
-    } catch (deleteError) {
-      setError(deleteError.message || t("news.deleteFailed"));
-    }
-  };
-
-    const toggleExpand = (newsId) => {
-    setExpandedNews((prev) => {
-      const next = { ...prev, [newsId]: !prev[newsId] };
-
-      // Логируем факт "открытия новости" только при разворачивании (и только для
-      // залогиненных — сервер сам отсеет гостей). Разворачивание происходит на
-      // клиенте без отдельного GET /api/news/{id}, поэтому логируем через лёгкий
-      // пользовательский эндпоинт.
-      if (!prev[newsId]) {
-        const post = posts.find((item) => String(item.id) === String(newsId));
-        apiFetch("/activity/news-view", {
-          method: "POST",
-          body: JSON.stringify({ title: post?.title || "" })
-        }).catch(() => {});
-      }
-
-      return next;
-    });
-  };
-
   const isAdmin = user && isPlatformAdmin(user);
 
   return (
     <section className="panel news-panel">
-            <header className="news-header">
+      <header className="news-header">
         <div>
           <h1>
             <Newspaper size={24} aria-hidden="true" />
@@ -405,14 +440,7 @@ export default function NewsPage() {
       ) : (
         <ul className="news-list">
           {posts.map((post) => (
-            <NewsCard
-              key={post.id}
-              post={post}
-              isAdmin={isAdmin}
-              onDelete={handleDelete}
-              isExpanded={!!expandedNews[post.id]}
-              onToggleExpand={() => toggleExpand(post.id)}
-            />
+            <NewsCard key={post.id} post={post} />
           ))}
         </ul>
       )}

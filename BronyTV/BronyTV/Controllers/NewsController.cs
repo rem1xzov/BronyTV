@@ -15,15 +15,21 @@ public class NewsController : ControllerBase
     private readonly INewsPostRepository _newsRepository;
     private readonly IUserRepository _userRepository;
     private readonly IUserActivityService _userActivityService;
+    private readonly INewsCommentService _newsCommentService;
+    private readonly IStreakService _streakService;
 
     public NewsController(
         INewsPostRepository newsRepository,
         IUserRepository userRepository,
-        IUserActivityService userActivityService)
+        IUserActivityService userActivityService,
+        INewsCommentService newsCommentService,
+        IStreakService streakService)
     {
         _newsRepository = newsRepository;
         _userRepository = userRepository;
         _userActivityService = userActivityService;
+        _newsCommentService = newsCommentService;
+        _streakService = streakService;
     }
 
     [HttpGet]
@@ -98,6 +104,105 @@ public class NewsController : ControllerBase
         }
 
         await _newsRepository.DeleteAsync(id, cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("{id:guid}/comments")]
+    public async Task<IActionResult> GetComments(Guid id, CancellationToken cancellationToken)
+    {
+        var comments = await _newsCommentService.GetCommentsAsync(id, cancellationToken);
+        return Ok(comments);
+    }
+
+    [Authorize(Roles = "User")]
+    [HttpPost("{id:guid}/comments")]
+    public async Task<IActionResult> CreateComment(
+        Guid id,
+        [FromBody] CreateNewsCommentRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var (response, error, statusCode) = await _newsCommentService.CreateCommentAsync(
+            id,
+            userId,
+            request.Content,
+            request.Images,
+            request.ReplyToCommentId,
+            cancellationToken);
+
+        if (response == null)
+        {
+            return StatusCode(statusCode, new { message = error });
+        }
+
+        // Логируем факт комментария (название новости, НЕ текст комментария).
+        var news = await _newsRepository.GetByIdAsync(id, cancellationToken);
+        if (news != null && !string.IsNullOrWhiteSpace(news.Title))
+        {
+            await _userActivityService.RecordAsync(
+                userId,
+                "news_comment",
+                news.Title,
+                CancellationToken.None);
+        }
+
+        // Учитываем комментарий в прогрессе стрика (≥5 слов → +3 минуты, максимум 3 в день).
+        await _streakService.RecordForumCommentAsync(
+            userId,
+            request.Content,
+            CancellationToken.None);
+
+        return Ok(response);
+    }
+
+    [Authorize(Roles = "User")]
+    [HttpPost("comments/{commentId:guid}/like")]
+    public async Task<IActionResult> ToggleCommentLike(Guid commentId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var (response, error, statusCode) = await _newsCommentService.ToggleLikeAsync(
+            commentId,
+            userId,
+            cancellationToken);
+
+        if (response == null)
+        {
+            return StatusCode(statusCode, new { message = error });
+        }
+
+        return Ok(response);
+    }
+
+    [Authorize(Roles = "User")]
+    [HttpDelete("comments/{commentId:guid}")]
+    public async Task<IActionResult> DeleteComment(Guid commentId, CancellationToken cancellationToken)
+    {
+        if (!TryGetUserId(out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var currentUserRole = User.IsInRole("Owner") ? "owner" : User.IsInRole("Admin") ? "admin" : "user";
+
+        var (success, error, statusCode) = await _newsCommentService.DeleteCommentAsync(
+            commentId,
+            userId,
+            currentUserRole,
+            cancellationToken);
+
+        if (!success)
+        {
+            return StatusCode(statusCode, new { message = error });
+        }
+
         return NoContent();
     }
 
