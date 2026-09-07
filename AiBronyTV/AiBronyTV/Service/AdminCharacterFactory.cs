@@ -14,7 +14,10 @@ public class AdminCharacterFactory
         var key = characterId.ToLower();
         if (!AdminSystemPrompts.Personas.TryGetValue(key, out var persona))
         {
-            throw new ArgumentException($"Админский персонаж с ID '{characterId}' не найден!");
+            // Новые персонажи (например, EG-версии) в админке стартуют с обычным
+            // публичным промптом — без специальных админских инструкций. Владелец
+            // сможет донастроить их админские промпты вручную.
+            return CharacterFactory.GetSystemPrompt(characterId);
         }
 
         return persona + "\n\n" + AdminSystemPrompts.AdminUniversalRules;

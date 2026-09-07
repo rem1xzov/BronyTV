@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Flame } from "lucide-react";
 import { useI18n } from "../i18n";
 import { useAuth } from "../auth/AuthContext";
+import StreakFlame from "./StreakFlame";
 import FortuneWheelModal from "./FortuneWheelModal";
 import { getStreakStatus, setStreakFreeze } from "../streak/api";
 
@@ -87,11 +88,7 @@ export default function StreakPage() {
     ? Math.min(100, Math.round((currentStreak / nextMilestone) * 100))
     : 100;
 
-  const hasUnspunWheel = (status?.rewards || []).some(
-    (reward) =>
-      (Number(reward.milestone) === 50 || Number(reward.milestone) === 100) &&
-      reward.rewardDescription === "Колесо фортуны"
-  );
+  const rewards = status?.rewards || [];
 
   return (
     <section className="panel streak-page">
@@ -128,6 +125,64 @@ export default function StreakPage() {
           </>
         ) : (
           <p style={{ margin: 0, fontWeight: 600 }}>{t("streak.noNextReward")}</p>
+        )}
+      </div>
+
+      {/* Блок активности стрика */}
+      <div className="streak-profile-block" style={{ marginTop: 0, marginBottom: "14px" }}>
+        <h3>{t("streak.profileTitle")}</h3>
+        {isAuthenticated ? (
+          status ? (
+            <>
+              <div className="streak-profile-stats">
+                <div className="streak-profile-stat">
+                  <span className="streak-profile-stat-value">
+                    <StreakFlame streak={status.currentStreak} active={status.isStreakCreditedToday} size={18} />
+                    {status.currentStreak}
+                  </span>
+                  <span className="streak-profile-stat-label">{t("streak.current")}</span>
+                </div>
+                <div className="streak-profile-stat">
+                  <span className="streak-profile-stat-value">{status.longestStreak}</span>
+                  <span className="streak-profile-stat-label">{t("streak.longest")}</span>
+                </div>
+                <div className="streak-profile-stat">
+                  <span className="streak-profile-stat-value">
+                    {Math.round((status.totalMinutesToday || 0) * 10) / 10}/{thresholdMinutes}
+                  </span>
+                  <span className="streak-profile-stat-label">{t("streak.minutesToday")}</span>
+                </div>
+              </div>
+              <div className="streak-profile-rewards">
+                <strong style={{ fontSize: "0.9rem" }}>{t("streak.rewardsTitle")}</strong>
+                {rewards.length > 0 ? (
+                  <ul>
+                    {rewards.map((reward) => (
+                      <li key={reward.milestone} className="streak-profile-reward">
+                        <span>День {reward.milestone}: {reward.rewardDescription}</span>
+                        {reward.rewardDescription === "Колесо фортуны" ? (
+                          <button
+                            type="button"
+                            className="secondary-btn"
+                            style={{ marginLeft: "8px" }}
+                            onClick={() => setWheelOpen(true)}
+                          >
+                            {t("streak.wheelSpin")}
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="muted" style={{ margin: "6px 0 0" }}>{t("streak.noRewards")}</p>
+                )}
+              </div>
+            </>
+          ) : (
+            <p className="muted">Загрузка стрика…</p>
+          )
+        ) : (
+          <p className="muted">Войдите, чтобы увидеть свой стрик.</p>
         )}
       </div>
 
@@ -177,17 +232,6 @@ export default function StreakPage() {
           ) : null}
         </div>
       </div>
-
-      {hasUnspunWheel ? (
-        <button
-          type="button"
-          className="primary-btn"
-          style={{ marginTop: "16px" }}
-          onClick={() => setWheelOpen(true)}
-        >
-          {t("streak.claimPrize")}
-        </button>
-      ) : null}
 
       <FortuneWheelModal
         isOpen={wheelOpen}

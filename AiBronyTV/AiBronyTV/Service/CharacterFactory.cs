@@ -30,6 +30,15 @@ public class CharacterFactory
             "djpon3" => SystemPrompts.DjPon3Persona,
             "shiningarmor" => SystemPrompts.ShiningArmorPersona,
             "narrator" => SystemPrompts.NarratorPersona,
+            "adagio" => SystemPrompts.AdagioDazzlePersona,
+            "aria" => SystemPrompts.AriaBlazePersona,
+            "sonata" => SystemPrompts.SonataDuskPersona,
+            "applejackeg" => SystemPrompts.ApplejackEGPersona,
+            "fluttershyeg" => SystemPrompts.FluttershyEGPersona,
+            "pinkieeg" => SystemPrompts.PinkiePieEGPersona,
+            "rainboweg" => SystemPrompts.RainbowDashEGPersona,
+            "rarityeg" => SystemPrompts.RarityEGPersona,
+            "twilighteg" => SystemPrompts.TwilightSparkleEGPersona,
             _ => throw new ArgumentException($"Персонаж с ID '{characterId}' не найден!")
         };
         return persona + "\n\n" + SystemPrompts.UniversalRpRules;

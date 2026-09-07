@@ -196,6 +196,78 @@ const BOT_CATALOG = [
     tagline: "Капитан гвардии Кристальной Империи и брат Твайлайт.",
     avatar: "shiningarmor.jpe",
     colour: "#5aa7d6"
+  },
+  {
+    id: "adagio",
+    name: "Адажио Даззл",
+    race: "Сирена",
+    tagline: "Харизматичная сирена и лидер группы Dazzlings.",
+    avatar: "AdagioDazzleEG.jpe",
+    colour: "#c14a6a"
+  },
+  {
+    id: "aria",
+    name: "Ария Блэйз",
+    race: "Сирена",
+    tagline: "Дерзкая и саркастичная сирена из Dazzlings.",
+    avatar: "ariaEG.jpe",
+    colour: "#7a5fb0"
+  },
+  {
+    id: "sonata",
+    name: "Соната Даск",
+    race: "Сирена",
+    tagline: "Наивная и весёлая сирена, обожающая тако.",
+    avatar: "sonataEg.jpe",
+    colour: "#5aa0c8"
+  },
+  {
+    id: "applejackeg",
+    name: "Эпплджек (EG)",
+    race: "Ученица Canterlot High",
+    tagline: "Честная и трудолюбивая ученица Canterlot High.",
+    avatar: "applejackEG.jpe",
+    colour: "#e09a2b"
+  },
+  {
+    id: "fluttershyeg",
+    name: "Флаттершай (EG)",
+    race: "Ученица Canterlot High",
+    tagline: "Добрая и застенчивая ученица Canterlot High.",
+    avatar: "FluttershyEG.jpe",
+    colour: "#e6c15a"
+  },
+  {
+    id: "pinkieeg",
+    name: "Пинки Пай (EG)",
+    race: "Ученица Canterlot High",
+    tagline: "Неутомимая королева вечеринок Canterlot High.",
+    avatar: "pinkiepieEG.jpe",
+    colour: "#f2509a"
+  },
+  {
+    id: "rainboweg",
+    name: "Рэйнбоу Дэш (EG)",
+    race: "Ученица Canterlot High",
+    tagline: "Спортивная и дерзкая капитан команды Canterlot High.",
+    avatar: "rainbowdashEG.jpe",
+    colour: "#16a6e8"
+  },
+  {
+    id: "rarityeg",
+    name: "Рарити (EG)",
+    race: "Ученица Canterlot High",
+    tagline: "Стильная модница и дизайнер из Canterlot High.",
+    avatar: "rarityEG.jpe",
+    colour: "#d98bb5"
+  },
+  {
+    id: "twilighteg",
+    name: "Твайлайт Спаркл (EG)",
+    race: "Ученица Canterlot High",
+    tagline: "Умная и застенчивая отличница из Canterlot High.",
+    avatar: "twilightEG.jpe",
+    colour: "#8a6ad8"
   }
 ];
 
