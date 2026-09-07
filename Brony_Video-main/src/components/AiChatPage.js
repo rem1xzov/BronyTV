@@ -501,9 +501,7 @@ function AiChatPage({ mode = "user" }) {
   const scrollRef = useRef(null);
   const streamRef = useRef(null);
   const textareaRef = useRef(null);
-  const longPressTimerRef = useRef(null);
   const [pinnedIds, setPinnedIds] = useState([]);
-  const [contextMenu, setContextMenu] = useState(null); // { message, x, y }
   const [editingMessage, setEditingMessage] = useState(null); // { dbId, localId, text }
 
     const activeBot = bots.find((b) => b.id === activeBotId) || null;
@@ -546,7 +544,6 @@ function AiChatPage({ mode = "user" }) {
       setError("");
       setChatView(true);
       setEditingMessage(null);
-      setContextMenu(null);
       if (window.matchMedia("(max-width: 960px)").matches) {
         setSidebarCollapsed(true);
       }
@@ -711,42 +708,12 @@ function AiChatPage({ mode = "user" }) {
     }
   };
 
-  const closeContextMenu = useCallback(() => setContextMenu(null), []);
-
+  // Клик по иконке карандаша под последним сообщением подставляет его текст в поле ввода.
   const startEdit = useCallback((message) => {
-    setContextMenu(null);
     setEditingMessage({ dbId: message.dbId, localId: message.id, text: message.text });
     setInput(message.text);
     requestAnimationFrame(() => textareaRef.current?.focus());
   }, []);
-
-  const openContextMenu = useCallback((message, x, y) => {
-    if (!message) return;
-    setContextMenu({ message, x, y });
-  }, []);
-
-  const clearLongPress = useCallback(() => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
-    }
-  }, []);
-
-  // Долгое нажатие (мобильная версия) на последнее сообщение пользователя.
-  const startLongPress = useCallback(
-    (message, e) => {
-      if (!message) return;
-      clearLongPress();
-      const touch = e.touches && e.touches[0];
-      const x = touch ? touch.clientX : e.clientX;
-      const y = touch ? touch.clientY : e.clientY;
-      longPressTimerRef.current = setTimeout(() => {
-        longPressTimerRef.current = null;
-        openContextMenu(message, x, y);
-      }, 500);
-    },
-    [clearLongPress, openContextMenu]
-  );
 
   // Редактирование последнего сообщения: удаляем старую пару «сообщение + ответ»,
   // ставим отредактированный текст и стримим новый ответ бота.
@@ -1304,36 +1271,46 @@ function AiChatPage({ mode = "user" }) {
                   if (m.limit) {
                     return <LimitBanner key={m.id} message={m.text} />;
                   }
-                  const isEditable = editableMessage && m.id === editableMessage.id;
+                  const isEditable = editableMessage && m.id === editableMessage.id && !editingMessage;
+
+                  const bubble = (
+                    <div className="ai-bubble">
+                      {m.role === "assistant" && m.streaming && !m.text ? (
+                        <span className="ai-typing">
+                          <span />
+                          <span />
+                          <span />
+                        </span>
+                      ) : (
+                        <span className="ai-bubble-text">{m.text}</span>
+                      )}
+                    </div>
+                  );
+
                   return (
                     <div
                       key={m.id}
-                      className={`ai-msg ai-msg--${m.role}${m.edited ? " is-edited" : ""}${isEditable ? " is-editable" : ""}`}
-                      onContextMenu={
-                        isEditable
-                          ? (e) => {
-                              e.preventDefault();
-                              openContextMenu(m, e.clientX, e.clientY);
-                            }
-                          : undefined
-                      }
-                      onTouchStart={isEditable ? (e) => startLongPress(m, e) : undefined}
-                      onTouchEnd={isEditable ? clearLongPress : undefined}
-                      onTouchMove={isEditable ? clearLongPress : undefined}
-                      onTouchCancel={isEditable ? clearLongPress : undefined}
+                      className={`ai-msg ai-msg--${m.role}${m.edited ? " is-edited" : ""}`}
                     >
                       {m.role === "assistant" && <BotAvatar bot={activeBot} size={32} />}
-                      <div className="ai-bubble">
-                        {m.role === "assistant" && m.streaming && !m.text ? (
-                          <span className="ai-typing">
-                            <span />
-                            <span />
-                            <span />
-                          </span>
-                        ) : (
-                          <span className="ai-bubble-text">{m.text}</span>
-                        )}
-                      </div>
+                      {m.role === "user" ? (
+                        <div className="ai-msg-user-body">
+                          {bubble}
+                          {isEditable && (
+                            <button
+                              type="button"
+                              className="ai-edit-btn"
+                              onClick={() => startEdit(m)}
+                              aria-label="Изменить сообщение"
+                              title="Изменить сообщение"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        bubble
+                      )}
                     </div>
                   );
                 })
@@ -1543,27 +1520,6 @@ function AiChatPage({ mode = "user" }) {
             <div className="ai-premium-modal-hint">
               <p>Премиум уже активен, вводить ключ не нужно. Новый ключ просто продлит срок действия.</p>
             </div>
-          </div>
-        </div>
-      )}
-
-      {contextMenu && (
-        <div className="ai-context-overlay" onClick={closeContextMenu}>
-          <div
-            className="ai-context-menu"
-            role="menu"
-            style={{ top: contextMenu.y, left: contextMenu.x }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="ai-context-menu-item"
-              role="menuitem"
-              onClick={() => startEdit(contextMenu.message)}
-            >
-              <Pencil size={15} />
-              Изменить
-            </button>
           </div>
         </div>
       )}
