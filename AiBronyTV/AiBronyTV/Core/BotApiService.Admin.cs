@@ -25,7 +25,7 @@ public partial class BotApiService
             yield break;
         }
 
-        _db.ChatMessages.Add(new ChatMessageEntity
+        var userMessage = new ChatMessageEntity
         {
             SessionId = sessionId,
             CharacterId = characterId,
@@ -33,8 +33,13 @@ public partial class BotApiService
             Content = userInput,
             Timestamp = DateTime.UtcNow,
             IsAdminChat = true
-        });
+        };
+        _db.ChatMessages.Add(userMessage);
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Сообщаем фронтенду реальный Id сохранённого сообщения пользователя —
+        // он нужен для редактирования последнего сообщения.
+        yield return new BotChunk(string.Empty, IsLimit: false, UserMessageId: userMessage.Id);
 
         var historyFromDb = await _db.ChatMessages
             .Where(message => message.SessionId == sessionId
@@ -59,48 +64,14 @@ public partial class BotApiService
             }
         }
 
-        var settings = new OpenAIPromptExecutionSettings
-        {
-            Temperature = 0.7,
-            MaxTokens = 500,
-            FrequencyPenalty = 0.5,
-            PresencePenalty = 0.5
-        };
-
-        // Обычный текстовый chat completion без function calling / tools.
-        var chatCompletion = _kernel.GetRequiredService<IChatCompletionService>();
-        var responseStream = chatCompletion.GetStreamingChatMessageContentsAsync(
+        await foreach (var chunk in GenerateAndSaveAssistantAsync(
+            sessionId,
+            characterId,
+            isAdminChat: true,
             chatHistory,
-            settings,
-            _kernel,
-            cancellationToken);
-        var fullResponse = new StringBuilder();
-
-        await foreach (var chunk in responseStream.WithCancellation(cancellationToken))
+            cancellationToken))
         {
-            if (chunk.Content == null)
-            {
-                continue;
-            }
-
-            fullResponse.Append(chunk.Content);
-            yield return new BotChunk(chunk.Content, IsLimit: false);
+            yield return chunk;
         }
-
-        if (fullResponse.Length == 0)
-        {
-            yield break;
-        }
-
-        _db.ChatMessages.Add(new ChatMessageEntity
-        {
-            SessionId = sessionId,
-            CharacterId = characterId,
-            Role = "assistant",
-            Content = fullResponse.ToString(),
-            Timestamp = DateTime.UtcNow,
-            IsAdminChat = true
-        });
-        await _db.SaveChangesAsync(cancellationToken);
     }
 }

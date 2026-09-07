@@ -10,7 +10,7 @@ namespace AiBronyTV.Core;
 
 public partial class BotApiService
 {
-        private const int MessageLimit = 20;
+	private const int MessageLimit = 20;
     private static readonly TimeSpan LimitWindow = TimeSpan.FromHours(24);
 
     private readonly Kernel _kernel;
@@ -47,14 +47,14 @@ public partial class BotApiService
             limitEntry = new UserLimitEntity { SessionId = limitKey, Date = nowUtc, Count = 0 };
             _db.UserLimits.Add(limitEntry);
         }
-                else if (nowUtc - limitEntry.Date >= LimitWindow)
+		else if (nowUtc - limitEntry.Date >= LimitWindow)
         {
             // A new 5-hour window has started: reset the counter.
             limitEntry.Date = nowUtc;
             limitEntry.Count = 0;
         }
 
-                // Staff (Owner/Admin) get unlimited access; otherwise enforce premium/free limits.
+		// Staff (Owner/Admin) get unlimited access; otherwise enforce premium/free limits.
         var roleKey = role?.Trim() ?? string.Empty;
         var isStaff = roleKey.Equals("Owner", StringComparison.OrdinalIgnoreCase)
                       || roleKey.Equals("Admin", StringComparison.OrdinalIgnoreCase);
@@ -103,15 +103,20 @@ public partial class BotApiService
             yield break;
         }
 
-        _db.ChatMessages.Add(new ChatMessageEntity
+        var userMessage = new ChatMessageEntity
         {
             SessionId = sessionId,
             CharacterId = characterId,
             Role = "user",
             Content = userInput,
             Timestamp = DateTime.UtcNow
-        });
+        };
+        _db.ChatMessages.Add(userMessage);
         await _db.SaveChangesAsync(cancellationToken);
+
+        // Сообщаем фронтенду реальный Id сохранённого сообщения пользователя —
+        // он нужен для редактирования последнего сообщения.
+        yield return new BotChunk(string.Empty, IsLimit: false, UserMessageId: userMessage.Id);
 
         var historyFromDb = await _db.ChatMessages
             .Where(message => message.SessionId == sessionId && message.CharacterId == characterId && !message.IsAdminChat)
@@ -133,6 +138,115 @@ public partial class BotApiService
             }
         }
 
+        await foreach (var chunk in GenerateAndSaveAssistantAsync(
+            sessionId,
+            characterId,
+            isAdminChat: false,
+            chatHistory,
+            cancellationToken))
+        {
+            yield return chunk;
+        }
+
+		// Only count messages for non-staff users (Owner/Admin are unlimited).
+        if (!isStaff)
+        {
+            limitEntry.Count++;
+        }
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Редактирование последнего сообщения пользователя. Гарантирует, что сообщение —
+    /// предпоследнее в чате, а последнее — ответ бота на него. Старый ответ удаляется,
+    /// текст сообщения заменяется, и генерируется новый ответ бота. Лимит при этом не
+    /// расходуется (это тот же запрос, но изменённый).
+    /// </summary>
+    public async IAsyncEnumerable<BotChunk> EditMessageStreamAsync(
+        string sessionId,
+        string characterId,
+        int messageId,
+        string newText,
+        bool isAdminChat,
+        string? userName = null,
+        string? role = null,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(newText))
+        {
+            yield break;
+        }
+
+        var messages = await _db.ChatMessages
+            .Where(message => message.SessionId == sessionId
+                              && message.CharacterId == characterId
+                              && message.IsAdminChat == isAdminChat)
+            .OrderBy(message => message.Timestamp)
+            .ThenBy(message => message.Id)
+            .ToListAsync(cancellationToken);
+
+        var target = messages.FirstOrDefault(message => message.Id == messageId);
+        if (target == null || target.Role != "user")
+        {
+            throw new InvalidOperationException("Сообщение не найдено или это не сообщение пользователя.");
+        }
+
+        // Защита от редактирования произвольного старого сообщения:
+        // редактируемое сообщение должно быть предпоследним в чате, а сразу за ним —
+        // ровно одно сообщение-ответ бота (последнее). Если после него есть ещё
+        // сообщения или ответа нет — редактировать нельзя.
+        var targetIndex = messages.IndexOf(target);
+        if (targetIndex < 0
+            || targetIndex != messages.Count - 2
+            || messages[^1].Role != "assistant")
+        {
+            throw new InvalidOperationException("Редактировать можно только последнее сообщение пользователя в чате.");
+        }
+
+        // Удаляем старый ответ бота и заменяем текст сообщения пользователя.
+        _db.ChatMessages.Remove(messages[^1]);
+        target.Content = newText;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        var systemPrompt = isAdminChat
+            ? AdminCharacterFactory.GetAdminSystemPrompt(characterId)
+            : BuildSystemPrompt(characterId, userName, role);
+
+        var chatHistory = new ChatHistory(systemPrompt);
+        foreach (var message in messages.Take(targetIndex + 1))
+        {
+            if (message.Role == "user")
+            {
+                chatHistory.AddUserMessage(message.Content);
+            }
+            else if (message.Role == "assistant")
+            {
+                chatHistory.AddAssistantMessage(message.Content);
+            }
+        }
+
+        await foreach (var chunk in GenerateAndSaveAssistantAsync(
+            sessionId,
+            characterId,
+            isAdminChat,
+            chatHistory,
+            cancellationToken))
+        {
+            yield return chunk;
+        }
+    }
+
+    /// <summary>
+    /// Генерирует ответ бота по готовой истории диалога, стримит его и сохраняет в БД.
+    /// Общий код для обычной отправки и редактирования (не дублируем логику генерации).
+    /// </summary>
+    private async IAsyncEnumerable<BotChunk> GenerateAndSaveAssistantAsync(
+        string sessionId,
+        string characterId,
+        bool isAdminChat,
+        ChatHistory chatHistory,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
         var settings = new OpenAIPromptExecutionSettings
         {
             Temperature = 0.7,
@@ -170,13 +284,9 @@ public partial class BotApiService
             CharacterId = characterId,
             Role = "assistant",
             Content = fullResponse.ToString(),
-            Timestamp = DateTime.UtcNow
+            Timestamp = DateTime.UtcNow,
+            IsAdminChat = isAdminChat
         });
-                // Only count messages for non-staff users (Owner/Admin are unlimited).
-        if (!isStaff)
-        {
-            limitEntry.Count++;
-        }
         await _db.SaveChangesAsync(cancellationToken);
     }
 }

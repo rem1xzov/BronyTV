@@ -28,6 +28,20 @@ public class ChatMessageEntity
     public bool IsAdminChat { get; set; }
 }
 
+/// <summary>
+/// Закреплённый чат (персонаж) конкретного пользователя. Ключ — UserId + CharacterId,
+/// поэтому у пользователя не более одной записи на персонажа. <c>IsPinned=false</c>
+/// означает «откреплён» (строка остаётся, чтобы не плодить пустые удаления), а
+/// <c>PinnedAt</c> используется для сортировки закреплённых чатов (последний — выше).
+/// </summary>
+public class PinnedChatEntity
+{
+    public string UserId { get; set; } = null!;
+    public string CharacterId { get; set; } = null!;
+    public bool IsPinned { get; set; }
+    public DateTime PinnedAt { get; set; }
+}
+
 public class AppDbContext : DbContext
 {
     public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
@@ -37,6 +51,7 @@ public class AppDbContext : DbContext
     public DbSet<UserLimitEntity> UserLimits => Set<UserLimitEntity>();
     public DbSet<PremiumKeyEntity> PremiumKeys => Set<PremiumKeyEntity>();
     public DbSet<ChatMessageEntity> ChatMessages => Set<ChatMessageEntity>();
+    public DbSet<PinnedChatEntity> PinnedChats => Set<PinnedChatEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -66,6 +81,16 @@ public class AppDbContext : DbContext
             entity.Property(message => message.Role).HasMaxLength(16);
             entity.Property(message => message.IsAdminChat).IsRequired().HasDefaultValue(false);
             entity.HasIndex(message => new { message.SessionId, message.CharacterId, message.Timestamp });
+        });
+
+        modelBuilder.Entity<PinnedChatEntity>(entity =>
+        {
+            entity.ToTable("PinnedChats", "ai");
+            entity.HasKey(pinned => new { pinned.UserId, pinned.CharacterId });
+            entity.Property(pinned => pinned.UserId).HasMaxLength(64);
+            entity.Property(pinned => pinned.CharacterId).HasMaxLength(32);
+            entity.Property(pinned => pinned.IsPinned).IsRequired().HasDefaultValue(true);
+            entity.Property(pinned => pinned.PinnedAt).IsRequired();
         });
     }
 }

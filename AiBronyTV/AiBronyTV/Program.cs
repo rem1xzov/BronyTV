@@ -151,6 +151,13 @@ using (var scope = app.Services.CreateScope())
             "CONSTRAINT \"PK_PremiumKeys\" PRIMARY KEY (\"Key\"));");
         await db.Database.ExecuteSqlRawAsync(
             "ALTER TABLE ai.\"ChatMessages\" ADD COLUMN IF NOT EXISTS \"IsAdminChat\" boolean NOT NULL DEFAULT false;");
+        await db.Database.ExecuteSqlRawAsync(
+            "CREATE TABLE IF NOT EXISTS ai.\"PinnedChats\" " +
+            "(\"UserId\" character varying(64) NOT NULL, " +
+            "\"CharacterId\" character varying(32) NOT NULL, " +
+            "\"IsPinned\" boolean NOT NULL DEFAULT true, " +
+            "\"PinnedAt\" timestamp with time zone NOT NULL, " +
+            "CONSTRAINT \"PK_PinnedChats\" PRIMARY KEY (\"UserId\", \"CharacterId\"));");
     }
 }
 
@@ -200,7 +207,7 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
         
                 await foreach (var chunk in stream)
         {
-            var payload = JsonSerializer.Serialize(new { text = chunk.Text, limit = chunk.IsLimit });
+            var payload = JsonSerializer.Serialize(new { text = chunk.Text, limit = chunk.IsLimit, userMessageId = chunk.UserMessageId });
             await ctx.Response.WriteAsync($"data: {payload}\n\n");
             await ctx.Response.Body.FlushAsync();
         }
@@ -410,6 +417,142 @@ app.MapDelete("/api/chat/history", async (string sessionId, string characterId, 
         .ExecuteDeleteAsync();
 
     return Results.Ok(new { cleared = true });
+})
+.RequireAuthorization("VerifiedUser");
+
+// Список закреплённых чатов (персонажей) текущего пользователя.
+// Ключ — userId из JWT (а не sessionId из localStorage), чтобы закрепления
+// сохранялись между сессиями и не «перетекали» между аккаунтами.
+// Сортировка: последний закреплённый — выше.
+app.MapGet("/api/chat/pins", async (AppDbContext db, HttpContext ctx) =>
+{
+    var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrWhiteSpace(userId))
+    {
+        return Results.BadRequest(new { message = "Не удалось определить пользователя." });
+    }
+
+    var pinned = await db.PinnedChats
+        .Where(pinned => pinned.UserId == userId && pinned.IsPinned)
+        .OrderByDescending(pinned => pinned.PinnedAt)
+        .Select(pinned => pinned.CharacterId)
+        .ToListAsync();
+
+    return Results.Ok(new { pinned });
+})
+.RequireAuthorization("VerifiedUser");
+
+// Закрепление/открепление чата. Лимит в 5 закреплённых проверяется на бэкенде,
+// чтобы его нельзя было обойти через прямой вызов API.
+app.MapPost("/api/chat/pins", async (PinChatRequest request, AppDbContext db, HttpContext ctx) =>
+{
+    var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
+    if (string.IsNullOrWhiteSpace(userId))
+    {
+        return Results.BadRequest(new { message = "Не удалось определить пользователя." });
+    }
+
+    if (request == null)
+    {
+        return Results.BadRequest(new { message = "Не указан персонаж." });
+    }
+
+    var characterId = request.CharacterId?.Trim();
+    if (string.IsNullOrWhiteSpace(characterId))
+    {
+        return Results.BadRequest(new { message = "Не указан персонаж." });
+    }
+
+    var existing = await db.PinnedChats
+        .FirstOrDefaultAsync(pinned => pinned.UserId == userId && pinned.CharacterId == characterId);
+
+    if (request.Pinned)
+    {
+        if (existing != null && existing.IsPinned)
+        {
+            return Results.Ok(new { pinned = true, characterId });
+        }
+
+        var pinnedCount = await db.PinnedChats
+            .CountAsync(pinned => pinned.UserId == userId && pinned.IsPinned);
+        if (pinnedCount >= 5)
+        {
+            return Results.Json(
+                new { message = "Можно закрепить не более 5 чатов." },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        if (existing == null)
+        {
+            db.PinnedChats.Add(new PinnedChatEntity
+            {
+                UserId = userId,
+                CharacterId = characterId,
+                IsPinned = true,
+                PinnedAt = DateTime.UtcNow
+            });
+        }
+        else
+        {
+            existing.IsPinned = true;
+            existing.PinnedAt = DateTime.UtcNow;
+        }
+    }
+    else
+    {
+        if (existing == null)
+        {
+            return Results.Ok(new { pinned = false, characterId });
+        }
+
+        existing.IsPinned = false;
+    }
+
+    await db.SaveChangesAsync();
+    return Results.Ok(new { pinned = request.Pinned, characterId });
+})
+.RequireAuthorization("VerifiedUser");
+
+// Редактирование последнего сообщения пользователя. SSE-стрим нового ответа бота.
+// Вся защита (что это действительно последнее сообщение) выполняется в BotApiService.
+app.MapPost("/api/chat/edit", async (EditChatRequest request, BotApiService botService, HttpContext ctx) =>
+{
+    ctx.Response.Headers.Append("Content-Type", "text/event-stream");
+    ctx.Response.Headers.Append("Cache-Control", "no-cache");
+    ctx.Response.Headers.Append("Connection", "keep-alive");
+
+    try
+    {
+        var role = ctx.User.IsInRole("Owner")
+            ? "Owner"
+            : ctx.User.IsInRole("Admin")
+                ? "Admin"
+                : null;
+
+        var stream = botService.EditMessageStreamAsync(
+            request.SessionId,
+            request.CharacterId,
+            request.MessageId,
+            request.Message,
+            isAdminChat: false,
+            role: role);
+
+        await foreach (var chunk in stream)
+        {
+            var payload = JsonSerializer.Serialize(new { text = chunk.Text, limit = chunk.IsLimit });
+            await ctx.Response.WriteAsync($"data: {payload}\n\n");
+            await ctx.Response.Body.FlushAsync();
+        }
+
+        await ctx.Response.WriteAsync("data: [DONE]\n\n");
+        await ctx.Response.Body.FlushAsync();
+    }
+    catch (Exception ex)
+    {
+        var errorPayload = JsonSerializer.Serialize(new { error = ex.Message });
+        await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
+        await ctx.Response.Body.FlushAsync();
+    }
 })
 .RequireAuthorization("VerifiedUser");
 
@@ -753,3 +896,5 @@ public record ChatRequest(string SessionId, string CharacterId, string Message);
 public record ActivateRequest(string Key, string? SessionId);
 public record AssignLegacyRequest(string LegacySessionKey, string TargetEmail);
 public record PremiumGrantRequest(string UserId, int Days);
+public record PinChatRequest(string CharacterId, bool Pinned);
+public record EditChatRequest(string SessionId, string CharacterId, int MessageId, string Message);

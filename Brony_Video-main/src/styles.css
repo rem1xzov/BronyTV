@@ -5765,6 +5765,7 @@ body[data-theme="dark"] .profile-email-confirm-warning {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1 1 auto;
   gap: 1px;
 }
 
@@ -5795,6 +5796,32 @@ body[data-theme="dark"] .profile-email-confirm-warning {
   margin-left: auto;
   flex-shrink: 0;
   color: var(--text-muted);
+}
+
+.ai-bot-pin {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.ai-bot-pin:hover {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent-strong);
+}
+
+.ai-bot-pin.is-pinned {
+  color: var(--accent-strong);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .ai-bot-avatar {
@@ -6036,6 +6063,61 @@ body[data-theme="dark"] .profile-email-confirm-warning {
   white-space: pre-wrap;
 }
 
+/* Редактирование последнего сообщения пользователя */
+.ai-msg.is-editable {
+  cursor: pointer;
+}
+
+.ai-msg.is-editable .ai-bubble {
+  border-style: dashed;
+}
+
+.ai-msg.is-edited .ai-bubble-text::after {
+  content: " · изменено";
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.ai-context-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.ai-context-menu {
+  position: fixed;
+  z-index: 1001;
+  min-width: 160px;
+  padding: 6px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--bg-card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.ai-context-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.9rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.ai-context-menu-item:hover {
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-soft));
+}
+
 /* Daily-limit banner */
 .ai-msg-limit-banner {
   display: flex;
@@ -6085,11 +6167,49 @@ body[data-theme="dark"] .profile-email-confirm-warning {
 .ai-composer {
   position: relative;
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-end;
   gap: 8px;
   padding: 10px 12px;
   border-top: 1px solid var(--border-soft);
   flex-shrink: 0;
+}
+
+.ai-composer-editing {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 10px;
+  margin-bottom: 2px;
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--border-soft));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-soft));
+}
+
+.ai-composer-editing-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+.ai-composer-editing-cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.ai-composer-editing-cancel:hover {
+  background: color-mix(in srgb, var(--text-main) 8%, transparent);
+  color: var(--text-main);
 }
 
 .ai-composer-input {

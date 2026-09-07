@@ -59,7 +59,7 @@ public static class AdminBotsEndpoints
 
                 await foreach (var chunk in stream)
                 {
-                    var payload = JsonSerializer.Serialize(new { text = chunk.Text, limit = chunk.IsLimit });
+                    var payload = JsonSerializer.Serialize(new { text = chunk.Text, limit = chunk.IsLimit, userMessageId = chunk.UserMessageId });
                     await ctx.Response.WriteAsync($"data: {payload}\n\n");
                     await ctx.Response.Body.FlushAsync();
                 }
@@ -87,6 +87,48 @@ public static class AdminBotsEndpoints
 
             return Results.Ok(new { cleared = true });
         }).RequireAuthorization("VerifiedUser");
+
+        // Редактирование последнего сообщения пользователя в админском чате.
+        app.MapPost("/api/admin/chat/edit", async (AdminEditChatRequest request, HttpContext ctx, BotApiService botService) =>
+        {
+            if (!IsAdmin(ctx))
+            {
+                ctx.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await ctx.Response.WriteAsJsonAsync(new { message = "Доступ только для владельца или администратора." });
+                return;
+            }
+
+            ctx.Response.Headers.Append("Content-Type", "text/event-stream");
+            ctx.Response.Headers.Append("Cache-Control", "no-cache");
+            ctx.Response.Headers.Append("Connection", "keep-alive");
+
+            try
+            {
+                var stream = botService.EditMessageStreamAsync(
+                    AdminSessionId(ctx),
+                    request.CharacterId,
+                    request.MessageId,
+                    request.Message,
+                    isAdminChat: true,
+                    cancellationToken: ctx.RequestAborted);
+
+                await foreach (var chunk in stream)
+                {
+                    var payload = JsonSerializer.Serialize(new { text = chunk.Text, limit = chunk.IsLimit });
+                    await ctx.Response.WriteAsync($"data: {payload}\n\n");
+                    await ctx.Response.Body.FlushAsync();
+                }
+
+                await ctx.Response.WriteAsync("data: [DONE]\n\n");
+                await ctx.Response.Body.FlushAsync();
+            }
+            catch (Exception ex)
+            {
+                var errorPayload = JsonSerializer.Serialize(new { error = ex.Message });
+                await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
+                await ctx.Response.Body.FlushAsync();
+            }
+        }).RequireAuthorization("VerifiedUser");
     }
 
     private static bool IsAdmin(HttpContext ctx) =>
@@ -110,3 +152,4 @@ public static class AdminBotsEndpoints
 }
 
 public record AdminChatRequest(string CharacterId, string Message);
+public record AdminEditChatRequest(string CharacterId, int MessageId, string Message);

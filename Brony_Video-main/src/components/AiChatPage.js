@@ -10,6 +10,8 @@ import {
     LogIn,
   PanelLeftClose,
   PanelLeftOpen,
+  Pencil,
+  Pin,
   Plus,
   Send,
   Star,
@@ -281,7 +283,9 @@ const MODE_CONFIG = {
     streamUrl: "/api/chat/stream",
     historyUrl: "/api/chat/history",
     premiumStatusUrl: "/api/bots/premium-status",
-    activateUrl: "/api/bots/activate"
+    activateUrl: "/api/bots/activate",
+    pinsUrl: "/api/chat/pins",
+    editUrl: "/api/chat/edit"
   },
   admin: {
     sessionKey: "bronytv-ai-admin-session",
@@ -290,7 +294,9 @@ const MODE_CONFIG = {
     streamUrl: "/api/admin/chat/stream",
     historyUrl: "/api/admin/chat/history",
     premiumStatusUrl: null,
-    activateUrl: null
+    activateUrl: null,
+    pinsUrl: "/api/chat/pins",
+    editUrl: "/api/admin/chat/edit"
   }
 };
 
@@ -344,6 +350,53 @@ const storeMessages = (messagesKey, characterId, messages) => {
 
 let msgSeq = 0;
 const nextId = () => `m-${Date.now()}-${msgSeq++}`;
+
+// Читает SSE-стрим чата (используется и при отправке, и при редактировании).
+// onUserMessageId вызывается один раз с реальным Id сохранённого сообщения пользователя,
+// onText — для каждого куска ответа бота, onLimit — когда пришёл ответ «лимит исчерпан».
+const consumeChatStream = async (res, { onUserMessageId, onText, onLimit }) => {
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let acc = "";
+  let finished = false;
+
+  while (!finished) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    acc += decoder.decode(value, { stream: true });
+
+    let newlineIdx;
+    while ((newlineIdx = acc.indexOf("\n")) !== -1) {
+      const line = acc.slice(0, newlineIdx).trim();
+      acc = acc.slice(newlineIdx + 1);
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (data === "[DONE]") {
+        finished = true;
+        break;
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(data);
+      } catch {
+        continue;
+      }
+      if (parsed && typeof parsed.error === "string") {
+        throw new Error(parsed.error);
+      }
+      if (parsed && typeof parsed.userMessageId === "number" && onUserMessageId) {
+        onUserMessageId(parsed.userMessageId);
+      }
+      if (parsed && typeof parsed.text === "string") {
+        if (parsed.limit === true && onLimit) {
+          onLimit(parsed.text);
+        } else if (onText) {
+          onText(parsed.text);
+        }
+      }
+    }
+  }
+};
 
 const loadSessionMeta = (metaKey) => {
   try {
@@ -448,9 +501,25 @@ function AiChatPage({ mode = "user" }) {
   const scrollRef = useRef(null);
   const streamRef = useRef(null);
   const textareaRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+  const [pinnedIds, setPinnedIds] = useState([]);
+  const [contextMenu, setContextMenu] = useState(null); // { message, x, y }
+  const [editingMessage, setEditingMessage] = useState(null); // { dbId, localId, text }
 
     const activeBot = bots.find((b) => b.id === activeBotId) || null;
   const isNarratorSetup = activeBot?.id === 'narrator' && messages.length === 0;
+
+  // Редактировать можно только самое последнее сообщение пользователя: предпоследнее
+  // в списке, за которым идёт ответ бота, и у которого есть реальный Id из БД.
+  const editableMessage = useMemo(() => {
+    if (streaming) return null;
+    if (messages.length < 2) return null;
+    const last = messages[messages.length - 1];
+    const secondLast = messages[messages.length - 2];
+    if (last.role !== "assistant" || secondLast.role !== "user") return null;
+    if (secondLast.dbId == null) return null;
+    return secondLast;
+  }, [messages, streaming]);
 
   useEffect(() => {
     if (activeBotId) {
@@ -476,6 +545,8 @@ function AiChatPage({ mode = "user" }) {
       setActiveBotId(botId);
       setError("");
       setChatView(true);
+      setEditingMessage(null);
+      setContextMenu(null);
       if (window.matchMedia("(max-width: 960px)").matches) {
         setSidebarCollapsed(true);
       }
@@ -489,6 +560,55 @@ function AiChatPage({ mode = "user" }) {
   }, []);
 
   const toggleCollapse = useCallback(() => setSidebarCollapsed((v) => !v), []);
+
+  const fetchPins = useCallback(async () => {
+    try {
+      const res = await fetch(cfg.pinsUrl, { credentials: "include" });
+      if (!res.ok) return;
+      const payload = await res.json().catch(() => ({}));
+      setPinnedIds(Array.isArray(payload.pinned) ? payload.pinned : []);
+    } catch {
+      /* закрепления не критичны — при ошибке просто не показываем */
+    }
+  }, [cfg.pinsUrl]);
+
+  const togglePin = useCallback(
+    async (botId) => {
+      const isPinned = pinnedIds.includes(botId);
+      // Оптимистично обновляем список, а после ответа сервера синхронизируем порядок.
+      setPinnedIds((prev) =>
+        isPinned ? prev.filter((id) => id !== botId) : [botId, ...prev]
+      );
+      setError("");
+      try {
+        const res = await fetch(cfg.pinsUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ characterId: botId, pinned: !isPinned })
+        });
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(payload.message || `Сервер ответил: ${res.status}`);
+        }
+        fetchPins();
+      } catch (err) {
+        setError(err.message || "Не удалось изменить закрепление.");
+        fetchPins(); // откатываем к реальному состоянию сервера
+      }
+    },
+    [cfg.pinsUrl, pinnedIds, fetchPins]
+  );
+
+  // Закрепления привязаны к аккаунту (userId из JWT), поэтому перезапрашиваем их
+  // при смене пользователя, чтобы чужие закрепления не «перетекали» в эту вкладку.
+  useEffect(() => {
+    if (!user) {
+      setPinnedIds([]);
+      return;
+    }
+    fetchPins();
+  }, [fetchPins, user]);
 
     const doClearHistory = useCallback(async () => {
     if (!activeBotId) return;
@@ -591,7 +711,144 @@ function AiChatPage({ mode = "user" }) {
     }
   };
 
+  const closeContextMenu = useCallback(() => setContextMenu(null), []);
+
+  const startEdit = useCallback((message) => {
+    setContextMenu(null);
+    setEditingMessage({ dbId: message.dbId, localId: message.id, text: message.text });
+    setInput(message.text);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  }, []);
+
+  const openContextMenu = useCallback((message, x, y) => {
+    if (!message) return;
+    setContextMenu({ message, x, y });
+  }, []);
+
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  // Долгое нажатие (мобильная версия) на последнее сообщение пользователя.
+  const startLongPress = useCallback(
+    (message, e) => {
+      if (!message) return;
+      clearLongPress();
+      const touch = e.touches && e.touches[0];
+      const x = touch ? touch.clientX : e.clientX;
+      const y = touch ? touch.clientY : e.clientY;
+      longPressTimerRef.current = setTimeout(() => {
+        longPressTimerRef.current = null;
+        openContextMenu(message, x, y);
+      }, 500);
+    },
+    [clearLongPress, openContextMenu]
+  );
+
+  // Редактирование последнего сообщения: удаляем старую пару «сообщение + ответ»,
+  // ставим отредактированный текст и стримим новый ответ бота.
+  const handleEdit = useCallback(async (overrideText) => {
+    const text = (overrideText ?? input).trim();
+    if (!text || !activeBotId || streaming || !editingMessage || editingMessage.dbId == null) return;
+
+    const assistantMsg = { id: nextId(), role: "assistant", text: "", limit: false, streaming: true };
+    const editedUserMsg = {
+      id: editingMessage.localId,
+      role: "user",
+      text,
+      limit: false,
+      dbId: editingMessage.dbId,
+      edited: true
+    };
+
+    setMessages((prev) => [...prev.slice(0, -2), editedUserMsg, assistantMsg]);
+    setInput("");
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    setError("");
+    setEditingMessage(null);
+    setStreaming(true);
+
+    const controller = new AbortController();
+    streamRef.current = controller;
+
+    try {
+      const res = await fetch(cfg.editUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        signal: controller.signal,
+        body: JSON.stringify({
+          sessionId: ensureSession(cfg.sessionKey),
+          characterId: activeBotId,
+          messageId: editingMessage.dbId,
+          message: text
+        })
+      });
+
+      if (res.status === 401 || res.status === 403) {
+        await refreshUser();
+        throw new Error("Сессия истекла. Войдите в аккаунт снова.");
+      }
+      if (!res.ok) {
+        const payload = await res.json().catch(() => ({}));
+        throw new Error(payload.message || `Сервер ответил: ${res.status}`);
+      }
+
+      const pushChunk = (delta) => {
+        setMessages((prev) => {
+          const idx = prev.findIndex((m) => m.id === assistantMsg.id);
+          if (idx === -1) return prev;
+          const copy = [...prev];
+          copy[idx] = { ...copy[idx], text: copy[idx].text + delta };
+          return copy;
+        });
+      };
+
+      const finalizeAssistant = (limitMsg, limit) => {
+        setMessages((prev) => {
+          const idx = prev.findIndex((m) => m.id === assistantMsg.id);
+          if (idx === -1) return prev;
+          const copy = [...prev];
+          if (limit) {
+            copy[idx] = { ...copy[idx], text: limitMsg, limit: true, streaming: false };
+          } else {
+            copy[idx] = { ...copy[idx], streaming: false };
+          }
+          return copy;
+        });
+      };
+
+      await consumeChatStream(res, {
+        onText: pushChunk,
+        onLimit: (t) => finalizeAssistant(t, true)
+      });
+
+      streamRef.current = null;
+      finalizeAssistant("", false);
+      setStreaming(false);
+      setMessages((prev) => {
+        storeMessages(cfg.messagesKey, activeBotId, prev);
+        return prev;
+      });
+    } catch (err) {
+      streamRef.current = null;
+      setStreaming(false);
+      if (err.name !== "AbortError") {
+        setError(err.message || "Не удалось отредактировать сообщение.");
+        setMessages(loadStoredMessages(cfg.messagesKey, activeBotId));
+      }
+    }
+  }, [activeBotId, input, editingMessage, streaming, refreshUser, cfg.messagesKey, cfg.sessionKey, cfg.editUrl]);
+
     const handleSend = useCallback(async (overrideText) => {
+    if (editingMessage) {
+      await handleEdit(overrideText);
+      return;
+    }
+
     const text = (overrideText ?? input).trim();
     if (!text || !activeBotId || streaming) return;
     if (!user || !user.isEmailConfirmed) {
@@ -639,13 +896,6 @@ function AiChatPage({ mode = "user" }) {
         throw new Error(payload.message || `Сервер ответил: ${res.status}`);
       }
 
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      const alive = { value: true };
-
-      let acc = "";
-      let finished = false;
-
       const pushChunk = (delta) => {
         setMessages((prev) => {
           const idx = prev.findIndex((m) => m.id === assistantMsg.id);
@@ -670,40 +920,21 @@ function AiChatPage({ mode = "user" }) {
         });
       };
 
-      while (alive.value) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        acc += decoder.decode(value, { stream: true });
+      const setUserDbId = (dbId) => {
+        setMessages((prev) => {
+          const idx = prev.findIndex((m) => m.id === userMsg.id);
+          if (idx === -1) return prev;
+          const copy = [...prev];
+          copy[idx] = { ...copy[idx], dbId };
+          return copy;
+        });
+      };
 
-        let newlineIdx;
-        while ((newlineIdx = acc.indexOf("\n")) !== -1) {
-          const line = acc.slice(0, newlineIdx).trim();
-          acc = acc.slice(newlineIdx + 1);
-          if (!line.startsWith("data:")) continue;
-          const data = line.slice(5).trim();
-          if (data === "[DONE]") {
-            finished = true;
-            break;
-          }
-          let parsed;
-          try {
-            parsed = JSON.parse(data);
-          } catch {
-            continue;
-          }
-          if (parsed && typeof parsed.error === "string") {
-            throw new Error(parsed.error);
-          }
-          if (parsed && typeof parsed.text === "string") {
-            if (parsed.limit === true) {
-              finalizeAssistant(parsed.text, true);
-            } else {
-              pushChunk(parsed.text);
-            }
-          }
-        }
-        if (finished) break;
-      }
+      await consumeChatStream(res, {
+        onUserMessageId: setUserDbId,
+        onText: pushChunk,
+        onLimit: (t) => finalizeAssistant(t, true)
+      });
 
       streamRef.current = null;
       // Снимаем streaming-флаг с последнего ассистентского сообщения в любом случае.
@@ -721,7 +952,7 @@ function AiChatPage({ mode = "user" }) {
         setMessages((prev) => prev.filter((m) => m.id !== assistantMsg.id));
       }
     }
-  }, [activeBotId, input, messages, refreshUser, streaming, user]);
+  }, [activeBotId, input, messages, refreshUser, streaming, user, editingMessage, handleEdit]);
 
     const handleKeyDown = useCallback(
     (e) => {
@@ -751,13 +982,17 @@ function AiChatPage({ mode = "user" }) {
     handleSend
   ]);
 
-  const orderedBots = useMemo(
-    () => [
-      ...bots.filter((b) => b.id === "narrator"),
-      ...bots.filter((b) => b.id !== "narrator")
-    ],
-    [bots]
-  );
+  // Закреплённые чаты показываем вверху списка (в порядке закрепления, последний — выше),
+  // затем — Рассказчик, затем — остальные персонажи.
+  const orderedBots = useMemo(() => {
+    const pinned = pinnedIds
+      .map((id) => bots.find((b) => b.id === id))
+      .filter(Boolean);
+    const rest = bots.filter((b) => !pinnedIds.includes(b.id));
+    const narrator = rest.filter((b) => b.id === "narrator");
+    const others = rest.filter((b) => b.id !== "narrator");
+    return [...pinned, ...narrator, ...others];
+  }, [bots, pinnedIds]);
 
   const isDesktopView = () => window.matchMedia("(min-width: 961px)").matches;
   const isMobileView = () => !isDesktopView();
@@ -853,12 +1088,20 @@ function AiChatPage({ mode = "user" }) {
                         <div className="ai-bot-list">
               {orderedBots.map((bot) => {
                 const isActive = bot.id === activeBotId;
+                const isPinned = pinnedIds.includes(bot.id);
                 return (
-                  <button
+                  <div
                     key={bot.id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     className={`ai-bot-card${isActive ? " is-active" : ""}`}
                     onClick={() => selectBot(bot.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        selectBot(bot.id);
+                      }
+                    }}
                   >
                     <BotAvatar bot={bot} size={44} />
                     <span className="ai-bot-card-info">
@@ -866,8 +1109,20 @@ function AiChatPage({ mode = "user" }) {
                       <span className="ai-bot-card-race">{bot.race}</span>
                       <span className="ai-bot-card-tagline">{bot.tagline}</span>
                                         </span>
-                                        {isActive && <ChevronRight size={16} className="ai-bot-card-arrow" />}
-                  </button>
+                    <button
+                      type="button"
+                      className={`ai-bot-pin${isPinned ? " is-pinned" : ""}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePin(bot.id);
+                      }}
+                      aria-label={isPinned ? "Открепить" : "Закрепить"}
+                      title={isPinned ? "Открепить" : "Закрепить"}
+                    >
+                      <Pin size={15} />
+                    </button>
+                    {isActive && <ChevronRight size={16} className="ai-bot-card-arrow" />}
+                  </div>
                 );
               })}
             </div>
@@ -1049,8 +1304,24 @@ function AiChatPage({ mode = "user" }) {
                   if (m.limit) {
                     return <LimitBanner key={m.id} message={m.text} />;
                   }
+                  const isEditable = editableMessage && m.id === editableMessage.id;
                   return (
-                    <div key={m.id} className={`ai-msg ai-msg--${m.role}`}>
+                    <div
+                      key={m.id}
+                      className={`ai-msg ai-msg--${m.role}${m.edited ? " is-edited" : ""}${isEditable ? " is-editable" : ""}`}
+                      onContextMenu={
+                        isEditable
+                          ? (e) => {
+                              e.preventDefault();
+                              openContextMenu(m, e.clientX, e.clientY);
+                            }
+                          : undefined
+                      }
+                      onTouchStart={isEditable ? (e) => startLongPress(m, e) : undefined}
+                      onTouchEnd={isEditable ? clearLongPress : undefined}
+                      onTouchMove={isEditable ? clearLongPress : undefined}
+                      onTouchCancel={isEditable ? clearLongPress : undefined}
+                    >
                       {m.role === "assistant" && <BotAvatar bot={activeBot} size={32} />}
                       <div className="ai-bubble">
                         {m.role === "assistant" && m.streaming && !m.text ? (
@@ -1071,6 +1342,24 @@ function AiChatPage({ mode = "user" }) {
 
                                                 {!isNarratorSetup && (
               <div className="ai-composer">
+                {editingMessage && (
+                  <div className="ai-composer-editing">
+                    <span className="ai-composer-editing-label">Редактирование сообщения</span>
+                    <button
+                      type="button"
+                      className="ai-composer-editing-cancel"
+                      onClick={() => {
+                        setEditingMessage(null);
+                        setInput("");
+                        if (textareaRef.current) textareaRef.current.style.height = "auto";
+                      }}
+                      aria-label="Отменить редактирование"
+                      title="Отменить редактирование"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
                 <textarea
                   className="ai-composer-input"
                   ref={textareaRef}
@@ -1254,6 +1543,27 @@ function AiChatPage({ mode = "user" }) {
             <div className="ai-premium-modal-hint">
               <p>Премиум уже активен, вводить ключ не нужно. Новый ключ просто продлит срок действия.</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {contextMenu && (
+        <div className="ai-context-overlay" onClick={closeContextMenu}>
+          <div
+            className="ai-context-menu"
+            role="menu"
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="ai-context-menu-item"
+              role="menuitem"
+              onClick={() => startEdit(contextMenu.message)}
+            >
+              <Pencil size={15} />
+              Изменить
+            </button>
           </div>
         </div>
       )}
