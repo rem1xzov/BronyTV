@@ -7615,6 +7615,34 @@ body.no-scroll {
 }
 
 @media (max-width: 960px) {
+  /* Шапка страницы ИИ Боты: компактнее, кнопка под текстом */
+  .bots-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .bots-header .ai-chat-title {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .bots-header .ai-chat-title h2 {
+    font-size: 1.15rem;
+  }
+
+  .bots-header .ai-chat-title p {
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
+
+  .bots-group-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+
   /* Шапка страницы групповых чатов: компактнее, кнопка под текстом */
   .gc-header {
     flex-direction: column;

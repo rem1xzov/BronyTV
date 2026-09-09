@@ -1032,7 +1032,7 @@ function AiChatPage({ mode = "user" }) {
 
   return (
     <section className={`ai-chat-page panel${isMobileView() && showChatPane ? " ai-chat-page--chat" : ""}`}>
-      <div className="ai-chat-header">
+      <div className="ai-chat-header bots-header">
         <div className="ai-chat-title">
           <span className="ai-chat-title-icon">
             <Bot size={22} />
@@ -1045,7 +1045,7 @@ function AiChatPage({ mode = "user" }) {
         {!isAdminMode && (
           <button
             type="button"
-            className="secondary-btn"
+            className="secondary-btn bots-group-btn"
             onClick={() => navigate("/group-chats")}
           >
             <Users size={17} />
