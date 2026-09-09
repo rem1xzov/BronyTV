@@ -7615,12 +7615,73 @@ body.no-scroll {
 }
 
 @media (max-width: 960px) {
+  /* Менеджер состава: компактнее и без горизонтального переполнения */
+  .ai-group-manager {
+    width: calc(100% - 8px);
+    padding: 18px 14px 16px;
+    border-radius: 16px;
+    max-height: 88dvh;
+  }
+
   .ai-group-picker {
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 6px;
   }
 
   .ai-group-pick {
     gap: 6px;
     padding: 6px;
+    border-radius: 10px;
+  }
+
+  .ai-group-pick .ai-bot-avatar {
+    width: 30px !important;
+    height: 30px !important;
+    font-size: 11px !important;
+  }
+
+  .ai-group-pick-name {
+    font-size: 0.76rem;
+  }
+
+  .ai-group-picker-label {
+    margin-top: 10px;
+    margin-bottom: 4px;
+  }
+
+  .ai-group-warn {
+    margin-top: 10px;
+    padding: 8px 10px;
+    font-size: 0.78rem;
+  }
+
+  /* Сообщения группового чата: компактнее на узком экране */
+  .gc-messages {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .gc-msg {
+    gap: 6px;
+  }
+
+  .gc-msg .ai-bot-avatar {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: 11px !important;
+  }
+
+  .gc-msg-bot-name {
+    font-size: 0.66rem;
+  }
+
+  .gc-msg .ai-bubble {
+    padding: 8px 11px;
+    font-size: 0.9rem;
+    line-height: 1.45;
+  }
+
+  .gc-msg .ai-typing {
+    height: 14px;
   }
 }

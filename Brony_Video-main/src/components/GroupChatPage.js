@@ -512,7 +512,7 @@ function GroupChatPage({ mode = "user" }) {
 
             {error && <div className="ai-chat-error">{error}</div>}
 
-            <div className="ai-messages" ref={scrollRef}>
+            <div className="ai-messages gc-messages" ref={scrollRef}>
               {messages.length === 0 && (
                 <div className="ai-chat-empty">
                   <span className="ai-group-avatar ai-group-avatar--large"><Users size={34} /></span>
@@ -523,7 +523,7 @@ function GroupChatPage({ mode = "user" }) {
               {messages.map((m) => {
                 if (m.senderType === "limit") {
                   return (
-                    <div key={m.id} className="ai-msg ai-msg--bot">
+                    <div key={m.id} className="ai-msg ai-msg--bot gc-msg">
                       <div className="ai-msg-limit-banner">
                         <div className="ai-msg-limit-icon"><LockKeyhole size={20} /></div>
                         <div className="ai-msg-limit-body">
@@ -537,7 +537,7 @@ function GroupChatPage({ mode = "user" }) {
 
                 if (m.senderType === "user") {
                   return (
-                    <div key={m.id} className="ai-msg ai-msg--user">
+                    <div key={m.id} className="ai-msg ai-msg--user gc-msg">
                       <div className="ai-msg-user-body">
                         <div className="ai-bubble"><span className="ai-bubble-text">{m.content}</span></div>
                       </div>
@@ -547,7 +547,7 @@ function GroupChatPage({ mode = "user" }) {
 
                 const bot = findBot(m.senderCharacterId);
                 return (
-                  <div key={m.id} className="ai-msg ai-msg--bot">
+                  <div key={m.id} className="ai-msg ai-msg--bot gc-msg">
                     <BotAvatar bot={bot} size={32} />
                     <div className="gc-msg-bot-body">
                       <span className="gc-msg-bot-name">{bot?.name || m.senderCharacterId}</span>
