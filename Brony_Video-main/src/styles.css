@@ -7503,3 +7503,124 @@ body.no-scroll {
   height: 100% !important;
   width: 100% !important;
 }
+
+/* ==== Групповые чаты с ботами ==== */
+.ai-group-avatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.ai-group-avatar--large {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+}
+
+.ai-group-empty {
+  padding: 16px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.gc-msg-bot-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.gc-msg-bot-name {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+.ai-group-manager {
+  max-width: 560px;
+  width: calc(100% - 32px);
+  max-height: min(80vh, 720px);
+  overflow-y: auto;
+}
+
+.ai-group-picker-label {
+  margin-top: 12px;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.ai-group-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.ai-group-pick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: var(--bg-card);
+  color: var(--text-main);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.ai-group-pick:hover {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-soft));
+}
+
+.ai-group-pick.is-checked {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-card));
+}
+
+.ai-group-pick-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.ai-group-pick-check {
+  flex-shrink: 0;
+  color: var(--accent-strong);
+}
+
+.ai-group-warn {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border-soft));
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-soft));
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 960px) {
+  .ai-group-picker {
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  }
+
+  .ai-group-pick {
+    gap: 6px;
+    padding: 6px;
+  }
+}

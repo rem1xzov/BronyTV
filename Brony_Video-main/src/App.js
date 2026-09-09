@@ -39,6 +39,7 @@ import AuthPanel from "./components/AuthPanel";
 import AdminPanelPage from "./components/AdminPanelPage";
 import NewsPage from "./components/NewsPage";
 import AiChatPage from "./components/AiChatPage";
+import GroupChatPage from "./components/GroupChatPage";
 import VpnModal from "./components/VpnModal";
 import WatchPartyPage from "./watchparty/WatchPartyPage";
 import StreakPage from "./components/StreakPage";
@@ -2504,6 +2505,7 @@ export default function App() {
         <Route path="/news" element={<NewsPage />} />
         <Route path="/news/:newsId" element={<NewsPage />} />
         <Route path="/bots" element={<AiChatPage />} />
+        <Route path="/group-chats" element={<GroupChatPage />} />
         <Route path="/watchparty" element={<WatchPartyPage />} />
         <Route path="/streak" element={<StreakPage />} />
                 <Route path="/admin" element={<AdminPanelPage />} />

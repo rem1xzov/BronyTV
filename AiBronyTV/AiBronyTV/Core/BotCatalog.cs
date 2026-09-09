@@ -33,6 +33,29 @@ public static class BotCatalog
         new BotInfo("octavia", "Октавия", "Изысканная виолончелистка из Кантерлота."),
         new BotInfo("djpon3", "DJ Pon-3", "Крутая тусовщица, общающаяся на сленге."),
         new BotInfo("shiningarmor", "Шайнинг Армор", "Капитан Королевской Стражи и гик."),
-        new BotInfo("narrator", "Рассказчик (RPG)", "Опиши своего персонажа, и Рассказчик создаст для тебя сюжет в Эквестрии!")
+        new BotInfo("narrator", "Рассказчик (RPG)", "Опиши своего персонажа, и Рассказчик создаст для тебя сюжет в Эквестрии!"),
+        new BotInfo("adagio", "Адажио Даззл", "Харизматичная сирена и лидер группы Dazzlings."),
+        new BotInfo("aria", "Ария Блэйз", "Дерзкая и саркастичная сирена из Dazzlings."),
+        new BotInfo("sonata", "Соната Даск", "Наивная и весёлая сирена, обожающая тако."),
+        new BotInfo("applejackeg", "Эпплджек (EG)", "Честная и трудолюбивая ученица Canterlot High."),
+        new BotInfo("fluttershyeg", "Флаттершай (EG)", "Добрая и застенчивая ученица Canterlot High."),
+        new BotInfo("pinkieeg", "Пинки Пай (EG)", "Неутомимая королева вечеринок Canterlot High."),
+        new BotInfo("rainboweg", "Рэйнбоу Дэш (EG)", "Спортивная и дерзкая капитан команды Canterlot High."),
+        new BotInfo("rarityeg", "Рарити (EG)", "Стильная модница и дизайнер из Canterlot High."),
+        new BotInfo("twilighteg", "Твайлайт Спаркл (EG)", "Умная и застенчивая отличница из Canterlot High.")
     };
+
+    /// <summary>Имя персонажа по его id (для подписей реплик в групповом чате).</summary>
+    public static string GetName(string characterId)
+    {
+        var key = characterId?.ToLowerInvariant() ?? string.Empty;
+        foreach (var bot in Bots)
+        {
+            if (string.Equals(bot.id, key, StringComparison.OrdinalIgnoreCase))
+            {
+                return bot.name;
+            }
+        }
+        return key;
+    }
 }

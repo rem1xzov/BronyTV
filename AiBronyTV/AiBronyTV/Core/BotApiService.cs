@@ -10,7 +10,9 @@ namespace AiBronyTV.Core;
 
 public partial class BotApiService
 {
-	private const int MessageLimit = 20;
+    // Лимиты сообщений на пользователя (в пределах 24-часового окна).
+    private const int FreeMessageLimit = 25;
+    private const int PremiumMessageLimit = 200;
     private static readonly TimeSpan LimitWindow = TimeSpan.FromHours(24);
 
     private readonly Kernel _kernel;
@@ -61,7 +63,7 @@ public partial class BotApiService
 
         // Premium users get a higher limit; otherwise it's the standard free limit.
         var isPremiumActive = limitEntry.PremiumUntil.HasValue && limitEntry.PremiumUntil.Value > DateTime.UtcNow;
-        int currentMaxLimit = isPremiumActive ? 200 : 20;
+        int currentMaxLimit = isPremiumActive ? PremiumMessageLimit : FreeMessageLimit;
 
         // Owner and Admin can chat forever without any keys or limits.
         // Never call the paid model after the limit has been reached (for everyone else).
@@ -247,30 +249,11 @@ public partial class BotApiService
         ChatHistory chatHistory,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var settings = new OpenAIPromptExecutionSettings
-        {
-            Temperature = 0.7,
-            MaxTokens = 500,
-            FrequencyPenalty = 0.5,
-            PresencePenalty = 0.5
-        };
-        var chatCompletion = _kernel.GetRequiredService<IChatCompletionService>();
-        var responseStream = chatCompletion.GetStreamingChatMessageContentsAsync(
-            chatHistory,
-            settings,
-            _kernel,
-            cancellationToken);
         var fullResponse = new StringBuilder();
-
-        await foreach (var chunk in responseStream.WithCancellation(cancellationToken))
+        await foreach (var chunk in StreamModelResponseAsync(chatHistory, cancellationToken))
         {
-            if (chunk.Content == null)
-            {
-                continue;
-            }
-
-            fullResponse.Append(chunk.Content);
-            yield return new BotChunk(chunk.Content, IsLimit: false);
+            fullResponse.Append(chunk.Text);
+            yield return chunk;
         }
 
         if (fullResponse.Length == 0)
@@ -288,5 +271,39 @@ public partial class BotApiService
             IsAdminChat = isAdminChat
         });
         await _db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Общий механизм вызова модели: стримит текст ответа по готовому ChatHistory.
+    /// Ничего не сохраняет — сохранением занимается вызывающий код (одиночный или
+    /// групповой чат).
+    /// </summary>
+    private async IAsyncEnumerable<BotChunk> StreamModelResponseAsync(
+        ChatHistory chatHistory,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var settings = new OpenAIPromptExecutionSettings
+        {
+            Temperature = 0.7,
+            MaxTokens = 500,
+            FrequencyPenalty = 0.5,
+            PresencePenalty = 0.5
+        };
+        var chatCompletion = _kernel.GetRequiredService<IChatCompletionService>();
+        var responseStream = chatCompletion.GetStreamingChatMessageContentsAsync(
+            chatHistory,
+            settings,
+            _kernel,
+            cancellationToken);
+
+        await foreach (var chunk in responseStream.WithCancellation(cancellationToken))
+        {
+            if (chunk.Content == null)
+            {
+                continue;
+            }
+
+            yield return new BotChunk(chunk.Content, IsLimit: false);
+        }
     }
 }

@@ -17,13 +17,15 @@ import {
   Star,
   Trash2,
   UserPlus,
+  Users,
   X
 } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 // Метаданные персонажей-ботов. id совпадает с characterId в микросервисе AiBronyTV,
 // avatar — имя файла в public/assets/avatars.
-const BOT_CATALOG = [
+export const BOT_CATALOG = [
   {
     id: "narrator",
     name: "Рассказчик",
@@ -429,7 +431,7 @@ const formatPremiumDate = (iso) => {
   }
 };
 
-function BotAvatar({ bot, size = 56 }) {
+export function BotAvatar({ bot, size = 56 }) {
   const fallback = (bot?.name || "Бот").slice(0, 1).toUpperCase();
   const baseStyle = {
     width: size,
@@ -475,6 +477,7 @@ function AiChatPage({ mode = "user" }) {
   const cfg = MODE_CONFIG[mode] || MODE_CONFIG.user;
   const isAdminMode = mode === "admin";
   const { user, loading, refreshUser } = useAuth();
+  const navigate = useNavigate();
   const [bots] = useState(BOT_CATALOG);
   const [activeBotId, setActiveBotId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -1039,6 +1042,16 @@ function AiChatPage({ mode = "user" }) {
             <p className="muted">Поболтай с любимыми пони. У каждого персонажа свой характер и настроение.</p>
           </div>
         </div>
+        {!isAdminMode && (
+          <button
+            type="button"
+            className="secondary-btn"
+            onClick={() => navigate("/group-chats")}
+          >
+            <Users size={17} />
+            Групповые чаты
+          </button>
+        )}
       </div>
 
       <div

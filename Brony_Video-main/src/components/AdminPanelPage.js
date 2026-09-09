@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Activity as ActivityIcon, ArrowLeft, Bot, Home, LifeBuoy, Shield, Star, Upload, Users } from "lucide-react";
+import { Activity as ActivityIcon, ArrowLeft, Bot, Home, LifeBuoy, MessagesSquare, Shield, Star, Upload, Users } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { isPlatformAdmin } from "../auth/adminAccess";
 import { apiFetch, apiUpload } from "../auth/api";
@@ -8,6 +8,7 @@ import { recordAdminPresence } from "../streak/api";
 import AdminSupportPanel from "./AdminSupportPanel";
 import AdminActivityPanel from "./AdminActivityPanel";
 import AiChatPage from "./AiChatPage";
+import GroupChatPage from "./GroupChatPage";
 
 function normalizeSeason(raw) {
   if (!raw || typeof raw !== "object") {
@@ -752,9 +753,21 @@ export default function AdminPanelPage() {
           <Bot size={16} aria-hidden="true" />
           <span>ИИ Боты</span>
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "group-chats"}
+          className={`admin-panel-tab${activeTab === "group-chats" ? " is-active" : ""}`}
+          onClick={() => setActiveTab("group-chats")}
+        >
+          <MessagesSquare size={16} aria-hidden="true" />
+          <span>Групповые чаты</span>
+        </button>
       </div>
 
-      {activeTab === "bots" ? (
+      {activeTab === "group-chats" ? (
+        <GroupChatPage mode="admin" />
+      ) : activeTab === "bots" ? (
         <AiChatPage mode="admin" />
       ) : activeTab === "vpn" ? (
         <div className="admin-panel-grid">
