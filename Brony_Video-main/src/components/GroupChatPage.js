@@ -439,7 +439,7 @@ function GroupChatPage({ mode = "user" }) {
 
   return (
     <section className={`ai-chat-page panel${isMobileView() && showChatPane ? " ai-chat-page--chat" : ""}`}>
-      <div className="ai-chat-header">
+      <div className="ai-chat-header gc-header">
         <div className="ai-chat-title">
           <button type="button" className="ai-back-btn" onClick={goBack} aria-label="Назад">
             <ArrowLeft size={18} />
@@ -450,7 +450,7 @@ function GroupChatPage({ mode = "user" }) {
             <p className="muted">Общайся сразу с несколькими пони — каждый бот ответит на твоё сообщение.</p>
           </div>
         </div>
-        <button type="button" className="primary-btn" onClick={openCreateManager}>
+        <button type="button" className="primary-btn gc-create-btn" onClick={openCreateManager}>
           <Plus size={17} /> Создать чат
         </button>
       </div>

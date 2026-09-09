@@ -7615,6 +7615,33 @@ body.no-scroll {
 }
 
 @media (max-width: 960px) {
+  /* Шапка страницы групповых чатов: компактнее, кнопка под текстом */
+  .gc-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 8px;
+  }
+
+  .gc-header .ai-chat-title {
+    gap: 10px;
+  }
+
+  .gc-header .ai-chat-title h2 {
+    font-size: 1.15rem;
+  }
+
+  .gc-header .ai-chat-title p {
+    font-size: 0.82rem;
+    line-height: 1.4;
+  }
+
+  .gc-create-btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 40px;
+  }
+
   /* Менеджер состава: компактнее и без горизонтального переполнения */
   .ai-group-manager {
     width: calc(100% - 8px);
