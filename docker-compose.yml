@@ -40,7 +40,7 @@ services:
       - Jwt__Key=${JWT_KEY:?Set JWT_KEY in .env}
       - Jwt__Issuer=BronyTV
       - Jwt__Audience=BronyTV
-      - Jwt__SessionDays=7
+      - Jwt__SessionDays=90
       # Shared secret protecting internal server-to-server endpoints (see InternalActivityController).
       - BRONYTV_INTERNAL_KEY=${BRONYTV_INTERNAL_KEY:-}
       # AiBronyTV base URL for server-to-server premium grant (streak rewards).

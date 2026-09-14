@@ -70,7 +70,7 @@ public static class AdminBotsEndpoints
             catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested)
             {
                 Console.WriteLine("[deepseek-timeout] /api/admin/chat/stream timed out");
-                var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже." });
+                var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже.", code = "timeout" });
                 await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
                 await ctx.Response.Body.FlushAsync();
             }
@@ -136,7 +136,7 @@ public static class AdminBotsEndpoints
             catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested)
             {
                 Console.WriteLine("[deepseek-timeout] /api/admin/chat/edit timed out");
-                var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже." });
+                var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже.", code = "timeout" });
                 await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
                 await ctx.Response.Body.FlushAsync();
             }

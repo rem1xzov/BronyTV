@@ -66,7 +66,9 @@ const consumeGroupStream = async (
         continue;
       }
       if (parsed && typeof parsed.error === "string") {
-        throw new Error(parsed.error);
+        const err = new Error(parsed.error);
+        err.code = parsed.code || "stream";
+        throw err;
       }
       if (parsed && typeof parsed.userMessageId === "number" && onUserMessageId) {
         onUserMessageId(parsed.userMessageId);
@@ -344,7 +346,9 @@ function GroupChatPage({ mode = "user" }) {
 
       if (res.status === 401 || res.status === 403) {
         await refreshUser();
-        throw new Error("Сессия истекла. Войдите в аккаунт снова.");
+        const authError = new Error("Сессия истекла. Войдите заново.");
+        authError.code = "auth";
+        throw authError;
       }
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
@@ -358,12 +362,21 @@ function GroupChatPage({ mode = "user" }) {
     } catch (err) {
       streamRef.current = null;
       setStreaming(false);
-      if (err.name !== "AbortError") {
+      if (err.name === "AbortError") return;
+
+      setActiveGroup((prev) => prev && {
+        ...prev,
+        messages: prev.messages.filter((m) => !(m.streaming && m.senderType === "bot"))
+      });
+
+      if (err.code === "auth") {
+        setError("Сессия истекла. Войдите заново.");
+        window.dispatchEvent(new CustomEvent("bronytv:open-auth", { detail: { mode: "signin" } }));
+      } else if (err.code === "timeout") {
+        setError("Бот сейчас недоступен, попробуйте позже.");
+      } else {
+        console.error("[group-chat] send failed:", err);
         setError(err.message || "Не удалось получить ответ. Попробуйте ещё раз.");
-        setActiveGroup((prev) => prev && {
-          ...prev,
-          messages: prev.messages.filter((m) => !(m.streaming && m.senderType === "bot"))
-        });
       }
     }
   }, [input, activeGroup, streaming, cfg.baseUrl, refreshUser]);

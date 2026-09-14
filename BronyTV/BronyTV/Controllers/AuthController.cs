@@ -284,7 +284,7 @@ public class AuthController : ControllerBase
     private void AppendSessionCookie(DbContext.Entity.UserEntity user)
     {
         var sessionToken = _userAuthService.CreateSessionToken(user);
-        var lifetimeDays = int.TryParse(_configuration["Jwt:SessionDays"], out var days) ? days : 7;
+        var lifetimeDays = int.TryParse(_configuration["Jwt:SessionDays"], out var days) ? days : 90;
         Response.Cookies.Append(
             AuthCookieHelper.SessionCookieName,
             sessionToken,

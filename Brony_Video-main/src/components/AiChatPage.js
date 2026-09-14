@@ -384,7 +384,9 @@ const consumeChatStream = async (res, { onUserMessageId, onText, onLimit }) => {
         continue;
       }
       if (parsed && typeof parsed.error === "string") {
-        throw new Error(parsed.error);
+        const err = new Error(parsed.error);
+        err.code = parsed.code || "stream";
+        throw err;
       }
       if (parsed && typeof parsed.userMessageId === "number" && onUserMessageId) {
         onUserMessageId(parsed.userMessageId);
@@ -760,7 +762,9 @@ function AiChatPage({ mode = "user" }) {
 
       if (res.status === 401 || res.status === 403) {
         await refreshUser();
-        throw new Error("Сессия истекла. Войдите в аккаунт снова.");
+        const authError = new Error("Сессия истекла. Войдите заново.");
+        authError.code = "auth";
+        throw authError;
       }
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
@@ -806,10 +810,18 @@ function AiChatPage({ mode = "user" }) {
     } catch (err) {
       streamRef.current = null;
       setStreaming(false);
-      if (err.name !== "AbortError") {
+      if (err.name === "AbortError") return;
+
+      if (err.code === "auth") {
+        setError("Сессия истекла. Войдите заново.");
+        window.dispatchEvent(new CustomEvent("bronytv:open-auth", { detail: { mode: "signin" } }));
+      } else if (err.code === "timeout") {
+        setError("Бот сейчас недоступен, попробуйте позже.");
+      } else {
+        console.error("[ai-chat] edit failed:", err);
         setError(err.message || "Не удалось отредактировать сообщение.");
-        setMessages(loadStoredMessages(cfg.messagesKey, activeBotId));
       }
+      setMessages(loadStoredMessages(cfg.messagesKey, activeBotId));
     }
   }, [activeBotId, input, editingMessage, streaming, refreshUser, cfg.messagesKey, cfg.sessionKey, cfg.editUrl]);
 
@@ -856,7 +868,9 @@ function AiChatPage({ mode = "user" }) {
 
       if (res.status === 401 || res.status === 403) {
         await refreshUser();
-        throw new Error("Сессия истекла. Войдите в аккаунт снова.");
+        const authError = new Error("Сессия истекла. Войдите заново.");
+        authError.code = "auth";
+        throw authError;
       }
       if (res.status === 429) {
         throw new Error("Слишком много запросов. Подождите минуту и попробуйте снова.");
@@ -917,9 +931,18 @@ function AiChatPage({ mode = "user" }) {
     } catch (err) {
       streamRef.current = null;
       setStreaming(false);
-      if (err.name !== "AbortError") {
+      if (err.name === "AbortError") return;
+
+      setMessages((prev) => prev.filter((m) => m.id !== assistantMsg.id));
+
+      if (err.code === "auth") {
+        setError("Сессия истекла. Войдите заново.");
+        window.dispatchEvent(new CustomEvent("bronytv:open-auth", { detail: { mode: "signin" } }));
+      } else if (err.code === "timeout") {
+        setError("Бот сейчас недоступен, попробуйте позже.");
+      } else {
+        console.error("[ai-chat] send failed:", err);
         setError(err.message || "Не удалось получить ответ. Попробуйте ещё раз.");
-        setMessages((prev) => prev.filter((m) => m.id !== assistantMsg.id));
       }
     }
   }, [activeBotId, input, messages, refreshUser, streaming, user, editingMessage, handleEdit]);

@@ -215,7 +215,7 @@ public class UserAuthService : IUserAuthService
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(keyValue));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var lifetimeDays = int.TryParse(_configuration["Jwt:SessionDays"], out var days) ? days : 7;
+        var lifetimeDays = int.TryParse(_configuration["Jwt:SessionDays"], out var days) ? days : 90;
 
         var token = new JwtSecurityToken(
             issuer: _configuration["Jwt:Issuer"],

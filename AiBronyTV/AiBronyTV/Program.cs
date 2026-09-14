@@ -298,7 +298,7 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
     catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested)
     {
         Console.WriteLine("[deepseek-timeout] /api/chat/stream timed out");
-        var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже." });
+        var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже.", code = "timeout" });
         await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
         await ctx.Response.Body.FlushAsync();
     }
@@ -587,7 +587,7 @@ app.MapPost("/api/chat/edit", async (EditChatRequest request, BotApiService botS
     catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested)
     {
         Console.WriteLine("[deepseek-timeout] /api/chat/edit timed out");
-        var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже." });
+        var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже.", code = "timeout" });
         await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
         await ctx.Response.Body.FlushAsync();
     }
