@@ -67,6 +67,17 @@ public static class AdminBotsEndpoints
                 await ctx.Response.WriteAsync("data: [DONE]\n\n");
                 await ctx.Response.Body.FlushAsync();
             }
+            catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested)
+            {
+                Console.WriteLine("[deepseek-timeout] /api/admin/chat/stream timed out");
+                var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже." });
+                await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
+                await ctx.Response.Body.FlushAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                // Клиент отключился — нечего писать.
+            }
             catch (Exception ex)
             {
                 var errorPayload = JsonSerializer.Serialize(new { error = ex.Message });
@@ -121,6 +132,17 @@ public static class AdminBotsEndpoints
 
                 await ctx.Response.WriteAsync("data: [DONE]\n\n");
                 await ctx.Response.Body.FlushAsync();
+            }
+            catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested)
+            {
+                Console.WriteLine("[deepseek-timeout] /api/admin/chat/edit timed out");
+                var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже." });
+                await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
+                await ctx.Response.Body.FlushAsync();
+            }
+            catch (OperationCanceledException)
+            {
+                // Клиент отключился — нечего писать.
             }
             catch (Exception ex)
             {

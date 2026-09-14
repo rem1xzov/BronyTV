@@ -24,6 +24,9 @@ var rawModel = Environment.GetEnvironmentVariable("DEEPSEEK_MODEL");
 var modelId = string.IsNullOrWhiteSpace(rawModel) ? "deepseek-chat" : rawModel.Trim();
 var endpoint = Environment.GetEnvironmentVariable("DEEPSEEK_ENDPOINT") ?? "https://api.deepseek.com/v1";
 
+// Диагностика при старте: в docker logs aibronytv видно, какая модель и эндпоинт реально используются.
+Console.WriteLine($"[deepseek-config] model='{modelId}' endpoint='{endpoint}' timeoutSeconds='{Environment.GetEnvironmentVariable("DEEPSEEK_TIMEOUT_SECONDS") ?? "60"}'");
+
 // Server-to-server: базовый URL основного бэкенда + общий внутренний ключ для защиты
 // внутренних эндпоинтов (по аналогии с JWT_KEY в docker-compose).
 var bronyBackendUrl = Environment.GetEnvironmentVariable("BRONYTV_BACKEND_URL") ?? "http://brony-backend:5000";
@@ -292,6 +295,17 @@ app.MapPost("/api/chat/stream", async (ChatRequest request, BotApiService botSer
             });
         }
         }
+    catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested)
+    {
+        Console.WriteLine("[deepseek-timeout] /api/chat/stream timed out");
+        var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже." });
+        await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
+        await ctx.Response.Body.FlushAsync();
+    }
+    catch (OperationCanceledException)
+    {
+        // Клиент отключился — нечего писать.
+    }
     catch (Exception ex)
     {
         var errorPayload = JsonSerializer.Serialize(new { error = ex.Message });
@@ -569,6 +583,17 @@ app.MapPost("/api/chat/edit", async (EditChatRequest request, BotApiService botS
 
         await ctx.Response.WriteAsync("data: [DONE]\n\n");
         await ctx.Response.Body.FlushAsync();
+    }
+    catch (OperationCanceledException) when (!ctx.RequestAborted.IsCancellationRequested)
+    {
+        Console.WriteLine("[deepseek-timeout] /api/chat/edit timed out");
+        var errorPayload = JsonSerializer.Serialize(new { error = "Бот сейчас недоступен, попробуйте позже." });
+        await ctx.Response.WriteAsync($"data: {errorPayload}\n\n");
+        await ctx.Response.Body.FlushAsync();
+    }
+    catch (OperationCanceledException)
+    {
+        // Клиент отключился — нечего писать.
     }
     catch (Exception ex)
     {

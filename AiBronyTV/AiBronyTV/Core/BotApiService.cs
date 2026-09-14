@@ -15,6 +15,14 @@ public partial class BotApiService
     private const int PremiumMessageLimit = 200;
     private static readonly TimeSpan LimitWindow = TimeSpan.FromHours(24);
 
+    // Таймаут ожидания ответа от DeepSeek. Защищает от вечного спиннера, если
+    // провайдер завис или сменил формат стриминга и не присылает завершающий чанк.
+    // Настраивается через DEEPSEEK_TIMEOUT_SECONDS (по умолчанию 60).
+    private static readonly TimeSpan DeepSeekTimeout = TimeSpan.FromSeconds(
+        int.TryParse(Environment.GetEnvironmentVariable("DEEPSEEK_TIMEOUT_SECONDS"), out var timeoutSeconds) && timeoutSeconds > 0
+            ? timeoutSeconds
+            : 60);
+
     private readonly Kernel _kernel;
     private readonly AppDbContext _db;
 
@@ -78,6 +86,9 @@ public partial class BotApiService
                 "ОБЯЗАТЕЛЬНО дай ссылку на Boosty: https://boosty.to/bronytvru и скажи, " +
                 "что премиум-ключ оттуда даёт безлимит всего за 50 рублей в месяц.");
 
+            using var limitTimeoutCts = new CancellationTokenSource(DeepSeekTimeout);
+            using var limitLinked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, limitTimeoutCts.Token);
+
             var limitCompletion = _kernel.GetRequiredService<IChatCompletionService>();
             var limitStream = limitCompletion.GetStreamingChatMessageContentsAsync(
                 limitChatHistory,
@@ -89,9 +100,9 @@ public partial class BotApiService
                     PresencePenalty = 0.5
                 },
                 _kernel,
-                cancellationToken);
+                limitLinked.Token);
 
-            await foreach (var chunk in limitStream.WithCancellation(cancellationToken))
+            await foreach (var chunk in limitStream.WithCancellation(limitLinked.Token))
             {
                 if (chunk.Content == null)
                 {
@@ -282,6 +293,11 @@ public partial class BotApiService
         ChatHistory chatHistory,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        // Отдельный таймаут на каждый вызов модели (для группового чата — на каждого бота),
+        // объединённый с токеном отмены клиента.
+        using var timeoutCts = new CancellationTokenSource(DeepSeekTimeout);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
+
         var settings = new OpenAIPromptExecutionSettings
         {
             Temperature = 0.7,
@@ -294,9 +310,9 @@ public partial class BotApiService
             chatHistory,
             settings,
             _kernel,
-            cancellationToken);
+            linked.Token);
 
-        await foreach (var chunk in responseStream.WithCancellation(cancellationToken))
+        await foreach (var chunk in responseStream.WithCancellation(linked.Token))
         {
             if (chunk.Content == null)
             {
